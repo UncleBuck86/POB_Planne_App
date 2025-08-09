@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CompanyTable from './components/CompanyTable';
-import { generateFlightComments } from './utils/flightAutoComment';
+import { generateFlightComments } from './utils/generateFlightComment';
 import { getAllDates, formatDate } from './utils/dateUtils';
 
 const today = new Date();
@@ -39,6 +39,9 @@ export default function App() {
     return saved ? JSON.parse(saved) : comments;
   });
 
+  const [flightsOut, setFlightsOut] = useState({});
+  const [flightsIn, setFlightsIn] = useState({});
+
   const [viewStart, setViewStart] = useState(defaultStartStr);
   const [viewEnd, setViewEnd] = useState(defaultEndStr);
   const todayColumnRef = useRef(null);
@@ -48,7 +51,11 @@ export default function App() {
     return dateObj >= new Date(viewStart) && dateObj <= new Date(viewEnd);
   });
 
-  const { flightsOut, flightsIn } = generateFlightComments(rowData, visibleDates);
+  useEffect(() => {
+    const { flightsOut, flightsIn } = generateFlightComments(rowData, visibleDates);
+    setFlightsOut(flightsOut);
+    setFlightsIn(flightsIn);
+  }, [rowData, visibleDates]);
 
   useEffect(() => {
     setTimeout(() => {

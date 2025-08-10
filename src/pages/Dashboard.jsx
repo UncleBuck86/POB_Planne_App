@@ -152,7 +152,7 @@ function Dashboard() {
           <table style={{ borderCollapse:'collapse', width:'auto', tableLayout:'auto', fontSize:11 }}>
             <thead>
               <tr>
-                {['Name','Company','Crew','Core','Rotation','Arrival','Days On-Board','Notes'].map(h => (
+                {['Core','Name','Company','Crew','Rotation','Arrival','Days On-Board','Notes'].map(h => (
                   <th key={h} style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text, whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -160,10 +160,10 @@ function Dashboard() {
             <tbody>
               {withComputed.map(p => (
                 <tr key={p.id}>
+                  <td style={onCell(theme)}>{p.coreCrew ? 'Yes' : ''}</td>
                   <td style={onCell(theme)} title={`${p.firstName||''} ${p.lastName||''}`}>{(p.firstName||'') + ' ' + (p.lastName||'')}</td>
                   <td style={onCell(theme)} title={p.company}>{p.company}</td>
                   <td style={onCell(theme)} title={p.crew}>{p.crew}</td>
-                  <td style={onCell(theme)}>{p.coreCrew ? 'Yes' : ''}</td>
                   <td style={onCell(theme)} title={p.rotation}>{p.rotation}</td>
                   <td style={onCell(theme)}>{fmtDate(p.arrivalDate)}</td>
                   <td style={onCell(theme)}>{p.daysOnboardDisplay}</td>

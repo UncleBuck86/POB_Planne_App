@@ -91,6 +91,13 @@ export default function Personnel() {
   }
   function saveDraft() {
     if (!draft.firstName.trim() || !draft.lastName.trim()) return alert('Name required');
+    // Duplicate check before saving
+    const dups = potentialDuplicates();
+    if (dups.length) {
+      const names = dups.slice(0,5).map(d => `${d.firstName} ${d.lastName}`).join(', ');
+      const proceed = window.confirm(`Possible duplicate${dups.length>1?'s':''} found: ${names}. Save anyway?`);
+      if (!proceed) return;
+    }
     if (editingId === 'new') {
       setRecords(rs => [...rs, { ...draft, id: 'p_' + Math.random().toString(36).slice(2,9) }]);
     } else {
@@ -104,6 +111,27 @@ export default function Personnel() {
   }
 
   const borderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
+
+  // --- Fuzzy duplicate detection helpers ---
+  function norm(str='') { return str.toLowerCase().replace(/[^a-z0-9]/g,''); }
+  function levenshtein(a,b){
+    a=norm(a); b=norm(b); if(a===b) return 0; if(!a) return b.length; if(!b) return a.length;
+    const v0=new Array(b.length+1), v1=new Array(b.length+1); for(let i=0;i<v0.length;i++) v0[i]=i;
+    for(let i=0;i<a.length;i++){ v1[0]=i+1; for(let j=0;j<b.length;j++){ const cost=a[i]===b[j]?0:1; v1[j+1]=Math.min(v1[j]+1,v0[j+1]+1,v0[j]+cost);} for(let j=0;j<v0.length;j++) v0[j]=v1[j]; }
+    return v1[b.length];
+  }
+  function similarName(a,b){ return levenshtein(a,b) <= 2 || (norm(a).startsWith(norm(b)) || norm(b).startsWith(norm(a))); }
+  const potentialDuplicates = () => {
+    if (!draft.firstName && !draft.lastName && !draft.company) return [];
+    const comp = norm(draft.company);
+    if (!comp) return [];
+    return records.filter(r => (
+      (!editingId || r.id !== editingId) && norm(r.company) === comp &&
+      r.firstName && r.lastName &&
+      similarName(r.firstName,draft.firstName) && similarName(r.lastName,draft.lastName)
+    ));
+  };
+  const duplicateList = potentialDuplicates();
 
   return (
     <div style={{ padding: 24, color: theme.text }}>
@@ -121,6 +149,28 @@ export default function Personnel() {
       {editingId && (
         <div style={{ marginBottom: 20, padding: 12, border: `1px solid ${borderColor}`, borderRadius: 8, background: theme.surface }}>
           <h3 style={{ margin: '0 0 8px' }}>{editingId === 'new' ? 'Add Personnel' : 'Edit Personnel'}</h3>
+          {duplicateList.length > 0 && (
+            <div style={{
+              marginBottom: 12,
+              padding: '8px 10px',
+              background: theme.name==='Dark'? '#553' : '#fff3cd',
+              border: '1px solid ' + (theme.name==='Dark'? '#aa8' : '#ffe08a'),
+              borderRadius: 6,
+              fontSize: 12
+            }}>
+              <strong>Possible duplicate{duplicateList.length>1?'s':''}:</strong> {duplicateList.slice(0,4).map(d => (
+                <span key={d.id} style={{ marginRight: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(d.id)}
+                    style={{ cursor:'pointer', background:'transparent', border:'none', color: theme.primary, textDecoration:'underline', padding:0 }}
+                    title="Open this record"
+                  >{d.firstName} {d.lastName}</button>
+                </span>
+              ))}
+              {duplicateList.length>4 && '…'}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
             <Field label="First Name">
               <input value={draft.firstName} onChange={e => setDraft({ ...draft, firstName: e.target.value })} style={input(theme)} />

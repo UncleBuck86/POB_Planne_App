@@ -122,7 +122,7 @@ function AppContent(props) {
   <div style={{ background: team === 'dark' ? theme.background : theme.background, color: theme.text, minHeight: '100vh' }}>
   {/* Unified settings handled by global nav gear */}
       <div style={{ position: 'fixed', top: 10, left: 60, color: 'yellow', fontWeight: 'bold', fontSize: '14px', letterSpacing: '1px', textShadow: '0 0 4px rgba(0,0,0,0.6)' }}>
-        v2.0
+        v4.4
       </div>
       <h1 style={{ 
         color: team === 'dark' ? theme.text : theme.primary,

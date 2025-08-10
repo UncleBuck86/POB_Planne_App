@@ -234,11 +234,13 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     }
   };
 
-  // Modal logic: open, add, remove, save companies
-  const openEditor = () => {
-    setEditCompanies(rowData.map(r => ({ id: r.id, company: r.company })));
-    setEditing(true);
-  };
+  // When external editing flag turns on, seed editCompanies if empty
+  useEffect(() => {
+    if (editing && editCompanies.length === 0 && rowData.length) {
+      setEditCompanies(rowData.map(r => ({ id: r.id, company: r.company })));
+    }
+  }, [editing, rowData, editCompanies.length]);
+  // Modal logic: add, remove, save companies
   const addCompany = () => {
     const id = generateId();
     setEditCompanies(prev => [...prev, { id, company: '' }]);

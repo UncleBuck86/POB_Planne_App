@@ -17,6 +17,21 @@ export default function EditCompaniesModal({ editing, editCompanies, setEditComp
     return { hasDuplicates: dups.length > 0, duplicateNames: dups, hasBlank: hasBlankLocal };
   }, [editCompanies]);
 
+  // Helper to reorder editCompanies to match pinned order followed by alpha of remaining
+  const reorderEditCompanies = (companies, pinnedOrder) => {
+    const byId = new Map(companies.map(c => [c.id, c]));
+    const pinned = pinnedOrder.map(id => byId.get(id)).filter(Boolean);
+    const rest = companies.filter(c => !pinnedOrder.includes(c.id)).sort((a, b) => {
+      const aName = (a.company || '').toLowerCase();
+      const bName = (b.company || '').toLowerCase();
+      if (!aName && !bName) return 0;
+      if (!aName) return 1;
+      if (!bName) return -1;
+      return aName.localeCompare(bName);
+    });
+    return [...pinned, ...rest];
+  };
+
   const reorderPinned = (id, dir) => {
     setPinnedCompanies(prev => {
       const arr = [...prev];
@@ -27,6 +42,8 @@ export default function EditCompaniesModal({ editing, editCompanies, setEditComp
       } else if (dir === 'down' && idx < arr.length - 1) {
         [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
       }
+      // Reorder visible companies list
+      setEditCompanies(prevCompanies => reorderEditCompanies(prevCompanies, arr));
       return arr;
     });
   };
@@ -59,7 +76,16 @@ export default function EditCompaniesModal({ editing, editCompanies, setEditComp
             <div style={{ display: 'flex', gap: 2 }}>
               <button
                 onClick={() => {
-                  setPinnedCompanies(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id]);
+                  setPinnedCompanies(prev => {
+                    let next;
+                    if (prev.includes(c.id)) {
+                      next = prev.filter(id => id !== c.id);
+                    } else {
+                      next = [...prev, c.id];
+                    }
+                    setEditCompanies(prevCompanies => reorderEditCompanies(prevCompanies, next));
+                    return next;
+                  });
                 }}
                 title={pinnedCompanies.includes(c.id) ? 'Unpin company' : 'Pin company'}
                 style={{ fontSize: '0.7em', padding: '2px 8px', background: pinnedCompanies.includes(c.id) ? '#90caf9' : '#eee', border: '1px solid #bbb', borderRadius: 4 }}

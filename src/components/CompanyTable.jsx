@@ -1,6 +1,6 @@
 // CompanyTable.jsx
 // Main table component: manages state, layout, and connects all subcomponents
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import TableControlsBar from './CompanyTable/TableControlsBar';
 import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../utils/generateFlightComment';
@@ -101,37 +101,27 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   // Resize drag handling refs
   const resizeMetaRef = useRef({ startY: 0, startHeight: 0, dragging: false });
 
-  // --- Auto alphabetize (with pinned companies on top) ---
-  const companyNamesKey = rowData.map(r => r.company + ':' + r.id).join('|');
-  useEffect(() => {
-    setRowData(prev => {
-      if (!prev || !Array.isArray(prev)) return prev;
-      const pinnedOrder = pinnedCompanies; // ids
-      const pinnedSet = new Set(pinnedOrder);
-      const sorted = [...prev].sort((a, b) => {
-        const aPinned = pinnedSet.has(a.id);
-        const bPinned = pinnedSet.has(b.id);
-        if (aPinned && bPinned) {
-          return pinnedOrder.indexOf(a.id) - pinnedOrder.indexOf(b.id);
-        }
-        if (aPinned) return -1;
-        if (bPinned) return 1;
-        const aName = (a.company || '').toLowerCase();
-        const bName = (b.company || '').toLowerCase();
-        if (!aName && !bName) return 0;
-        if (!aName) return 1;
-        if (!bName) return -1;
-        return aName.localeCompare(bName);
-      });
-      // Only update if order changed (reference comparison by position)
-      for (let i = 0; i < prev.length; i++) {
-        if (prev[i] !== sorted[i]) {
-          return sorted; // changed
-        }
+  // Derived sorted list (no mutation; prevents bouncing)
+  const sortedRows = useMemo(() => {
+    const pinnedOrder = pinnedCompanies;
+    const pinnedSet = new Set(pinnedOrder);
+    return [...rowData].sort((a, b) => {
+      const aPinned = pinnedSet.has(a.id);
+      const bPinned = pinnedSet.has(b.id);
+      if (aPinned && bPinned) {
+        return pinnedOrder.indexOf(a.id) - pinnedOrder.indexOf(b.id);
       }
-      return prev; // unchanged
+      if (aPinned) return -1;
+      if (bPinned) return 1;
+      const aName = (a.company || '').toLowerCase();
+      const bName = (b.company || '').toLowerCase();
+      if (!aName && !bName) return 0;
+      if (!aName) return 1;
+      if (!bName) return -1;
+      const cmp = aName.localeCompare(bName);
+      return cmp;
     });
-  }, [companyNamesKey, pinnedCompanies, setRowData]);
+  }, [rowData, pinnedCompanies]);
 
   const onResizeMouseDown = (e) => {
     resizeMetaRef.current = { startY: e.clientY, startHeight: frameHeight, dragging: true };
@@ -360,7 +350,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
           <CompanyTableHeader dates={dates} />
           <tbody>
             {/* Render each company row */}
-            {rowData.map((row, idx) => (
+            {sortedRows.map((row, idx) => (
               <CompanyRow
                 key={row.id}
                 row={row}

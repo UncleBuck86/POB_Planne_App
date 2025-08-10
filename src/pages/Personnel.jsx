@@ -8,6 +8,7 @@ import { useTheme } from '../ThemeContext.jsx';
   lastName: string,
   company: string,
   position: string,
+  crew: string, // crew identifier / crew name / crew number
   arrivalDate: YYYY-MM-DD,
   departureDate?: YYYY-MM-DD | '',
   status: 'Onboard' | 'Departed' | 'Pending',
@@ -28,6 +29,7 @@ const blank = () => ({
   lastName: '',
   company: '',
   position: '',
+  crew: '',
   arrivalDate: new Date().toISOString().split('T')[0],
   departureDate: '',
   status: 'Onboard',
@@ -63,7 +65,7 @@ export default function Personnel() {
     const rec = records.find(r => r.id === id);
     if (!rec) return;
     setEditingId(id);
-    setDraft({ ...rec });
+  setDraft({ crew: '', ...rec }); // ensure crew key exists
   }
   function cancelEdit() {
     setEditingId(null);
@@ -114,6 +116,9 @@ export default function Personnel() {
             <Field label="Position">
               <input value={draft.position} onChange={e => setDraft({ ...draft, position: e.target.value })} style={input(theme)} />
             </Field>
+            <Field label="Crew">
+              <input value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} style={input(theme)} placeholder="e.g. Crew A / Night" />
+            </Field>
             <Field label="Arrival Date">
               <input type="date" value={draft.arrivalDate} onChange={e => setDraft({ ...draft, arrivalDate: e.target.value })} style={input(theme)} />
             </Field>
@@ -141,7 +146,7 @@ export default function Personnel() {
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
           <thead>
             <tr>
-              {['First','Last','Company','Position','Arrival','Departure','Status','Notes','Actions'].map(h => (
+              {['First','Last','Company','Position','Crew','Arrival','Departure','Status','Notes','Actions'].map(h => (
                 <th key={h} style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '6px 8px', fontSize: 12 }}>{h}</th>
               ))}
             </tr>
@@ -153,6 +158,7 @@ export default function Personnel() {
                 <td style={cell(theme)}>{r.lastName}</td>
                 <td style={cell(theme)}>{r.company}</td>
                 <td style={cell(theme)}>{r.position}</td>
+                <td style={cell(theme)}>{r.crew}</td>
                 <td style={cell(theme)}>{r.arrivalDate}</td>
                 <td style={cell(theme)}>{r.departureDate}</td>
                 <td style={cell(theme)}>{r.status}</td>
@@ -165,7 +171,7 @@ export default function Personnel() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
+                <td colSpan={10} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
               </tr>
             )}
           </tbody>

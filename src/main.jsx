@@ -19,7 +19,7 @@ function RootRouter() {
 	return (
 		<ThemeProvider>
 			<div style={{ minHeight: '100vh' }}>
-				<nav style={{ display: 'flex', gap: 12, padding: '8px 16px', borderBottom: '1px solid #444', background: '#111', position: 'sticky', top: 0, zIndex: 50 }}>
+				<nav style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', borderBottom: '1px solid #444', background: '#111', position: 'sticky', top: 0, zIndex: 50 }}>
 					<a href="#dashboard" style={{ color: page === 'dashboard' ? 'yellow' : '#fff', fontWeight: 'bold', textDecoration: 'none' }}>Dashboard</a>
 					<a href="#planner" style={{ color: page === 'planner' ? 'yellow' : '#fff', fontWeight: 'bold', textDecoration: 'none' }}>Planner</a>
 					<a href="#personnel" style={{ color: page === 'personnel' ? 'yellow' : '#fff', fontWeight: 'bold', textDecoration: 'none' }}>Personnel</a>

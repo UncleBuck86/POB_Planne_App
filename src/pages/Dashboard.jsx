@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
 
@@ -26,6 +26,39 @@ function Dashboard() {
   const comments = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('pobPlannerComments')) || {}; } catch { return {}; }
   }, []);
+  // Load personnel records (snapshot + optional manual refresh)
+  const [personnelSnapshot, setPersonnelSnapshot] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('personnelRecords')) || []; } catch { return []; }
+  });
+  const refreshPersonnel = () => {
+    try { setPersonnelSnapshot(JSON.parse(localStorage.getItem('personnelRecords')) || []); } catch { /* ignore */ }
+  };
+  useEffect(() => {
+    const onStorage = (e) => { if (e.key === 'personnelRecords') refreshPersonnel(); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+  const todayMid = new Date(); todayMid.setHours(0,0,0,0);
+  const fmtDate = (val) => {
+    if (!val) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) { const [y,m,d]=val.split('-'); return `${m}/${d}/${y}`; }
+    const dt = new Date(val); if (!isNaN(dt)) { const mm=String(dt.getMonth()+1).padStart(2,'0'); const dd=String(dt.getDate()).padStart(2,'0'); return `${mm}/${dd}/${dt.getFullYear()}`; }
+    return val;
+  };
+  const onboard = useMemo(() => {
+    return personnelSnapshot.filter(r => r.status === 'Onboard');
+  }, [personnelSnapshot]);
+  const withComputed = useMemo(() => onboard.map(r => {
+    let days = '';
+    if (r.arrivalDate) {
+      const arr = new Date(r.arrivalDate + 'T00:00:00');
+      if (!isNaN(arr)) {
+        const diff = Math.floor((todayMid - arr) / 86400000);
+        if (diff >= 0) days = (diff + 1) + 'd';
+      }
+    }
+    return { ...r, daysOnboardDisplay: days };
+  }), [onboard, todayMid]);
   const today = new Date();
   const next7 = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
@@ -45,7 +78,7 @@ function Dashboard() {
   return (
     <StyledThemeProvider theme={theme}>
       <GlobalStyle />
-  <div style={{ padding: '24px', color: theme.text }}>
+  <div style={{ padding: '24px', color: theme.text, background: theme.background, minHeight: '100vh' }}>
         <GearButton onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">⚙️</GearButton>
         {settingsOpen && (
           <Dropdown>
@@ -109,6 +142,42 @@ function Dashboard() {
         </div>
   <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Read-only snapshot.</div>
       </section>
+      {/* POB Onboard Widget */}
+      <section style={{ marginTop: 24, padding: '12px 14px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+          <h3 style={{ margin:0, fontSize:16 }}>POB Onboard ({withComputed.length})</h3>
+          <button onClick={refreshPersonnel} style={{ background: theme.primary, color: theme.text, border: '1px solid '+theme.secondary, padding: '4px 8px', borderRadius:4, cursor:'pointer', fontSize:11 }}>Refresh</button>
+        </div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ borderCollapse:'collapse', width:'auto', tableLayout:'auto', fontSize:11 }}>
+            <thead>
+              <tr>
+                {['Name','Company','Crew','Core','Rotation','Arrival','Days On-Board','Notes'].map(h => (
+                  <th key={h} style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text, whiteSpace:'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {withComputed.map(p => (
+                <tr key={p.id}>
+                  <td style={onCell(theme)} title={`${p.firstName||''} ${p.lastName||''}`}>{(p.firstName||'') + ' ' + (p.lastName||'')}</td>
+                  <td style={onCell(theme)} title={p.company}>{p.company}</td>
+                  <td style={onCell(theme)} title={p.crew}>{p.crew}</td>
+                  <td style={onCell(theme)}>{p.coreCrew ? 'Yes' : ''}</td>
+                  <td style={onCell(theme)} title={p.rotation}>{p.rotation}</td>
+                  <td style={onCell(theme)}>{fmtDate(p.arrivalDate)}</td>
+                  <td style={onCell(theme)}>{p.daysOnboardDisplay}</td>
+                  <td style={{ ...onCell(theme), maxWidth:240, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={p.notes}>{p.notes}</td>
+                </tr>
+              ))}
+              {withComputed.length === 0 && (
+                <tr><td colSpan={8} style={{ ...onCell(theme), fontStyle:'italic', textAlign:'center' }}>No onboard personnel</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Snapshot of personnelRecords (Onboard only).</div>
+      </section>
       </div>
     </StyledThemeProvider>
   );
@@ -147,4 +216,14 @@ const tdLeft = (theme) => ({
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis'
+});
+
+// Cell style for onboard widget
+const onCell = (theme) => ({
+  padding: '3px 6px',
+  border: '1px solid ' + (theme.name === 'Dark' ? '#bfc4ca40' : '#444'),
+  fontSize: 11,
+  whiteSpace: 'nowrap',
+  textAlign: 'left',
+  verticalAlign: 'top'
 });

@@ -216,10 +216,10 @@ export default function Personnel() {
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
           <thead>
             <tr>
-              {['','First','Last','Company','Position','Crew','Core','Arrival','Departure','Status','DOB','Notes','Actions'].map(h => (
+              {['First','Last','Company','Position','Crew','Core','Arrival','Departure','Status','DOB','Notes','Actions'].map(h => (
                 <th
-                  key={h || 'indicator'}
-                  style={h === '' ? { border: 'none', background: 'transparent', padding: 0, width: 18 } : { border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '6px 8px', fontSize: 12 }}
+                  key={h}
+                  style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '6px 8px', fontSize: 12 }}
                 >{h}</th>
               ))}
             </tr>
@@ -235,8 +235,10 @@ export default function Personnel() {
               }
               return (
               <tr key={r.id} style={{ background: incomplete ? (theme.name === 'Dark' ? '#402323' : '#ffe7e7') : theme.surface }}>
-                <td style={{ border: 'none', width: 18, padding: 0, textAlign: 'center', background: 'transparent', color: incomplete ? (theme.name === 'Dark' ? '#ffb3b3' : '#b30000') : 'transparent' }} title={missing.length ? 'Missing: ' + missing.join(', ') : ''}>{incomplete ? '⚠' : ''}</td>
-                <td style={cell(theme)}>{r.firstName}</td>
+                <td style={cell(theme)}>
+                  {incomplete && <span title={missing.length ? 'Missing: ' + missing.join(', ') : ''} style={{ color: theme.name === 'Dark' ? '#ffb3b3' : '#b30000', marginRight: 4 }}>⚠</span>}
+                  {r.firstName}
+                </td>
                 <td style={cell(theme)}>{r.lastName}</td>
                 <td style={cell(theme)}>{r.company}</td>
                 <td style={cell(theme)}>{r.position}</td>

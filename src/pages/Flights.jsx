@@ -215,6 +215,29 @@ export default function FlightsPage() {
     });
   }, [selectedDates, flightsOut, flightsIn, personnelRecords]);
 
+  // Open manifest for a specific planner date key (M/D/YYYY)
+  const openManifestForDate = (mdyKey) => {
+    try {
+      // store single date for template pre-fill
+      localStorage.setItem('manifestGenerateDates', JSON.stringify([mdyKey]));
+      // attempt to find saved manifest and preload
+      const [m,d,y] = mdyKey.split('/');
+      const iso = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      const existing = catalog.find(c=> c.meta && c.meta.date === iso);
+      if(existing){
+        localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound }));
+      } else {
+        // if none, seed a blank manifest with date only (preserve previous meta except date?)
+        try {
+          const prev = JSON.parse(localStorage.getItem('flightManifestTemplateV1'))||{};
+          const meta = { ...(prev.meta||{}), date: iso };
+          localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta, outbound: [], inbound: [] }));
+        } catch {/* ignore */}
+      }
+    } catch {/* ignore */}
+    window.location.hash = '#manifest';
+  };
+
   return (
     <div style={{ color: theme.text, background: theme.background, minHeight:'100vh', padding:'24px' }}>
       <a href="#logistics" style={{ textDecoration:'none', color: theme.primary, fontSize:12, fontWeight:600 }}>← Back</a>
@@ -300,7 +323,7 @@ export default function FlightsPage() {
           {movementForSelected.map(mv => (
             <div key={mv.date} style={{ background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(980px,100%)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                <div style={{ fontSize:16, fontWeight:700 }}>Personnel Movement - {mv.date}</div>
+                <div style={{ fontSize:16, fontWeight:700, cursor:'pointer', textDecoration:'underline' }} onClick={()=> openManifestForDate(mv.date)} title="Open manifest for this date">Personnel Movement - {mv.date}</div>
                 <div style={{ fontSize:11, opacity:.7 }}>Click names to select (Arrivals→Outbound, Departures→Inbound)</div>
               </div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:24 }}>

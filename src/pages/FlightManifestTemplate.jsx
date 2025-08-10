@@ -597,7 +597,7 @@ function Labeled({ label, children, full }) { return (
     {children}
   </label>
 );} 
-const Th = ({ children, theme }) => <th style={{ padding:'6px 8px', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.name==='Dark' ? '#444':'#888'), fontSize:11 }}>{children}</th>;
+const Th = ({ children, theme, style }) => <th style={{ padding:'6px 8px', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.name==='Dark' ? '#444':'#888'), fontSize:11, ...style }}>{children}</th>;
 const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padding:'4px 6px', border:'1px solid #555', fontSize:11, ...style }}>{children}</td>;
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
@@ -613,15 +613,28 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
   return (
   <div style={{ overflowX:'auto', position:'relative', zIndex:1 }}>
       <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
+        <colgroup>
+          <col style={{ width:36 }} />
+          <col style={{ width:190 }} />
+          <col style={{ width:140 }} />
+          <col style={{ width:60 }} />
+          <col style={{ width:60 }} />
+            <col style={{ width:46 }} />
+          <col style={{ width:80 }} />
+          <col style={{ width:110 }} />
+          <col style={{ width:140 }} />
+          <col style={{ width:280 }} />
+          <col style={{ width:56 }} />
+        </colgroup>
         <thead>
           <tr>
             <Th theme={theme}>#</Th>
             <Th theme={theme}>Name</Th>
             <Th theme={theme}>Company</Th>
-            <Th theme={theme}>Body Wt</Th>
-            <Th theme={theme}>Bag Wt</Th>
-            <Th theme={theme}># Bags</Th>
-            <Th theme={theme}>Total Wt</Th>
+            <Th theme={theme} style={{ textAlign:'center' }}>Body Wt</Th>
+            <Th theme={theme} style={{ textAlign:'center' }}>Bag Wt</Th>
+            <Th theme={theme} style={{ textAlign:'center' }}>#</Th>
+            <Th theme={theme} style={{ textAlign:'center' }}>Total</Th>
             <Th theme={theme}>Origin</Th>
             <Th theme={theme}>Destination</Th>
             <Th theme={theme}>Comments</Th>
@@ -635,9 +648,9 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
             const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; const total = bw + gw;
             return (
             <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
-              <Td>{i+1}</Td>
+              <Td style={{ textAlign:'center' }}>{i+1}</Td>
               <Td style={{ position:'relative' }}>
-                <input value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); setNameQuery(e.target.value); setActiveRow(p.id);} } placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
+                <input style={{ width:'100%', boxSizing:'border-box' }} value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); setNameQuery(e.target.value); setActiveRow(p.id);} } placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
                 {activeRow===p.id && (matches.length>0 || (nameQuery.trim().length>=2 && !matches.length)) && (
                   <div style={{ position:'absolute', top:'100%', left:0, zIndex:500, background: theme.background, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), borderRadius:6, padding:6, minWidth:220, boxShadow:'0 8px 20px rgba(0,0,0,0.45)' }}>
                     {matches.map(m=> (
@@ -654,14 +667,14 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
                   </div>
                 )}
               </Td>
-              <Td><input value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
-              <Td style={{ width:80 }}><input value={p.bodyWeight||''} onChange={e=>onUpdate(p.id,'bodyWeight',e.target.value.replace(/[^0-9.]/g,''))} placeholder="Body" /></Td>
-              <Td style={{ width:80 }}><input value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9.]/g,''))} placeholder="Bags" /></Td>
-              <Td style={{ width:70 }}><input value={p.bagCount||''} onChange={e=>onUpdate(p.id,'bagCount',e.target.value.replace(/[^0-9]/g,''))} placeholder="#" /></Td>
-              <Td style={{ width:80, fontWeight:600 }}>{total ? total.toFixed(1) : ''}</Td>
-              <Td style={{ width:90 }}><input value={p.origin||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'origin',e.target.value) : onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} title="Origin (auto-set unless manually changed)" /></Td>
-              <Td style={{ width:110 }}><input value={p.destination||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'destination',e.target.value) : onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} title="Destination (auto-set unless manually changed)" /></Td>
-              <Td><input value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
+              <Td><input style={{ width:'100%', boxSizing:'border-box' }} value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
+              <Td style={{ textAlign:'center' }}><input value={p.bodyWeight||''} onChange={e=>onUpdate(p.id,'bodyWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
+              <Td style={{ textAlign:'center' }}><input value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
+              <Td style={{ textAlign:'center' }}><input value={p.bagCount||''} onChange={e=>onUpdate(p.id,'bagCount',e.target.value.replace(/[^0-9]/g,''))} placeholder="##" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={2} /></Td>
+              <Td style={{ fontWeight:600, textAlign:'center' }}>{total ? total.toFixed(0) : ''}</Td>
+              <Td><input value={p.origin||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'origin',e.target.value) : onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} title="Origin (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
+              <Td><input value={p.destination||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'destination',e.target.value) : onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} title="Destination (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
+              <Td><input style={{ width:'100%', boxSizing:'border-box' }} value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
               <Td><button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button></Td>
             </tr>
           )})}

@@ -20,12 +20,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   });
   const minZoom = 0.6;   // allow shrinking
   const maxZoom = 1.6;   // allow enlargement
-  // Scroll frame (chart frame) height adjustable by user
-  const [frameHeight, setFrameHeight] = useState(() => {
-    const stored = parseInt(localStorage.getItem('pobFrameHeight') || '400', 10);
-    return isNaN(stored) ? 400 : stored;
-  });
-  const [autoFit, setAutoFit] = useState(false);
+  // Removed frame height & auto-fit (direct table layout)
+  const [autoFit, setAutoFit] = useState(false); // retained for button state only (no effect)
   // Auto-hide past dates (can be toggled off if user sets custom range)
   const [autoHide, setAutoHide] = useState(true);
   const initialRangeRef = useRef({ viewStart, viewEnd });
@@ -45,28 +41,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     if (todayIndex === -1) return dates;
     return dates.slice(todayIndex);
   }, [dates, autoHide, todayKey]);
-  useEffect(() => {
-    localStorage.setItem('pobFrameHeight', String(frameHeight));
-  }, [frameHeight]);
-  // Refined auto-fit: measure actual rendered tbody & header heights (scaled), debounce updates
-  const measureTimerRef = useRef(null);
-  const computeFitHeight = () => {
-    if (!unifiedScrollRef.current || !tbodyRef.current) return;
-    const tbodyRect = tbodyRef.current.getBoundingClientRect();
-    const thead = unifiedScrollRef.current.querySelector('thead');
-    const theadRect = thead ? thead.getBoundingClientRect() : { height: 0 };
-    // Total visible content height (already visually scaled), add small padding
-    const raw = tbodyRect.height + theadRect.height + 24;
-    const estimated = Math.min(1000, Math.max(200, Math.round(raw)));
-    setFrameHeight(prev => (prev === estimated ? prev : estimated));
-  };
-  useEffect(() => {
-    if (!autoFit) return;
-    // Debounce to batch rapid edits
-    if (measureTimerRef.current) clearTimeout(measureTimerRef.current);
-    measureTimerRef.current = setTimeout(computeFitHeight, 50);
-    return () => { if (measureTimerRef.current) clearTimeout(measureTimerRef.current); };
-  }, [autoFit, zoom, rowData.length, effectiveDates.length, hiddenRows.length]);
+  // frameHeight persistence removed
   // Persist zoom setting
   useEffect(() => {
     localStorage.setItem('pobZoom', String(zoom));
@@ -95,6 +70,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [editCompanies, setEditCompanies] = useState([]); // Array of {id, company}
   const [pinnedCompanies, setPinnedCompanies] = useState([]); // Array of pinned IDs
   const [hiddenRows, setHiddenRows] = useState([]); // Array of hidden IDs
+
+  // auto-fit logic removed
 
   // After ids exist, load persisted pinned/hidden (filter to existing ids)
   useEffect(() => {
@@ -130,10 +107,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [flightsOut, setFlightsOut] = useState({}); // Flights out per date
   const [flightsIn, setFlightsIn] = useState({}); // Flights in per date
   const inputRefs = useRef([]); // Refs for table cell inputs
-  const unifiedScrollRef = useRef(null); // Unified scroll container
-  const tbodyRef = useRef(null); // Ref to tbody for precise height measurement
-  // Resize drag handling refs
-  const resizeMetaRef = useRef({ startY: 0, startHeight: 0, dragging: false });
+  const unifiedScrollRef = useRef(null); // Horizontal scroll container
+  const tbodyRef = useRef(null);
 
   // Derived sorted list (no mutation; prevents bouncing)
   const sortedRows = useMemo(() => {
@@ -159,47 +134,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     });
   }, [rowData, pinnedCompanies]);
 
-  const onResizeMouseDown = (e) => {
-    resizeMetaRef.current = { startY: e.clientY, startHeight: frameHeight, dragging: true };
-    window.addEventListener('mousemove', onResizeMouseMove);
-    window.addEventListener('mouseup', onResizeMouseUp);
-    e.preventDefault();
-  };
-  const onResizeDoubleClick = () => {
-    // Toggle between default and fit-to-content
-    const defaultH = 400;
-    if (frameHeight !== defaultH) {
-      setFrameHeight(defaultH);
-      return;
-    }
-    computeFitHeight();
-  };
-  const toggleAutoFit = () => {
-    if (!autoFit) {
-      setAutoFit(true);
-      // compute immediately
-      requestAnimationFrame(() => computeFitHeight());
-    } else {
-      setAutoFit(false);
-      setFrameHeight(1000); // revert to manual max
-    }
-  };
-  const onResizeMouseMove = (e) => {
-    if (!resizeMetaRef.current.dragging) return;
-    const delta = e.clientY - resizeMetaRef.current.startY;
-    const newHeight = Math.min(1000, Math.max(200, resizeMetaRef.current.startHeight + delta));
-    setFrameHeight(newHeight);
-  };
-  const onResizeMouseUp = () => {
-    resizeMetaRef.current.dragging = false;
-    window.removeEventListener('mousemove', onResizeMouseMove);
-    window.removeEventListener('mouseup', onResizeMouseUp);
-  };
-  useEffect(() => () => {
-    // cleanup on unmount
-    window.removeEventListener('mousemove', onResizeMouseMove);
-    window.removeEventListener('mouseup', onResizeMouseUp);
-  }, []);
+  const toggleAutoFit = () => setAutoFit(a => !a); // inert toggle
   // (Removed separate horizontal sync; unified scroll container will handle alignment)
 
   // (Removed dynamic column width measurement; using fixed colgroup widths)
@@ -421,23 +356,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
       {/* Unified scrollable table with sticky header & first column */}
       <div style={{ position: 'relative', width: '100%', maxWidth: '100vw', margin: '0 auto' }}>
-        <div
-          ref={unifiedScrollRef}
-          style={{
-            position: 'relative',
-            border: '2px solid ' + appliedTheme.primary,
-            borderRadius: 8,
-            background: appliedTheme.background,
-            width: '100%',
-            boxSizing: 'border-box',
-            height: frameHeight,
-            minHeight: 200,
-            maxHeight: 1000,
-            overflow: 'auto',
-            transition: 'height 0.15s ease',
-            scrollbarGutter: 'stable both-edges'
-          }}
-        >
+        <div ref={unifiedScrollRef} style={{ position:'relative', border:'2px solid '+appliedTheme.primary, borderRadius:8, background:appliedTheme.background, width:'100%', boxSizing:'border-box', overflowX:'auto', overflowY:'visible', paddingBottom:8 }}>
           <table
             border="0"
             cellPadding="6"
@@ -489,33 +408,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               />
             </tbody>
           </table>
-          {/* Corner resize handle anchored within scroll frame */}
-          <div
-          onMouseDown={onResizeMouseDown}
-          onDoubleClick={onResizeDoubleClick}
-          title="Drag to adjust frame height (double-click to toggle fit/reset)"
-          style={{
-            position: 'absolute',
-            right: 6,
-            bottom: 6,
-            width: 20,
-            height: 20,
-            cursor: 'ns-resize',
-            background: `repeating-linear-gradient(135deg, ${theme.primary} 0px, ${theme.primary} 4px, ${theme.primary}55 4px, ${theme.primary}55 8px)`,
-            border: '1px solid ' + theme.primary,
-            borderRadius: 6,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.45)',
-            zIndex: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background 0.2s, box-shadow 0.2s'
-          }}
-          onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.6)'; e.currentTarget.style.opacity = '0.95'; }}
-          onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.45)'; e.currentTarget.style.opacity = '1'; }}
-        >
-          <span style={{ fontSize: 9, color: theme.buttonText || '#fff', fontWeight: 'bold', userSelect: 'none', letterSpacing: 1 }}>≡</span>
-        </div>
         </div>
       </div>
       {/* Edit companies modal */}

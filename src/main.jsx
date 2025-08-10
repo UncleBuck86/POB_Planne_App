@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+import PlannerDirectPage from './pages/PlannerDirect.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Personnel from './pages/Personnel.jsx';
 import Logistics from './pages/Logistics.jsx';
@@ -19,6 +20,7 @@ function RootRouter() {
 	}, []);
 	let content = null;
 	if (page === 'planner') content = <App />;
+	else if (page === 'planner-direct') content = <PlannerDirectPage />;
 	else if (page === 'personnel') content = <Personnel />;
 	else if (page === 'manifest') content = <FlightManifestTemplate />;
 	else if (page.startsWith('manifest-view')) content = <FlightManifestView />;
@@ -50,6 +52,7 @@ function NavShell({ page, content }) {
 				{[
 					{ key: 'dashboard', label: 'Dashboard', color: '#2d6cdf' },
 					{ key: 'planner', label: 'Planner', color: '#7a3cc2' },
+					{ key: 'planner-direct', label: 'Planner 2', color: '#5a8c2d' },
 					{ key: 'personnel', label: 'Personnel', color: '#c2571d' },
 					{ key: 'logistics', label: 'Logistics', color: '#198a5a' },
 					{ key: 'manifest', label: 'Manifest', color: '#d94f90' },

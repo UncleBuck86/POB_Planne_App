@@ -26,36 +26,51 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     return isNaN(stored) ? 400 : stored;
   });
   const [autoFit, setAutoFit] = useState(false);
-  useEffect(() => {
-    localStorage.setItem('pobFrameHeight', String(frameHeight));
-  }, [frameHeight]);
-  // Recompute frame height when autoFit is on and zoom or data changes
-  useEffect(() => {
-    if (!autoFit) return;
-    const el = unifiedScrollRef?.current;
-    if (!el) return;
-    const raw = el.scrollHeight;
-    const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
-    setFrameHeight(prev => (prev === estimated ? prev : estimated));
-  }, [autoFit, zoom, rowData.length]);
-  // Persist zoom setting
-  useEffect(() => {
-    localStorage.setItem('pobZoom', String(zoom));
-  }, [zoom]);
-  // ...existing code...
+  // Auto-hide past dates (can be toggled off if user sets custom range)
   const [autoHide, setAutoHide] = useState(true);
-  // Disable autoHide if user adjusts the date range in parent (viewStart/viewEnd changes after mount)
   const initialRangeRef = useRef({ viewStart, viewEnd });
   useEffect(() => {
     if (!initialRangeRef.current) return;
     const { viewStart: initStart, viewEnd: initEnd } = initialRangeRef.current;
     if ((viewStart && viewStart !== initStart) || (viewEnd && viewEnd !== initEnd)) {
       setAutoHide(false);
-      // update stored to prevent repeated triggers if user toggles again manually
       initialRangeRef.current.viewStart = viewStart;
       initialRangeRef.current.viewEnd = viewEnd;
     }
   }, [viewStart, viewEnd]);
+  // Derive effective dates list based on autoHide (hide dates prior to today)
+  const effectiveDates = useMemo(() => {
+    if (!autoHide || !todayKey) return dates;
+    const todayIndex = dates.findIndex(d => d.date === todayKey);
+    if (todayIndex === -1) return dates;
+    return dates.slice(todayIndex);
+  }, [dates, autoHide, todayKey]);
+  useEffect(() => {
+    localStorage.setItem('pobFrameHeight', String(frameHeight));
+  }, [frameHeight]);
+  // Refined auto-fit: measure actual rendered tbody & header heights (scaled), debounce updates
+  const measureTimerRef = useRef(null);
+  const computeFitHeight = () => {
+    if (!unifiedScrollRef.current || !tbodyRef.current) return;
+    const tbodyRect = tbodyRef.current.getBoundingClientRect();
+    const thead = unifiedScrollRef.current.querySelector('thead');
+    const theadRect = thead ? thead.getBoundingClientRect() : { height: 0 };
+    // Total visible content height (already visually scaled), add small padding
+    const raw = tbodyRect.height + theadRect.height + 24;
+    const estimated = Math.min(1000, Math.max(200, Math.round(raw)));
+    setFrameHeight(prev => (prev === estimated ? prev : estimated));
+  };
+  useEffect(() => {
+    if (!autoFit) return;
+    // Debounce to batch rapid edits
+    if (measureTimerRef.current) clearTimeout(measureTimerRef.current);
+    measureTimerRef.current = setTimeout(computeFitHeight, 50);
+    return () => { if (measureTimerRef.current) clearTimeout(measureTimerRef.current); };
+  }, [autoFit, zoom, rowData.length, effectiveDates.length, hiddenRows.length]);
+  // Persist zoom setting
+  useEffect(() => {
+    localStorage.setItem('pobZoom', String(zoom));
+  }, [zoom]);
   // ...existing code...
   // Auto-hide companies with no numbers in the next 28 days
   // Auto-hide logic removed; hiddenRows is now only controlled manually.
@@ -106,11 +121,17 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     setHiddenRows(prev => prev.filter(id => existing.has(id)));
   }, [rowData.length]);
   const [lastSavedData, setLastSavedData] = useState(rowData); // Last saved table data
+  const lastSavedById = useMemo(() => {
+    const map = {};
+    lastSavedData.forEach(r => { if (r?.id) map[r.id] = r; });
+    return map;
+  }, [lastSavedData]);
   const [lastSavedComments, setLastSavedComments] = useState(localComments); // Last saved comments
   const [flightsOut, setFlightsOut] = useState({}); // Flights out per date
   const [flightsIn, setFlightsIn] = useState({}); // Flights in per date
   const inputRefs = useRef([]); // Refs for table cell inputs
   const unifiedScrollRef = useRef(null); // Unified scroll container
+  const tbodyRef = useRef(null); // Ref to tbody for precise height measurement
   // Resize drag handling refs
   const resizeMetaRef = useRef({ startY: 0, startHeight: 0, dragging: false });
 
@@ -145,31 +166,22 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     e.preventDefault();
   };
   const onResizeDoubleClick = () => {
-    // Toggle between default and fit-to-content (considering zoom as visual only)
+    // Toggle between default and fit-to-content
     const defaultH = 400;
     if (frameHeight !== defaultH) {
       setFrameHeight(defaultH);
       return;
     }
-    if (unifiedScrollRef.current) {
-      const raw = unifiedScrollRef.current.scrollHeight;
-      const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
-      setFrameHeight(estimated);
-    }
+    computeFitHeight();
   };
   const toggleAutoFit = () => {
     if (!autoFit) {
-      // Turn on auto-fit and compute once immediately
-      if (unifiedScrollRef.current) {
-        const raw = unifiedScrollRef.current.scrollHeight;
-        const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
-        setFrameHeight(estimated);
-      }
       setAutoFit(true);
+      // compute immediately
+      requestAnimationFrame(() => computeFitHeight());
     } else {
-      // Switch to max height (1000) and disable auto-fit
       setAutoFit(false);
-      setFrameHeight(1000);
+      setFrameHeight(1000); // revert to manual max
     }
   };
   const onResizeMouseMove = (e) => {
@@ -190,14 +202,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   }, []);
   // (Removed separate horizontal sync; unified scroll container will handle alignment)
 
-  // Derive effective dates list based on autoHide (hide dates prior to today)
-  // Moved above effects that reference it to avoid temporal dead zone errors
-  const effectiveDates = useMemo(() => {
-    if (!autoHide || !todayKey) return dates;
-    const todayIndex = dates.findIndex(d => d.date === todayKey);
-    if (todayIndex === -1) return dates;
-    return dates.slice(todayIndex); // from today forward
-  }, [dates, autoHide, todayKey]);
   // (Removed dynamic column width measurement; using fixed colgroup widths)
 
   // Helper: merge flights into comments (not used for user comments)
@@ -235,10 +239,13 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Helper: push current state to undo stack
   const pushUndo = () => {
-    setUndoStack(prev => [
-      ...prev,
-      { rowData: JSON.parse(JSON.stringify(rowData)), localComments: { ...localComments } }
-    ]);
+    setUndoStack(prev => {
+      const snapshot = { rowData: JSON.parse(JSON.stringify(rowData)), localComments: { ...localComments } };
+      const next = [...prev, snapshot];
+      // Cap to prevent unbounded memory growth
+      if (next.length > 50) next.shift();
+      return next;
+    });
     setRedoStack([]);
   };
 
@@ -452,7 +459,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               ))}
             </colgroup>
             <CompanyTableHeader dates={effectiveDates} todayKey={todayKey} todayColumnRef={todayColumnRef} />
-            <tbody style={{ transform: `scaleY(${zoom})`, transformOrigin: 'top left', transition: 'transform 0.2s ease' }}>
+    <tbody ref={tbodyRef} style={{ transform: `scaleY(${zoom})`, transformOrigin: 'top left', transition: 'transform 0.2s ease' }}>
               {sortedRows.map((row, idx) => (
                 <CompanyRow
                   key={row.id}
@@ -460,7 +467,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                   idx={idx}
                   dates={effectiveDates}
                   hiddenRows={hiddenRows}
-                  lastSavedById={Object.fromEntries(lastSavedData.map(r=>[r.id,r]))}
+      lastSavedById={lastSavedById}
                   manualHighlights={manualHighlights}
                   setManualHighlights={setManualHighlights}
                   inputRefs={inputRefs}

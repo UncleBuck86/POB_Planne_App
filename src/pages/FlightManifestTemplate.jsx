@@ -497,9 +497,19 @@ export default function FlightManifestTemplate() {
       {outboundFlights.map((flight, idx)=> (
         <section key={idx} style={card(theme)}>
           <div style={sectionHeader(theme)}>Outbound Flight {outboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxOutboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxOutboundWeight? '/ '+selectedAircraft.maxOutboundWeight+' Wt':''}`:''}</div>
-    {passengerTable(theme, 'outbound', flight.passengers, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id), (pid,field,val)=> manualRouteUpdate('outbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
-      setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
-    })}
+    <PassengerTable
+      theme={theme}
+      dir='outbound'
+      list={flight.passengers}
+      onUpdate={(id,f,v)=>updatePassenger('outbound',id,f,v)}
+      onRemove={(id)=>removePassenger('outbound',id)}
+      onManualRoute={(pid,field,val)=> manualRouteUpdate('outbound',pid,field,val)}
+      personnelRecords={personnelRecords}
+      openAddPerson={openAddPerson}
+      applyPersonRecord={(passengerId, record)=>{
+        setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
+      }}
+    />
           {idx===outboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
             <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
@@ -521,9 +531,19 @@ export default function FlightManifestTemplate() {
       {inboundFlights.map((flight, idx)=> (
         <section key={'in'+idx} style={card(theme)}>
           <div style={sectionHeader(theme)}>Inbound Flight {inboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxInboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxInboundWeight? '/ '+selectedAircraft.maxInboundWeight+' Wt':''}`:''}</div>
-    {passengerTable(theme, 'inbound', flight.passengers, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id), (pid,field,val)=> manualRouteUpdate('inbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
-      setData(d=> ({ ...d, inbound: d.inbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
-    })}
+    <PassengerTable
+      theme={theme}
+      dir='inbound'
+      list={flight.passengers}
+      onUpdate={(id,f,v)=>updatePassenger('inbound',id,f,v)}
+      onRemove={(id)=>removePassenger('inbound',id)}
+      onManualRoute={(pid,field,val)=> manualRouteUpdate('inbound',pid,field,val)}
+      personnelRecords={personnelRecords}
+      openAddPerson={openAddPerson}
+      applyPersonRecord={(passengerId, record)=>{
+        setData(d=> ({ ...d, inbound: d.inbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
+      }}
+    />
           {idx===inboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
             <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
@@ -620,8 +640,8 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord) {
-  const [nameQuery, setNameQuery] = useState(''); // not per-row, ephemeral
+function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord }) {
+  const [nameQuery, setNameQuery] = useState('');
   const [activeRow, setActiveRow] = useState(null);
   const matches = useMemo(()=>{
     if(!personnelRecords || !nameQuery || nameQuery.trim().length<2) return [];
@@ -629,7 +649,7 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
     return personnelRecords.filter(r=> (r.firstName+' '+r.lastName).toLowerCase().includes(q)).slice(0,6);
   }, [nameQuery, personnelRecords]);
   return (
-  <div style={{ overflowX:'auto', position:'relative', zIndex:1 }}>
+    <div style={{ overflowX:'auto', position:'relative', zIndex:1 }}>
       <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
         <colgroup>
           <col style={{ width:36 }} />

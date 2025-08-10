@@ -15,7 +15,8 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById,
       {dates.map((d, colIdx) => {
         const lastSavedRow = lastSavedById[row.id] || {};
         const lastSavedVal = lastSavedRow[d.date] ?? '';
-        const currVal = row[d.date] ?? '';
+  const rawVal = row[d.date];
+  const currVal = rawVal === 0 ? 0 : (rawVal ?? '');
         const changed = String(currVal) !== String(lastSavedVal);
         const cellKey = `${row.id}-${d.date}`;
         const manuallyHighlighted = manualHighlights[cellKey];
@@ -39,7 +40,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById,
           >
             <input
               type="number"
-              value={currVal}
+              value={currVal === 0 ? '' : currVal}
               min={0}
               style={{ width: '60px', textAlign: 'center', background: bgColor, color: theme.text, border: 'none' }}
               ref={el => {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
+import { generateFlightComments } from '../utils/generateFlightComment.js';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
 
 // Reuse theming like planner page
@@ -84,9 +85,10 @@ function Dashboard() {
   const defaultLayout = {
     nav: { x: 20, y: 20 },
     forecast: { x: 20, y: 160 },
+    flightForecast: { x: 340, y: 160 },
     onboard: { x: 20, y: 360 }
   };
-  const defaultVisibility = { nav: true, forecast: true, onboard: true };
+  const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true };
   const [layout, setLayout] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(layoutKey));
@@ -166,10 +168,10 @@ function Dashboard() {
                 {editLayout ? 'Finish Layout' : 'Edit Layout'}
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {['nav','forecast','onboard'].map(id => (
+        {['nav','forecast','flightForecast','onboard'].map(id => (
                   <label key={id} style={{ display:'flex', alignItems:'center', gap:6 }}>
                     <input type="checkbox" checked={visible[id]} onChange={e => { setVisible(v => ({ ...v, [id]: e.target.checked })); setSettingsOpen(false); }} />
-                    <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : 'POB Onboard'}</span>
+          <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : 'POB Onboard'}</span>
                   </label>
                 ))}
               </div>
@@ -236,6 +238,35 @@ function Dashboard() {
           </table>
         </div>
   <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Read-only snapshot.</div>
+  </section>)}
+      {/* Flight Forecast Widget */}
+  {visible.flightForecast && (<section
+      onPointerDown={e => onPointerDown(e,'flightForecast')}
+      style={{ position:'absolute', left:(layout.flightForecast?.x||340), top:(layout.flightForecast?.y||160), padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', minWidth: 320 }}>
+    <h3 style={{ margin: '0 0 4px', color: theme.text, fontSize: 16 }}>Flight Forecast</h3>
+    <table style={{ borderCollapse:'collapse', width:'100%', tableLayout:'fixed', fontSize:11 }}>
+      <thead>
+        <tr>
+          <th style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text, width:95 }}>Date</th>
+          <th style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text }}>Flights Out (+)</th>
+          <th style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text }}>Flights In (-)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {next7.map(d => {
+          const outArr = (generateFlightComments(rowData, next7.map(n => ({ date: n.key }))).flightsOut[d.key]) || [];
+          const inArr = (generateFlightComments(rowData, next7.map(n => ({ date: n.key }))).flightsIn[d.key]) || [];
+          return (
+            <tr key={d.key}>
+              <td style={{ padding:'3px 6px', border:`1px solid ${widgetBorderColor}`, whiteSpace:'nowrap', fontWeight:500 }}>{d.dow} {d.label}</td>
+              <td style={{ padding:'3px 6px', border:`1px solid ${widgetBorderColor}`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={outArr.join(', ')}>{outArr.join(', ') || ''}</td>
+              <td style={{ padding:'3px 6px', border:`1px solid ${widgetBorderColor}`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={inArr.join(', ')}>{inArr.join(', ') || ''}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Derived from POB deltas (company count changes).</div>
   </section>)}
       {/* POB Onboard Widget */}
   {visible.onboard && (<section

@@ -1,6 +1,7 @@
 // CompanyTable.jsx
 // Main table component: manages state, layout, and connects all subcomponents
 import React, { useState, useRef, useEffect } from 'react';
+import TableControlsBar from './CompanyTable/TableControlsBar';
 import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../utils/generateFlightComment';
 // Import subcomponents for modular table rendering
@@ -12,13 +13,34 @@ import TotalsRow from './CompanyTable/TotalsRow';
 import EditCompaniesModal from './CompanyTable/EditCompaniesModal';
 
 export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef, themeOverride = {}, editing, setEditing }) {
-  // Zoom state for chart vertical size
-  const [zoom, setZoom] = useState(1);
-  // Calculate minimum zoom to fit all rows vertically
-  const minZoom = Math.min(1, 400 / ((rowData.length + 5) * 48)); // 48px per row, 5 extra rows for totals/flights/comments
-  const maxHeight = zoom === minZoom
-    ? (rowData.length + 5) * 48 + 60 // fit all rows + header
-    : 400 / zoom; // default 400px, zoomed in/out
+  // Vertical zoom (scale rows visually). 1 = normal height
+  const [zoom, setZoom] = useState(() => {
+    const stored = parseFloat(localStorage.getItem('pobZoom') || '1');
+    return isNaN(stored) ? 1 : stored;
+  });
+  const minZoom = 0.6;   // allow shrinking
+  const maxZoom = 1.6;   // allow enlargement
+  // Scroll frame (chart frame) height adjustable by user
+  const [frameHeight, setFrameHeight] = useState(() => {
+    const stored = parseInt(localStorage.getItem('pobFrameHeight') || '400', 10);
+    return isNaN(stored) ? 400 : stored;
+  });
+  const [autoFit, setAutoFit] = useState(false);
+  useEffect(() => {
+    localStorage.setItem('pobFrameHeight', String(frameHeight));
+  }, [frameHeight]);
+  // Recompute frame height when autoFit is on and zoom or data changes
+  useEffect(() => {
+    if (autoFit && tableScrollRef.current) {
+      const raw = tableScrollRef.current.scrollHeight; // unscaled
+      const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
+      if (estimated !== frameHeight) setFrameHeight(estimated);
+    }
+  }, [autoFit, zoom, rowData.length, frameHeight]);
+  // Persist zoom setting
+  useEffect(() => {
+    localStorage.setItem('pobZoom', String(zoom));
+  }, [zoom]);
   // ...existing code...
   const [autoHide, setAutoHide] = useState(true);
   // ...existing code...
@@ -46,6 +68,92 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [flightsIn, setFlightsIn] = useState({}); // Flights in per date
   const inputRefs = useRef([]); // Refs for table cell inputs
   const tableScrollRef = useRef(null); // Ref for scrollable table div
+  // Resize drag handling refs
+  const resizeMetaRef = useRef({ startY: 0, startHeight: 0, dragging: false });
+
+  // --- Auto alphabetize (with pinned companies on top) ---
+  const companyNamesKey = rowData.map(r => r.company).join('|');
+  useEffect(() => {
+    setRowData(prev => {
+      if (!prev || !Array.isArray(prev)) return prev;
+      const pinnedOrder = pinnedCompanies;
+      const pinnedSet = new Set(pinnedOrder);
+      const sorted = [...prev].sort((a, b) => {
+        const aPinned = pinnedSet.has(a.company);
+        const bPinned = pinnedSet.has(b.company);
+        if (aPinned && bPinned) {
+          return pinnedOrder.indexOf(a.company) - pinnedOrder.indexOf(b.company);
+        }
+        if (aPinned) return -1;
+        if (bPinned) return 1;
+        const aName = (a.company || '').toLowerCase();
+        const bName = (b.company || '').toLowerCase();
+        if (!aName && !bName) return 0;
+        if (!aName) return 1; // empty names sink to bottom
+        if (!bName) return -1;
+        return aName.localeCompare(bName);
+      });
+      // Only update if order changed (reference comparison by position)
+      for (let i = 0; i < prev.length; i++) {
+        if (prev[i] !== sorted[i]) {
+          return sorted; // changed
+        }
+      }
+      return prev; // unchanged
+    });
+  }, [companyNamesKey, pinnedCompanies, setRowData]);
+
+  const onResizeMouseDown = (e) => {
+    resizeMetaRef.current = { startY: e.clientY, startHeight: frameHeight, dragging: true };
+    window.addEventListener('mousemove', onResizeMouseMove);
+    window.addEventListener('mouseup', onResizeMouseUp);
+    e.preventDefault();
+  };
+  const onResizeDoubleClick = () => {
+    // Toggle between default and fit-to-content (considering zoom as visual only)
+    const defaultH = 400;
+    if (frameHeight !== defaultH) {
+      setFrameHeight(defaultH);
+      return;
+    }
+    if (tableScrollRef.current) {
+      // Estimate content height: actual scrollHeight doesn't include transform scaleY effect
+      const raw = tableScrollRef.current.scrollHeight;
+      const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
+      setFrameHeight(estimated);
+    }
+  };
+  const toggleAutoFit = () => {
+    if (!autoFit) {
+      // Turn on auto-fit and compute once immediately
+      if (tableScrollRef.current) {
+        const raw = tableScrollRef.current.scrollHeight;
+        const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
+        setFrameHeight(estimated);
+      }
+      setAutoFit(true);
+    } else {
+      // Switch to max height (1000) and disable auto-fit
+      setAutoFit(false);
+      setFrameHeight(1000);
+    }
+  };
+  const onResizeMouseMove = (e) => {
+    if (!resizeMetaRef.current.dragging) return;
+    const delta = e.clientY - resizeMetaRef.current.startY;
+    const newHeight = Math.min(1000, Math.max(200, resizeMetaRef.current.startHeight + delta));
+    setFrameHeight(newHeight);
+  };
+  const onResizeMouseUp = () => {
+    resizeMetaRef.current.dragging = false;
+    window.removeEventListener('mousemove', onResizeMouseMove);
+    window.removeEventListener('mouseup', onResizeMouseUp);
+  };
+  useEffect(() => () => {
+    // cleanup on unmount
+    window.removeEventListener('mousemove', onResizeMouseMove);
+    window.removeEventListener('mouseup', onResizeMouseUp);
+  }, []);
 
   // Helper: merge flights into comments (not used for user comments)
   const generateMergedComments = (out, inn) => {
@@ -143,126 +251,69 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   // Main render
   return (
     <div>
-      {/* Zoom slider */}
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ fontWeight: 'bold', marginRight: 8 }}>Zoom:</label>
-        <input
-          type="range"
-          min={minZoom}
-          max={1}
-          step={0.01}
-          value={zoom}
-          onChange={e => setZoom(Number(e.target.value))}
-          style={{ width: 120 }}
-        />
-        <span style={{ marginLeft: 8 }}>{zoom === minZoom ? 'Fit All' : `${Math.round(zoom * 100)}%`}</span>
-      </div>
-      {/* Controls: scroll, save, autosave, edit companies, undo/redo */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button
-          title="Scroll to start"
-          onClick={() => scrollTable('start')}
-          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
-        >{'<<'}</button>
-        <button
-          title="Scroll left"
-          onClick={() => scrollTable('left')}
-          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
-        >{'<'}</button>
-        <button
-          title="Scroll right"
-          onClick={() => scrollTable('right')}
-          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
-        >{'>'}</button>
-        <button
-          title="Scroll to end"
-          onClick={() => scrollTable('end')}
-          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
-        >{'>>'}</button>
-      </div>
-      <button
-        onClick={handleSave}
-        disabled={autosave}
-        style={{ fontSize: '1em', padding: '6px 18px', background: autosave ? '#bbb' : theme.primary, color: theme.buttonText || theme.text, border: 'none', borderRadius: 4 }}
-      >
-        Save
-      </button>
-      <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }}>
-          <input type="checkbox" checked={autosave} onChange={e => setAutosave(e.target.checked)} /> Autosave
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }}>
-          <input type="checkbox" checked={autoHide} onChange={e => setAutoHide(e.target.checked)} /> Auto Hide
-        </label>
-        <span
-          role="img"
-          aria-label="Undo"
-          title="Undo"
-          style={{ cursor: undoStack.length ? 'pointer' : 'not-allowed', fontSize: '1.5em', opacity: undoStack.length ? 1 : 0.5 }}
-          onClick={() => {
-            if (undoStack.length > 0) {
-              const last = undoStack[undoStack.length - 1];
-              setRedoStack(prev => [
-                ...prev,
-                { rowData: JSON.parse(JSON.stringify(rowData)), localComments: { ...localComments } }
-              ]);
-              setRowData(last.rowData);
-              setLocalComments(last.localComments);
-              setUndoStack(prev => prev.slice(0, -1));
-            }
-          }}
-        >↩️</span>
-        <span
-          role="img"
-          aria-label="Redo"
-          title="Redo"
-          style={{ cursor: redoStack.length ? 'pointer' : 'not-allowed', fontSize: '1.5em', opacity: redoStack.length ? 1 : 0.5 }}
-          onClick={() => {
-            if (redoStack.length > 0) {
-              const last = redoStack[redoStack.length - 1];
-              setUndoStack(prev => [
-                ...prev,
-                { rowData: JSON.parse(JSON.stringify(rowData)), localComments: { ...localComments } }
-              ]);
-              setRowData(last.rowData);
-              setLocalComments(last.localComments);
-              setRedoStack(prev => prev.slice(0, -1));
-            }
-          }}
-        >↪️</span>
-      </div>
+      {/* Controls bar: scroll, save, autosave, auto-hide, undo/redo, zoom slider */}
+      <TableControlsBar
+        theme={theme}
+        autosave={autosave}
+        setAutosave={setAutosave}
+        autoHide={autoHide}
+        setAutoHide={setAutoHide}
+        handleSave={handleSave}
+        saveMsg={saveMsg}
+        undoStack={undoStack}
+        redoStack={redoStack}
+        pushUndo={pushUndo}
+        setUndoStack={setUndoStack}
+        setRedoStack={setRedoStack}
+        rowData={rowData}
+        localComments={localComments}
+        setRowData={setRowData}
+        setLocalComments={setLocalComments}
+        zoom={zoom}
+        setZoom={setZoom}
+        minZoom={minZoom}
+        maxZoom={maxZoom}
+  scrollTable={scrollTable}
+  autoFit={autoFit}
+  toggleAutoFit={toggleAutoFit}
+      />
       {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}
 
-      {/* Table/chart inside scrollable frame with header */}
-      <div
-        ref={tableScrollRef}
-        style={{
-          overflowX: 'auto',
-          overflowY: 'auto',
-          maxHeight: maxHeight,
-          background: appliedTheme.background,
-          position: 'relative',
-          width: '100%',
-          maxWidth: '100vw',
-          boxSizing: 'border-box',
-          border: '2px solid ' + appliedTheme.primary,
-          borderRadius: 8,
-          margin: '0 auto',
-        }}
-      >
-        <table
-          border="1"
-          cellPadding="6"
+      {/* Table/chart inside adjustable frame */}
+      <div style={{ position: 'relative', width: '100%', maxWidth: '100vw', margin: '0 auto' }}>
+        <div
+          ref={tableScrollRef}
           style={{
-            minWidth: '900px',
-            width: 'max-content',
-            borderCollapse: 'collapse',
-            tableLayout: 'auto',
-            marginTop: 0,
+            overflowX: 'auto',
+            overflowY: 'auto',
+            height: frameHeight,
+            minHeight: 200,
+            maxHeight: 1000,
             background: appliedTheme.background,
-            color: appliedTheme.text,
+            width: '100%',
+            boxSizing: 'border-box',
+            border: '2px solid ' + appliedTheme.primary,
+            borderRadius: 8,
+            position: 'relative',
+            transition: 'height 0.15s ease'
           }}
         >
+          <table
+            border="1"
+            cellPadding="6"
+            style={{
+              minWidth: '900px',
+              width: 'max-content',
+              borderCollapse: 'collapse',
+              tableLayout: 'auto',
+              marginTop: 0,
+              background: appliedTheme.background,
+              color: appliedTheme.text,
+              transform: `scaleY(${zoom})`,
+              transformOrigin: 'top left',
+              transition: 'transform 0.2s ease'
+            }}
+          >
           <CompanyTableHeader dates={dates} />
           <tbody>
             {/* Render each company row */}
@@ -312,7 +363,35 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               ) : null
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
+        {/* Corner resize handle anchored to outer wrapper so always visible */}
+        <div
+          onMouseDown={onResizeMouseDown}
+          onDoubleClick={onResizeDoubleClick}
+          title="Drag to adjust frame height (double-click to toggle fit/reset)"
+          style={{
+            position: 'absolute',
+            right: 6,
+            bottom: 6,
+            width: 20,
+            height: 20,
+            cursor: 'ns-resize',
+            background: `repeating-linear-gradient(135deg, ${theme.primary} 0px, ${theme.primary} 4px, ${theme.primary}55 4px, ${theme.primary}55 8px)`,
+            border: '1px solid ' + theme.primary,
+            borderRadius: 6,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.45)',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.2s, box-shadow 0.2s'
+          }}
+          onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.6)'; e.currentTarget.style.opacity = '0.95'; }}
+          onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.45)'; e.currentTarget.style.opacity = '1'; }}
+        >
+          <span style={{ fontSize: 9, color: theme.buttonText || '#fff', fontWeight: 'bold', userSelect: 'none', letterSpacing: 1 }}>≡</span>
+        </div>
       </div>
       {/* Edit companies modal */}
       <EditCompaniesModal

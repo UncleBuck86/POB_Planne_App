@@ -23,7 +23,20 @@ const defaultData = {
 
 export default function FlightManifestTemplate() {
   const { theme } = useTheme();
-  const [data, setData] = useState(() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultData; } catch { return defaultData; } });
+  const [data, setData] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      const initial = raw ? { ...defaultData, ...raw } : { ...defaultData };
+      // Migration: old format used `passengers` single list
+      if (!initial.outbound && Array.isArray(initial.passengers)) initial.outbound = initial.passengers;
+      if (!Array.isArray(initial.outbound)) initial.outbound = [];
+      if (!Array.isArray(initial.inbound)) initial.inbound = [];
+      delete initial.passengers;
+      return initial;
+    } catch {
+      return { ...defaultData };
+    }
+  });
   const [autoSaveState, setAutoSaveState] = useState('');
   const saveTimer = useRef();
 
@@ -42,10 +55,12 @@ export default function FlightManifestTemplate() {
   const removePassenger = (dir, id) => setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) }));
   const clearAll = () => { if (confirm('Clear all manifest data?')) setData(defaultData); };
 
-  const totalOutbound = data.outbound.length;
-  const totalInbound = data.inbound.length;
-  const totalWeightOutbound = useMemo(()=> data.outbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [data.outbound]);
-  const totalWeightInbound = useMemo(()=> data.inbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [data.inbound]);
+  const safeOutbound = data.outbound || [];
+  const safeInbound = data.inbound || [];
+  const totalOutbound = safeOutbound.length;
+  const totalInbound = safeInbound.length;
+  const totalWeightOutbound = useMemo(()=> safeOutbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [safeOutbound]);
+  const totalWeightInbound = useMemo(()=> safeInbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [safeInbound]);
   const grandTotalPax = totalOutbound + totalInbound;
   const grandTotalWeight = totalWeightOutbound + totalWeightInbound;
 
@@ -102,7 +117,7 @@ export default function FlightManifestTemplate() {
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Outbound Passengers ({totalOutbound})</div>
-        {passengerTable(theme, 'outbound', data.outbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id))}
+  {passengerTable(theme, 'outbound', safeOutbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id))}
         <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap' }}>
           <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.7, display:'flex', alignItems:'center' }}>Outbound Weight: {totalWeightOutbound.toFixed(1)}</div>
@@ -110,7 +125,7 @@ export default function FlightManifestTemplate() {
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Inbound Passengers ({totalInbound})</div>
-        {passengerTable(theme, 'inbound', data.inbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id))}
+  {passengerTable(theme, 'inbound', safeInbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id))}
         <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap' }}>
           <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.7, display:'flex', alignItems:'center' }}>Inbound Weight: {totalWeightInbound.toFixed(1)}</div>

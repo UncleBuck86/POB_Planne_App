@@ -136,6 +136,8 @@ function Dashboard() {
     if (!editLayout) return;
     const rect = e.currentTarget.getBoundingClientRect();
     dragState.current = { id, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
+    // When user begins moving a widget in edit mode, close settings if open
+    setSettingsOpen(o => o ? false : o);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
   };

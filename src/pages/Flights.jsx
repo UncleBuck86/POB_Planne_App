@@ -56,6 +56,33 @@ export default function FlightsPage() {
   }, [allDatesForMonth, flightsOut, flightsIn]);
   const sortedSelectedKeys = selectedDates.map(d => keyForDate(d)).sort((a,b)=> new Date(a)-new Date(b));
   const clearSelection = () => { setSelectedDates([]); setManifestOpen(false); };
+  // Personnel movement widget data (combines personnel database and planner delta logic)
+  const personnelRecords = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
+  const plannerRows = rowData; // existing rowData from planner
+  const selectedSingleDate = selectedDates.length===1 ? selectedDates[0] : null;
+  const movementForSelected = useMemo(()=>{
+    if(!selectedSingleDate) return null;
+    const key = keyForDate(selectedSingleDate);
+    // Planner based movements (already computed in flightsOut / flightsIn maps)
+    const plannerOutRaw = flightsOut[key]||[]; // entries like '3-Company'
+    const plannerInRaw = flightsIn[key]||[];
+    const parseEntries = (arr, dir) => arr.flatMap(e=>{ const dash=e.indexOf('-'); if(dash===-1) return []; const num=parseInt(e.slice(0,dash),10)||0; const company=e.slice(dash+1); return [{ company, count:num, dir }]; });
+    const plannerMovements = [...parseEntries(plannerOutRaw,'OUT'), ...parseEntries(plannerInRaw,'IN')];
+    // Personnel DB based movements: arrivals on this date, departures on this date
+    const dateIso = selectedSingleDate.toISOString().slice(0,10);
+    const arrivals = personnelRecords.filter(p=> p.arrivalDate===dateIso);
+    const departures = personnelRecords.filter(p=> p.departureDate===dateIso);
+    const onBoard = personnelRecords.filter(p=> {
+      if(!p.arrivalDate) return false; const arr = new Date(p.arrivalDate+'T00:00:00'); const dep = p.departureDate? new Date(p.departureDate+'T00:00:00'): null; return arr <= selectedSingleDate && (!dep || dep >= selectedSingleDate);
+    });
+    return {
+      date:key,
+      plannerMovements,
+      arrivals,
+      departures,
+      onBoard
+    };
+  }, [selectedSingleDate, flightsOut, flightsIn, personnelRecords]);
 
   return (
     <div style={{ color: theme.text, background: theme.background, minHeight:'100vh', padding:'24px' }}>
@@ -101,6 +128,32 @@ export default function FlightsPage() {
           {selectedDates.length>0 && <button onClick={clearSelection} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Clear Selection</button>}
         </div>
       </div>
+      {movementForSelected && (
+        <div style={{ marginTop:24, background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(900px,100%)' }}>
+          <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>Personnel Movement - {movementForSelected.date}</div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:24 }}>
+            <div style={{ minWidth:220 }}>
+              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Arrivals (Personnel DB)</div>
+              {movementForSelected.arrivals.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{movementForSelected.arrivals.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+            </div>
+            <div style={{ minWidth:220 }}>
+              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Departures (Personnel DB)</div>
+              {movementForSelected.departures.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{movementForSelected.departures.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+            </div>
+            <div style={{ minWidth:220 }}>
+              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Planner Movements</div>
+              {movementForSelected.plannerMovements.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{movementForSelected.plannerMovements.map((m,i)=> <li key={i}>{m.dir==='OUT'? '+':''}{m.dir==='IN'? '-':''}{m.count} {m.company}</li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+            </div>
+            <div style={{ flex:1, minWidth:200 }}>
+              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>On Board (Combined)</div>
+              <div style={{ fontSize:12, marginBottom:6 }}>Total: {movementForSelected.onBoard.length}</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:4, maxHeight:160, overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#444':'#bbb'), padding:6, borderRadius:6 }}>
+                {movementForSelected.onBoard.map(p=> <div key={p.id} style={{ fontSize:11, background: theme.name==='Dark'? '#2e3439':'#eef3f7', padding:'4px 5px', borderRadius:6 }}>{p.firstName} {p.lastName}<br/><span style={{ opacity:.6 }}>{p.company||''}</span></div>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {catalogOpen && (
         <div style={{ marginTop:24, background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(740px,100%)' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>

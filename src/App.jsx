@@ -8,7 +8,8 @@ import { themePresets } from './themePresets';
 
 const today = new Date();
 const allDates = getAllDates(today.getFullYear());
-const todayStr = formatDate(today);
+const todayStr = formatDate(today); // YYYY-MM-DD
+const todayKey = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear(); // matches table date keys
 
 const defaultStart = new Date(today);
 defaultStart.setDate(defaultStart.getDate() - 7);
@@ -166,7 +167,7 @@ function AppContent(props) {
         v2.0
       </div>
       <h1 style={{ 
-        color: team === 'light' ? '#bfc4ca' : team === 'dark' ? '#bfc4ca' : theme.primary,
+        color: team === 'dark' ? theme.text : theme.primary,
         background: team === 'dark' ? theme.background : theme.secondary,
         padding: '24px 0 8px 0',
         textAlign: 'center',
@@ -187,7 +188,7 @@ function AppContent(props) {
         padding: '8px 0'
       }}>
         <div>
-          <label style={{ color: team === 'light' ? '#bfc4ca' : theme.text, fontWeight: 'bold' }}>Start Date: </label>
+          <label style={{ color: theme.text, fontWeight: 'bold' }}>Start Date: </label>
           <input
             type='date'
             value={viewStart}
@@ -196,7 +197,7 @@ function AppContent(props) {
           />
         </div>
         <div>
-          <label style={{ color: team === 'light' ? '#bfc4ca' : theme.text, fontWeight: 'bold' }}>End Date: </label>
+          <label style={{ color: theme.text, fontWeight: 'bold' }}>End Date: </label>
           <input
             type='date'
             value={viewEnd}
@@ -217,6 +218,9 @@ function AppContent(props) {
         comments={commentsState}
         setComments={setCommentsState}
         todayColumnRef={todayColumnRef}
+        todayKey={todayKey}
+  viewStart={viewStart}
+  viewEnd={viewEnd}
         themeOverride={team === 'dark' ? { background: '#0a174e' } : {}}
         editing={editingCompanies}
         setEditing={setEditingCompanies}

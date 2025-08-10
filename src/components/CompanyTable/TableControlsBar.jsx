@@ -62,7 +62,7 @@ export default function TableControlsBar({
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }}>
           <input type="checkbox" checked={autosave} onChange={e => setAutosave(e.target.checked)} /> Autosave
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }} title="When enabled, hides all dates prior to today so the view starts at today's column.">
           <input type="checkbox" checked={autoHide} onChange={e => setAutoHide(e.target.checked)} /> Auto Hide
         </label>
         <span role="img" aria-label="Undo" title="Undo" style={{ cursor: undoStack.length ? 'pointer' : 'not-allowed', fontSize: '1.5em', opacity: undoStack.length ? 1 : 0.5 }} onClick={() => { if (undoStack.length > 0) { const last = undoStack[undoStack.length - 1]; setRedoStack(prev => [ ...prev, { rowData: JSON.parse(JSON.stringify(rowData)), localComments: { ...localComments } } ]); setRowData(last.rowData); setLocalComments(last.localComments); setUndoStack(prev => prev.slice(0, -1)); } }}>↩️</span>

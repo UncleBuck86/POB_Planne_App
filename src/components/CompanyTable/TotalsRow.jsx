@@ -12,7 +12,7 @@ export default function TotalsRow({ rowData, dates }) {
       {dates.map(d => {
         // Sum all company values for this date
         const total = rowData.reduce((sum, row) => sum + (Number(row[d.date]) || 0), 0);
-        return <td key={d.date} style={{ background: theme.surface, color: theme.text, border: `1px solid ${borderColor}` }}>{total}</td>;
+  return <td key={d.date} style={{ background: theme.surface, color: theme.text, border: `1px solid ${borderColor}` }}>{total}</td>;
       })}
     </tr>
   );

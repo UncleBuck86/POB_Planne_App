@@ -12,7 +12,7 @@ import FlightsRow from './CompanyTable/FlightsRow';
 import TotalsRow from './CompanyTable/TotalsRow';
 import EditCompaniesModal from './CompanyTable/EditCompaniesModal';
 
-export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef, themeOverride = {}, editing, setEditing }) {
+export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef, todayKey, viewStart, viewEnd, themeOverride = {}, editing, setEditing }) {
   // Vertical zoom (scale rows visually). 1 = normal height
   const [zoom, setZoom] = useState(() => {
     const stored = parseFloat(localStorage.getItem('pobZoom') || '1');
@@ -43,6 +43,18 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   }, [zoom]);
   // ...existing code...
   const [autoHide, setAutoHide] = useState(true);
+  // Disable autoHide if user adjusts the date range in parent (viewStart/viewEnd changes after mount)
+  const initialRangeRef = useRef({ viewStart, viewEnd });
+  useEffect(() => {
+    if (!initialRangeRef.current) return;
+    const { viewStart: initStart, viewEnd: initEnd } = initialRangeRef.current;
+    if ((viewStart && viewStart !== initStart) || (viewEnd && viewEnd !== initEnd)) {
+      setAutoHide(false);
+      // update stored to prevent repeated triggers if user toggles again manually
+      initialRangeRef.current.viewStart = viewStart;
+      initialRangeRef.current.viewEnd = viewEnd;
+    }
+  }, [viewStart, viewEnd]);
   // ...existing code...
   // Auto-hide companies with no numbers in the next 28 days
   // Auto-hide logic removed; hiddenRows is now only controlled manually.
@@ -119,7 +131,9 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
       if (!aName) return 1;
       if (!bName) return -1;
       const cmp = aName.localeCompare(bName);
-      return cmp;
+      if (cmp !== 0) return cmp;
+      // Tie-breaker for stable sorting
+      return (a.id || '').localeCompare(b.id || '');
     });
   }, [rowData, pinnedCompanies]);
 
@@ -281,6 +295,36 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     }
   };
 
+  // One-time horizontal scroll so today's date is leftmost visible
+  const didInitialScroll = useRef(false);
+  useEffect(() => {
+    if (didInitialScroll.current) return;
+    if (!todayKey || !todayColumnRef?.current || !tableScrollRef.current) return;
+    const companyColWidth = 160;
+    const targetOffset = todayColumnRef.current.offsetLeft - companyColWidth;
+    if (targetOffset > 0) {
+      tableScrollRef.current.scrollLeft = targetOffset;
+      didInitialScroll.current = true;
+    }
+  }, [todayKey, dates]);
+
+  // When autoHide is turned on, scroll to far left (home position)
+  useEffect(() => {
+    if (autoHide && tableScrollRef.current) {
+      tableScrollRef.current.scrollLeft = 0;
+      // After scrolling left, ensure we don't skip potential initial alignment if needed later
+      didInitialScroll.current = true; // effectiveDates already start at today so leftmost is correct
+    }
+  }, [autoHide]);
+
+  // Derive effective dates list based on autoHide (hide dates prior to today)
+  const effectiveDates = useMemo(() => {
+    if (!autoHide || !todayKey) return dates;
+    const todayIndex = dates.findIndex(d => d.date === todayKey);
+    if (todayIndex === -1) return dates;
+    return dates.slice(todayIndex); // from today forward
+  }, [dates, autoHide, todayKey]);
+
   // Main render
   return (
     <div>
@@ -347,7 +391,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               transition: 'transform 0.2s ease'
             }}
           >
-          <CompanyTableHeader dates={dates} />
+          <CompanyTableHeader dates={effectiveDates} todayKey={todayKey} todayColumnRef={todayColumnRef} />
           <tbody>
             {/* Render each company row */}
             {sortedRows.map((row, idx) => (
@@ -355,7 +399,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                 key={row.id}
                 row={row}
                 idx={idx}
-                dates={dates}
+                dates={effectiveDates}
                 hiddenRows={hiddenRows}
                 lastSavedData={lastSavedData}
                 manualHighlights={manualHighlights}
@@ -366,11 +410,11 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               />
             ))}
             {/* Render totals, flights, comments rows */}
-            <TotalsRow rowData={rowData} dates={dates} />
-            <FlightsRow type="Flights Out" dates={dates} flights={flightsOut} />
-            <FlightsRow type="Flights In" dates={dates} flights={flightsIn} />
+            <TotalsRow rowData={rowData} dates={effectiveDates} />
+            <FlightsRow type="Flights Out" dates={effectiveDates} flights={flightsOut} />
+            <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
             <CommentsRow
-              dates={dates}
+              dates={effectiveDates}
               comments={comments}
               lastSavedComments={lastSavedComments}
               manualHighlights={manualHighlights}

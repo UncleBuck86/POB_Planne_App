@@ -158,6 +158,24 @@ export default function Personnel() {
 
   const borderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
 
+  // Date formatter for display: convert 'YYYY-MM-DD' -> 'MM/DD/YYYY'
+  const fmtDate = (val) => {
+    if (!val) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+      const [y,m,d] = val.split('-');
+      return `${m}/${d}/${y}`;
+    }
+    // Attempt to parse other date-like values
+    const dt = new Date(val);
+    if (!isNaN(dt)) {
+      const mm = String(dt.getMonth()+1).padStart(2,'0');
+      const dd = String(dt.getDate()).padStart(2,'0');
+      const yy = dt.getFullYear();
+      return `${mm}/${dd}/${yy}`;
+    }
+    return val;
+  };
+
   // --- Fuzzy duplicate detection helpers ---
   function norm(str='') { return str.toLowerCase().replace(/[^a-z0-9]/g,''); }
   function levenshtein(a,b){
@@ -508,10 +526,10 @@ export default function Personnel() {
                 <td style={cell(theme)}>{r.crew}</td>
                 <td style={cell(theme)}>{r.rotation}</td>
                 <td style={cell(theme)}>{r.coreCrew ? 'Yes' : ''}</td>
-                <td style={cell(theme)}>{r.arrivalDate}</td>
-                <td style={cell(theme)}>{r.departureDate}</td>
+                <td style={cell(theme)}>{fmtDate(r.arrivalDate)}</td>
+                <td style={cell(theme)}>{fmtDate(r.departureDate)}</td>
                 <td style={cell(theme)}>{r.status}</td>
-                <td style={cell(theme)}>{r.dob}</td>
+                <td style={cell(theme)}>{fmtDate(r.dob)}</td>
                 <td style={cell(theme)}>{daysOnboardDisplay}</td>
                 <td style={cell(theme)}>{daysSinceDepartedDisplay}</td>
                 <td style={{ ...cell(theme), whiteSpace: 'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth: 500 }} title={r.notes}>{r.notes}</td>

@@ -1,6 +1,6 @@
 // EditCompaniesModal.jsx
 // Renders the modal for editing company names, pinning, hiding, and removing companies
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 
 export default function EditCompaniesModal({ editing, editCompanies, setEditCompanies, pinnedCompanies, setPinnedCompanies, hiddenRows, toggleRow, addCompany, removeCompany, saveCompanies, setEditing }) {
   if (!editing) return null;
@@ -78,19 +78,24 @@ export default function EditCompaniesModal({ editing, editCompanies, setEditComp
     return [...pinned, ...rest];
   };
 
+  const listRef = useRef(null);
+  const preserveScroll = (fn) => {
+    const el = listRef.current; const top = el ? el.scrollTop : 0; fn(); if(el) { el.scrollTop = top; }
+  };
   const reorderPinned = (id, dir) => {
-    setPinnedCompanies(prev => {
-      const arr = [...prev];
-      const idx = arr.indexOf(id);
-      if (idx === -1) return prev;
-      if (dir === 'up' && idx > 0) {
-        [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-      } else if (dir === 'down' && idx < arr.length - 1) {
-        [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
-      }
-      // Reorder visible companies list
-      setEditCompanies(prevCompanies => reorderEditCompanies(prevCompanies, arr));
-      return arr;
+    preserveScroll(()=>{
+      setPinnedCompanies(prev => {
+        const arr = [...prev];
+        const idx = arr.indexOf(id);
+        if (idx === -1) return prev;
+        if (dir === 'up' && idx > 0) {
+          [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+        } else if (dir === 'down' && idx < arr.length - 1) {
+          [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
+        }
+        setEditCompanies(prevCompanies => reorderEditCompanies(prevCompanies, arr));
+        return arr;
+      });
     });
   };
   return (
@@ -112,7 +117,7 @@ export default function EditCompaniesModal({ editing, editCompanies, setEditComp
             Blank names will be ignored until filled in.
           </div>
         )}
-        <div style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: 4, margin: '8px 0 4px', border: '1px solid #ddd', borderRadius: 6 }}>
+  <div ref={listRef} style={{ maxHeight: '50vh', overflowY: 'auto', paddingRight: 4, margin: '8px 0 4px', border: '1px solid #ddd', borderRadius: 6 }}>
           {editCompanies.map((c, idx) => (
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 4px', borderBottom: '1px solid #eee' }}>
               <input
@@ -131,15 +136,17 @@ export default function EditCompaniesModal({ editing, editCompanies, setEditComp
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <button
                   onClick={() => {
-                    setPinnedCompanies(prev => {
-                      let next;
-                      if (prev.includes(c.id)) {
-                        next = prev.filter(id => id !== c.id);
-                      } else {
-                        next = [...prev, c.id];
-                      }
-                      setEditCompanies(prevCompanies => reorderEditCompanies(prevCompanies, next));
-                      return next;
+                    preserveScroll(()=>{
+                      setPinnedCompanies(prev => {
+                        let next;
+                        if (prev.includes(c.id)) {
+                          next = prev.filter(id => id !== c.id);
+                        } else {
+                          next = [...prev, c.id];
+                        }
+                        setEditCompanies(prevCompanies => reorderEditCompanies(prevCompanies, next));
+                        return next;
+                      });
                     });
                   }}
                   title={pinnedCompanies.includes(c.id) ? 'Unpin company' : 'Pin company'}

@@ -254,6 +254,32 @@ export default function FlightManifestTemplate() {
       });
     } catch {/* ignore */}
   }, []);
+  // Ingest selected personnel passed from Flights page (one-time)
+  useEffect(()=>{
+    try {
+      const raw = localStorage.getItem('manifestSelectedPersonnel');
+      if(!raw) return;
+      const list = JSON.parse(raw)||[]; if(!Array.isArray(list) || !list.length) { localStorage.removeItem('manifestSelectedPersonnel'); return; }
+      localStorage.removeItem('manifestSelectedPersonnel');
+      setData(d=>{
+        const outboundAdd=[]; const inboundAdd=[];
+        list.forEach(p=>{
+          const pax = {
+            id: crypto.randomUUID(),
+            name: (p.firstName||'') + (p.lastName? ' '+p.lastName:''),
+            company: p.company||'',
+            bodyWeight: p.bodyWeight||'',
+            bagWeight: p.bagWeight||'',
+            bagCount: p.bagCount||'',
+            comments: 'Imported from movement widget ('+p.source+')',
+            origin:'', destination:'', originAuto:true, destinationAuto:true
+          };
+          if(p.direction==='inbound') inboundAdd.push(pax); else outboundAdd.push(pax);
+        });
+        return { ...d, outbound:[...d.outbound, ...outboundAdd], inbound:[...d.inbound, ...inboundAdd] };
+      });
+    } catch {/* ignore */}
+  }, []);
   // Ensure auto origins/destinations reflect template departure/arrival unless manually overridden
   useEffect(()=>{
     setData(d=>{

@@ -59,6 +59,43 @@ export default function FlightsPage() {
   // Personnel movement widget data (combines personnel database and planner delta logic)
   const personnelRecords = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
   const plannerRows = rowData; // existing rowData from planner
+  // Track selected personnel from movement widgets to send to manifest
+  const [selectedPeople, setSelectedPeople] = useState({}); // key -> person payload
+  const toggleSelectPerson = (person, source, dateKey) => {
+    // source: 'arrivals'|'departures'|'onBoard'
+    const dir = source==='arrivals' ? 'inbound' : (source==='departures' ? 'outbound' : 'outbound');
+    const key = dateKey+':'+person.id+':'+dir;
+    setSelectedPeople(prev => {
+      const next = { ...prev };
+      if(next[key]) delete next[key]; else {
+        next[key] = {
+          id: person.id,
+          firstName: person.firstName||'',
+          lastName: person.lastName||'',
+          company: person.company||'',
+          bodyWeight: person.bodyWeight||'',
+          bagWeight: person.bagWeight||'',
+          bagCount: person.bagCount||'',
+          direction: dir,
+          date: dateKey,
+          source
+        };
+      }
+      return next;
+    });
+  };
+  const selectedCount = Object.keys(selectedPeople).length;
+  const sendSelectedToManifest = () => {
+    try {
+      const payload = Object.values(selectedPeople);
+      localStorage.setItem('manifestSelectedPersonnel', JSON.stringify(payload));
+    } catch {/* ignore */}
+    if(selectedDates.length){
+      openManifestTemplate();
+    } else {
+      window.location.hash = '#manifest';
+    }
+  };
   const movementForSelected = useMemo(()=>{
     if(!selectedDates.length) return [];
     const parseEntries = (arr, dir) => arr.flatMap(e=>{ const dash=e.indexOf('-'); if(dash===-1) return []; const num=parseInt(e.slice(0,dash),10)||0; const company=e.slice(dash+1); return [{ company, count:num, dir }]; });
@@ -124,31 +161,76 @@ export default function FlightsPage() {
       {movementForSelected.length>0 && (
         <div style={{ marginTop:24, display:'flex', flexDirection:'column', gap:24 }}>
           {movementForSelected.map(mv => (
-            <div key={mv.date} style={{ background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(900px,100%)' }}>
-              <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>Personnel Movement - {mv.date}</div>
+            <div key={mv.date} style={{ background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(980px,100%)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <div style={{ fontSize:16, fontWeight:700 }}>Personnel Movement - {mv.date}</div>
+                <div style={{ fontSize:11, opacity:.7 }}>Click names to select (Arrivals→Inbound, Departures→Outbound)</div>
+              </div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:24 }}>
                 <div style={{ minWidth:220 }}>
                   <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Arrivals</div>
-                  {mv.arrivals.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{mv.arrivals.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+                  {mv.arrivals.length? (
+                    <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12, listStyle:'disc' }}>
+                      {mv.arrivals.map(p=> {
+                        const key = mv.date+':'+p.id+':inbound';
+                        const sel = !!selectedPeople[key];
+                        return (
+                          <li key={p.id} onClick={()=>toggleSelectPerson(p,'arrivals', mv.date)} style={{ cursor:'pointer', userSelect:'none', background: sel? (theme.primary): 'transparent', color: sel? theme.text: undefined, borderRadius:4, padding: sel? '2px 4px':'2px 4px', margin:'2px 0' }}>
+                            {p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
                 </div>
                 <div style={{ minWidth:220 }}>
                   <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Departures</div>
-                  {mv.departures.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{mv.departures.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+                  {mv.departures.length? (
+                    <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>
+                      {mv.departures.map(p=> {
+                        const key = mv.date+':'+p.id+':outbound';
+                        const sel = !!selectedPeople[key];
+                        return (
+                          <li key={p.id} onClick={()=>toggleSelectPerson(p,'departures', mv.date)} style={{ cursor:'pointer', userSelect:'none', background: sel? (theme.primary): 'transparent', color: sel? theme.text: undefined, borderRadius:4, padding: sel? '2px 4px':'2px 4px', margin:'2px 0' }}>
+                            {p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
                 </div>
                 <div style={{ minWidth:220 }}>
                   <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Planner Movements</div>
                   {mv.plannerMovements.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{mv.plannerMovements.map((m,i)=> <li key={i}>{m.dir==='OUT'? '+':''}{m.dir==='IN'? '-':''}{m.count} {m.company}</li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
                 </div>
-                <div style={{ flex:1, minWidth:200 }}>
+                <div style={{ flex:1, minWidth:260 }}>
                   <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>On Board</div>
                   <div style={{ fontSize:12, marginBottom:6 }}>Total: {mv.onBoard.length}</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:4, maxHeight:160, overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#444':'#bbb'), padding:6, borderRadius:6 }}>
-                    {mv.onBoard.map(p=> <div key={p.id} style={{ fontSize:11, background: theme.name==='Dark'? '#2e3439':'#eef3f7', padding:'4px 5px', borderRadius:6 }}>{p.firstName} {p.lastName}<br/><span style={{ opacity:.6 }}>{p.company||''}</span></div>)}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:4, maxHeight:180, overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#444':'#bbb'), padding:6, borderRadius:6 }}>
+                    {mv.onBoard.map(p=> {
+                      const key = mv.date+':'+p.id+':outbound';
+                      const sel = !!selectedPeople[key];
+                      return (
+                        <div key={p.id} onClick={()=>toggleSelectPerson(p,'onBoard', mv.date)} style={{ fontSize:11, background: sel? (theme.primary): (theme.name==='Dark'? '#2e3439':'#eef3f7'), padding:'4px 5px', borderRadius:6, cursor:'pointer', userSelect:'none', color: sel? theme.text: undefined }}>
+                          {p.firstName} {p.lastName}<br/><span style={{ opacity:.6 }}>{p.company||''}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             </div>
           ))}
+          {selectedCount>0 && (
+            <div style={{ background: theme.surface, padding:12, border:'1px solid '+(theme.name==='Dark'? '#555':'#ccc'), borderRadius:10, boxShadow:'0 2px 6px rgba(0,0,0,0.25)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
+                <span style={{ fontSize:12 }}>Selected Personnel: <strong>{selectedCount}</strong></span>
+                <button onClick={()=> setSelectedPeople({})} style={{ background: theme.name==='Dark'? '#444':'#d3dde5', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#666':'#999'), padding:'4px 8px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 }}>Clear</button>
+                <button onClick={sendSelectedToManifest} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>Send To Manifest</button>
+                <span style={{ fontSize:11, opacity:.65 }}>Departures→Outbound, Arrivals→Inbound (On Board defaults Outbound)</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {catalogOpen && (

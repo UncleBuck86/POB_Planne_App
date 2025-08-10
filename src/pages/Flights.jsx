@@ -14,6 +14,19 @@ export default function FlightsPage() {
   const [displayMonth, setDisplayMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDates, setSelectedDates] = useState([]);
   const [manifestOpen, setManifestOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const catalog = useMemo(()=>{ try { return JSON.parse(localStorage.getItem('flightManifestCatalogV1'))||[]; } catch { return []; } }, []);
+  const openCatalogManifest = (entry) => {
+    try {
+      // seed manifestGenerateDates with just the entry date so existing logic pre-fills route if desired
+      const d = new Date(entry.meta.date || entry.date);
+      const key = keyForDate(d);
+      localStorage.setItem('manifestGenerateDates', JSON.stringify([key]));
+      // store entry directly for immediate load
+      localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }));
+    } catch {}
+    window.location.hash = '#manifest';
+  };
   const openManifestTemplate = () => {
     try {
       const keys = selectedDates.map(d=> keyForDate(d));
@@ -84,9 +97,30 @@ export default function FlightsPage() {
           />
           <div style={{ marginTop:8, fontSize:11, opacity:.75 }}>Select one or more dates to view flight manifest.</div>
           {selectedDates.length>0 && <button onClick={openManifestTemplate} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Open Manifest Template</button>}
+          <button onClick={()=> setCatalogOpen(o=>!o)} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>{catalogOpen? 'Close Saved Catalog':'Saved Manifests'}</button>
           {selectedDates.length>0 && <button onClick={clearSelection} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Clear Selection</button>}
         </div>
       </div>
+      {catalogOpen && (
+        <div style={{ marginTop:24, background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(740px,100%)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <div style={{ fontSize:16, fontWeight:700 }}>Saved Manifests ({catalog.length})</div>
+            <button onClick={()=> setCatalogOpen(false)} style={navBtnStyle(theme)}>Close</button>
+          </div>
+          {catalog.length===0 && <div style={{ fontSize:12, opacity:.6 }}>No saved manifests yet (save from Manifest page).</div>}
+          <div style={{ display:'grid', gap:10 }}>
+            {catalog.map(e=> (
+              <div key={e.id} style={{ display:'flex', gap:12, alignItems:'center', background: theme.name==='Dark'? '#2a3035':'#f1f6fa', padding:'8px 10px', borderRadius:10, border:'1px solid '+(theme.name==='Dark'? '#444':'#b8c2cc') }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:600 }}>{e.meta.flightNumber || 'No Flight #'}</div>
+                  <div style={{ fontSize:11, opacity:.7 }}>{e.meta.date} • OB {e.outbound.length} / IB {e.inbound.length}</div>
+                </div>
+                <button onClick={()=> openCatalogManifest(e)} style={navBtnStyle(theme)}>Load</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
   {manifestOpen && selectedDates.length>0 && (
         <div style={overlayStyle} onClick={e=> { if(e.target===e.currentTarget) setManifestOpen(false); }}>

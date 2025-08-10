@@ -1,12 +1,14 @@
 // CompanyRow.jsx
 // Renders a single company row with editable cells for each date
 import React from 'react';
+import { useTheme } from '../../ThemeContext.jsx';
 
 export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData, manualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
   if (hiddenRows.includes(row.company)) return null; // Skip hidden rows
+  const { theme } = useTheme();
   return (
     <tr key={row.company || idx}>
-      <td style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, background: '#fff', zIndex: 2, borderRight: '2px solid #000' }}>
+      <td style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: '2px solid #000' }}>
         <span>{row.company}</span>
       </td>
       {dates.map((d, colIdx) => {
@@ -16,7 +18,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData,
         const changed = String(currVal) !== String(lastSavedVal);
         const cellKey = `${idx}-${d.date}`;
         const manuallyHighlighted = manualHighlights[cellKey];
-        let bgColor = '';
+        let bgColor = theme.surface;
         if (manuallyHighlighted) {
           bgColor = '#b3e5fc';
         } else if (changed) {
@@ -25,7 +27,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData,
         return (
           <td
             key={d.date}
-            style={{ minWidth: 80, width: 80, ...(bgColor ? { background: bgColor } : {}) }}
+            style={{ minWidth: 80, width: 80, background: bgColor, color: theme.text }}
             onDoubleClick={() => {
               manualHighlights[cellKey] = !manualHighlights[cellKey]; // Toggle highlight
             }}
@@ -34,7 +36,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData,
               type="number"
               value={currVal}
               min={0}
-              style={{ width: '60px', textAlign: 'center', background: bgColor || undefined }}
+              style={{ width: '60px', textAlign: 'center', background: bgColor, color: theme.text }}
               ref={el => {
                 if (!inputRefs.current[idx]) inputRefs.current[idx] = [];
                 inputRefs.current[idx][colIdx] = el;

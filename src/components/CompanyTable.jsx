@@ -1,6 +1,7 @@
 // CompanyTable.jsx
 // Main table component: manages state, layout, and connects all subcomponents
 import React, { useState, useRef, useEffect } from 'react';
+import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../utils/generateFlightComment';
 // Import subcomponents for modular table rendering
 import CompanyTableHeader from './CompanyTable/CompanyTableHeader';
@@ -10,7 +11,25 @@ import FlightsRow from './CompanyTable/FlightsRow';
 import TotalsRow from './CompanyTable/TotalsRow';
 import EditCompaniesModal from './CompanyTable/EditCompaniesModal';
 
-export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef }) {
+export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef, themeOverride = {}, editing, setEditing }) {
+  // Zoom state for chart vertical size
+  const [zoom, setZoom] = useState(1);
+  // Calculate minimum zoom to fit all rows vertically
+  const minZoom = Math.min(1, 400 / ((rowData.length + 5) * 48)); // 48px per row, 5 extra rows for totals/flights/comments
+  const maxHeight = zoom === minZoom
+    ? (rowData.length + 5) * 48 + 60 // fit all rows + header
+    : 400 / zoom; // default 400px, zoomed in/out
+  // ...existing code...
+  const [autoHide, setAutoHide] = useState(true);
+  // ...existing code...
+  // Auto-hide companies with no numbers in the next 28 days
+  // Auto-hide logic removed; hiddenRows is now only controlled manually.
+  const { theme } = useTheme ? useTheme() : { theme: { primary: '#388e3c', text: '#fff' } };
+  const appliedTheme = { ...theme, ...themeOverride };
+  // For light theme, set chart/table background to light gray
+  if (appliedTheme.surface && appliedTheme.surface === '#e0e0e0') {
+    appliedTheme.background = '#e0e0e0';
+  }
   // State hooks for undo/redo, highlights, autosave, modal, etc.
   const [undoStack, setUndoStack] = useState([]); // For undo history
   const [redoStack, setRedoStack] = useState([]); // For redo history
@@ -18,7 +37,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [saveMsg, setSaveMsg] = useState(''); // For save status message
   const [localComments, setLocalComments] = useState(comments); // For comments row
   const [autosave, setAutosave] = useState(true); // Autosave toggle
-  const [editing, setEditing] = useState(false); // Edit companies modal toggle
   const [editCompanies, setEditCompanies] = useState(rowData.map(r => r.company)); // Companies being edited
   const [pinnedCompanies, setPinnedCompanies] = useState([]); // Pinned companies
   const [hiddenRows, setHiddenRows] = useState([]); // Hidden company rows
@@ -45,6 +63,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Effect: update flights info when data changes
   useEffect(() => {
+    // Only update flights if rowData or dates actually change
     const { flightsOut: out, flightsIn: inn } = generateFlightComments(rowData, dates);
     setFlightsOut(out);
     setFlightsIn(inn);
@@ -91,9 +110,9 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     setTimeout(() => setSaveMsg(''), 2000);
   };
 
-  // Hide/unhide company row
+  // Hide/unhide company row (manual override)
   const toggleRow = (company, hide) => {
-    setHiddenRows(prev => hide ? [...prev, company] : prev.filter(c => c !== company));
+    setHiddenRows(prev => hide ? [...new Set([...prev, company])] : prev.filter(c => c !== company));
   };
 
   // Manual save button
@@ -107,57 +126,79 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   };
 
   // Scroll table horizontally by px (used for scroll buttons)
-  const scrollTable = (days) => {
+  const scrollTable = (action) => {
     if (tableScrollRef.current) {
-      // Single arrow: 100px, double arrow: 700px
-      const px = Math.abs(days) === 1 ? 100 : 700;
-      tableScrollRef.current.scrollLeft = Math.max(0, tableScrollRef.current.scrollLeft + Math.sign(days) * px);
+      if (action === 'start') {
+        tableScrollRef.current.scrollLeft = 0;
+      } else if (action === 'end') {
+        tableScrollRef.current.scrollLeft = tableScrollRef.current.scrollWidth;
+      } else if (action === 'left') {
+        tableScrollRef.current.scrollLeft -= 100;
+      } else if (action === 'right') {
+        tableScrollRef.current.scrollLeft += 100;
+      }
     }
   };
 
   // Main render
   return (
     <div>
+      {/* Zoom slider */}
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontWeight: 'bold', marginRight: 8 }}>Zoom:</label>
+        <input
+          type="range"
+          min={minZoom}
+          max={1}
+          step={0.01}
+          value={zoom}
+          onChange={e => setZoom(Number(e.target.value))}
+          style={{ width: 120 }}
+        />
+        <span style={{ marginLeft: 8 }}>{zoom === minZoom ? 'Fit All' : `${Math.round(zoom * 100)}%`}</span>
+      </div>
       {/* Controls: scroll, save, autosave, edit companies, undo/redo */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <button
-          title="Scroll to previous week"
-          onClick={() => scrollTable(-7)}
-          style={{ padding: '4px 10px', background: '#e3f2fd', border: '1px solid #bbb', borderRadius: 4 }}
+          title="Scroll to start"
+          onClick={() => scrollTable('start')}
+          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
         >{'<<'}</button>
         <button
-          title="Scroll to previous day"
-          onClick={() => scrollTable(-1)}
-          style={{ padding: '4px 10px', background: '#e3f2fd', border: '1px solid #bbb', borderRadius: 4 }}
+          title="Scroll left"
+          onClick={() => scrollTable('left')}
+          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
         >{'<'}</button>
         <button
-          title="Scroll to next day"
-          onClick={() => scrollTable(1)}
-          style={{ padding: '4px 10px', background: '#e3f2fd', border: '1px solid #bbb', borderRadius: 4 }}
+          title="Scroll right"
+          onClick={() => scrollTable('right')}
+          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
         >{'>'}</button>
         <button
-          title="Scroll to next week"
-          onClick={() => scrollTable(7)}
-          style={{ padding: '4px 10px', background: '#e3f2fd', border: '1px solid #bbb', borderRadius: 4 }}
+          title="Scroll to end"
+          onClick={() => scrollTable('end')}
+          style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}
         >{'>>'}</button>
       </div>
-        <button
-          onClick={handleSave}
-          disabled={autosave}
-          style={{ fontSize: '1em', padding: '6px 18px', background: autosave ? '#bbb' : '#4caf50', color: '#fff', border: 'none', borderRadius: 4 }}
-        >
-          Save
-        </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <button
+        onClick={handleSave}
+        disabled={autosave}
+        style={{ fontSize: '1em', padding: '6px 18px', background: autosave ? '#bbb' : theme.primary, color: theme.buttonText || theme.text, border: 'none', borderRadius: 4 }}
+      >
+        Save
+      </button>
+      <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }}>
           <input type="checkbox" checked={autosave} onChange={e => setAutosave(e.target.checked)} /> Autosave
         </label>
-        <button
-          onClick={openEditor}
-          style={{ fontSize: '0.95em', padding: '4px 12px', background: '#eee', border: '1px solid #bbb', borderRadius: 4 }}
-        >
-          Edit Companies
-        </button>
-        <button
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }}>
+          <input type="checkbox" checked={autoHide} onChange={e => setAutoHide(e.target.checked)} /> Auto Hide
+        </label>
+        <span
+          role="img"
+          aria-label="Undo"
+          title="Undo"
+          style={{ cursor: undoStack.length ? 'pointer' : 'not-allowed', fontSize: '1.5em', opacity: undoStack.length ? 1 : 0.5 }}
           onClick={() => {
             if (undoStack.length > 0) {
               const last = undoStack[undoStack.length - 1];
@@ -170,17 +211,12 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               setUndoStack(prev => prev.slice(0, -1));
             }
           }}
-          disabled={undoStack.length === 0}
-          style={{
-            padding: '4px 12px',
-            background: undoStack.length ? '#e3f2fd' : '#eee',
-            border: '1px solid #bbb',
-            borderRadius: 4
-          }}
-        >
-          Undo
-        </button>
-        <button
+        >↩️</span>
+        <span
+          role="img"
+          aria-label="Redo"
+          title="Redo"
+          style={{ cursor: redoStack.length ? 'pointer' : 'not-allowed', fontSize: '1.5em', opacity: redoStack.length ? 1 : 0.5 }}
           onClick={() => {
             if (redoStack.length > 0) {
               const last = redoStack[redoStack.length - 1];
@@ -193,25 +229,41 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               setRedoStack(prev => prev.slice(0, -1));
             }
           }}
-          disabled={redoStack.length === 0}
+        >↪️</span>
+      </div>
+      {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}
+
+      {/* Table/chart inside scrollable frame with header */}
+      <div
+        ref={tableScrollRef}
+        style={{
+          overflowX: 'auto',
+          overflowY: 'auto',
+          maxHeight: maxHeight,
+          background: appliedTheme.background,
+          position: 'relative',
+          width: '100%',
+          maxWidth: '100vw',
+          boxSizing: 'border-box',
+          border: '2px solid ' + appliedTheme.primary,
+          borderRadius: 8,
+          margin: '0 auto',
+        }}
+      >
+        <table
+          border="1"
+          cellPadding="6"
           style={{
-            padding: '4px 12px',
-            background: redoStack.length ? '#e3f2fd' : '#eee',
-            border: '1px solid #bbb',
-            borderRadius: 4
+            minWidth: '900px',
+            width: 'max-content',
+            borderCollapse: 'collapse',
+            tableLayout: 'auto',
+            marginTop: 0,
+            background: appliedTheme.background,
+            color: appliedTheme.text,
           }}
         >
-          Redo
-        </button>
-        {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}
-
-      {/* Table header (not scrollable) */}
-      <table border="1" cellPadding="6" style={{ width: 'auto', borderCollapse: 'collapse', tableLayout: 'auto', marginBottom: 0 }}>
-        <CompanyTableHeader dates={dates} />
-      </table>
-      {/* Table body (scrollable) */}
-      <div ref={tableScrollRef} style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '60vh' }}>
-        <table border="1" cellPadding="6" style={{ width: 'auto', borderCollapse: 'collapse', tableLayout: 'auto', marginTop: 0 }}>
+          <CompanyTableHeader dates={dates} />
           <tbody>
             {/* Render each company row */}
             {rowData.map((row, idx) => (

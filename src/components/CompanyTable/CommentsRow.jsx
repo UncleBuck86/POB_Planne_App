@@ -1,13 +1,15 @@
 // CommentsRow.jsx
 // Renders the comments row for user input, one cell per date
 import React from 'react';
+import { useTheme } from '../../ThemeContext.jsx';
 
 export default function CommentsRow({ dates, comments, lastSavedComments, manualHighlights, setComments, pushUndo }) {
+  const { theme } = useTheme();
   return (
-    <tr style={{ background: '#f0f0f0', fontStyle: 'italic', height: 'auto' }}>
-      <td style={{ verticalAlign: 'top', position: 'sticky', left: 0, background: '#f0f0f0', zIndex: 2, borderRight: '2px solid #000' }}>Comments</td>
+    <tr style={{ background: theme.surface, color: theme.text, fontStyle: 'italic', height: 'auto' }}>
+      <td style={{ verticalAlign: 'top', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: '2px solid #000' }}>Comments</td>
       {dates.map(d => (
-        <td key={d.date} style={{ verticalAlign: 'top', whiteSpace: 'pre-wrap' }}>
+        <td key={d.date} style={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', background: theme.surface, color: theme.text }}>
           <textarea
             value={comments[d.date] || ''}
             style={{
@@ -19,13 +21,16 @@ export default function CommentsRow({ dates, comments, lastSavedComments, manual
                   ? '#b3e5fc'
                   : comments[d.date] !== (lastSavedComments[d.date] || '')
                     ? '#fffbe6'
-                    : '#f9f9f9',
+                    : theme.surface,
+              color: theme.text,
               border: '1px solid #ccc',
               padding: '4px 6px',
               marginBottom: '4px',
               resize: 'none',
               boxSizing: 'border-box',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              height: 'auto',
+              maxHeight: '300px'
             }}
             onChange={e => {
               pushUndo();
@@ -35,16 +40,14 @@ export default function CommentsRow({ dates, comments, lastSavedComments, manual
               ta.style.height = 'auto';
               ta.style.height = `${ta.scrollHeight}px`;
             }}
+            onInput={e => {
+              const ta = e.target;
+              ta.style.height = 'auto';
+              ta.style.height = `${ta.scrollHeight}px`;
+            }}
             onDoubleClick={() => {
               const key = `comment-${d.date}`;
               manualHighlights[key] = !manualHighlights[key]; // Toggle highlight
-            }}
-            rows={1}
-            ref={el => {
-              if (el) {
-                el.style.height = 'auto';
-                el.style.height = `${el.scrollHeight}px`;
-              }
             }}
           />
         </td>

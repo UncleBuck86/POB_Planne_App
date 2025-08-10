@@ -3,6 +3,8 @@ import { useTheme } from '../ThemeContext.jsx';
 
 const STORAGE_KEY = 'flightManifestTemplateV1';
 const FIELD_VIS_KEY = 'flightManifestVisibleFields';
+const LOCATIONS_KEY = 'flightManifestLocations';
+const AIRCRAFT_TYPES_KEY = 'flightManifestAircraftTypes';
 const defaultData = {
   meta: {
     flightNumber: '',
@@ -45,6 +47,20 @@ export default function FlightManifestTemplate() {
     return allFieldKeys.reduce((a,k)=> (a[k]=true,a),{});
   });
   const [configOpen, setConfigOpen] = useState(false);
+  // Location options (admin managed)
+  const [locationOptions, setLocationOptions] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem(LOCATIONS_KEY)) || []; } catch { return []; }
+  });
+  const [locationOptionsText, setLocationOptionsText] = useState(()=> locationOptions.join('\n'));
+  useEffect(()=>{ try { localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locationOptions)); } catch {/*ignore*/} }, [locationOptions]);
+  useEffect(()=>{ setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
+  // Aircraft types (admin managed)
+  const [aircraftTypes, setAircraftTypes] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem(AIRCRAFT_TYPES_KEY)) || []; } catch { return []; }
+  });
+  const [aircraftTypesText, setAircraftTypesText] = useState(()=> aircraftTypes.join('\n'));
+  useEffect(()=>{ try { localStorage.setItem(AIRCRAFT_TYPES_KEY, JSON.stringify(aircraftTypes)); } catch {/*ignore*/} }, [aircraftTypes]);
+  useEffect(()=>{ setAircraftTypesText(aircraftTypes.join('\n')); }, [aircraftTypes]);
   useEffect(()=>{ try { localStorage.setItem(FIELD_VIS_KEY, JSON.stringify(visibleFields)); } catch {/* ignore */} }, [visibleFields]);
   const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
@@ -130,16 +146,73 @@ export default function FlightManifestTemplate() {
                 </label>
               ))}
             </div>
+            <div style={{ marginTop:16 }}>
+              <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>Locations List</div>
+              <textarea
+                value={locationOptionsText}
+                onChange={e=>setLocationOptionsText(e.target.value)}
+                onBlur={()=>{
+                  const cleaned = Array.from(new Set(locationOptionsText.split(/\n+/).map(v=>v.trim()).filter(Boolean)));
+                  setLocationOptions(cleaned);
+                }}
+                rows={4}
+                style={{ width:'100%', background: theme.background, color: theme.text, border:'1px solid '+(theme.primary||'#267'), borderRadius:8, padding:8, fontSize:12, resize:'vertical', fontFamily:'monospace', lineHeight:1.4 }}
+                placeholder={'EXAMPLE:\nHOU\nLAX\nDEN\nPLATFORM A'}
+              />
+              <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Admins: one location per line. These populate the Departure / Arrival dropdowns.</div>
+            </div>
+            <div style={{ marginTop:16 }}>
+              <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>Aircraft Types</div>
+              <textarea
+                value={aircraftTypesText}
+                onChange={e=>setAircraftTypesText(e.target.value)}
+                onBlur={()=>{
+                  const cleaned = Array.from(new Set(aircraftTypesText.split(/\n+/).map(v=>v.trim()).filter(Boolean)));
+                  setAircraftTypes(cleaned);
+                }}
+                rows={3}
+                style={{ width:'100%', background: theme.background, color: theme.text, border:'1px solid '+(theme.primary||'#267'), borderRadius:8, padding:8, fontSize:12, resize:'vertical', fontFamily:'monospace', lineHeight:1.4 }}
+                placeholder={'EXAMPLE:\nB350\nS92\nH145'}
+              />
+              <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Admins: one type per line. Populates Aircraft Type dropdown.</div>
+            </div>
           </div>
         )}
         <div style={gridForm}>
           {visibleFields.flightNumber && <Labeled label="Flight #"><input value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>}
           {visibleFields.date && <Labeled label="Date"><input type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>}
-          {visibleFields.departure && <Labeled label="Departure"><input value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" /></Labeled>}
+          {visibleFields.departure && <Labeled label="Departure">{
+            locationOptions.length ? (
+              <select value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)}>
+                <option value="">-- Select --</option>
+                {Array.from(new Set([...(locationOptions||[]), data.meta.departure].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+            ) : (
+              <input value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" />
+            )
+          }</Labeled>}
           {visibleFields.departureTime && <Labeled label="Departure Time"><input value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Labeled>}
-          {visibleFields.arrival && <Labeled label="Arrival"><input value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" /></Labeled>}
+          {visibleFields.arrival && <Labeled label="Arrival">{
+            locationOptions.length ? (
+              <select value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)}>
+                <option value="">-- Select --</option>
+                {Array.from(new Set([...(locationOptions||[]), data.meta.arrival].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+            ) : (
+              <input value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" />
+            )
+          }</Labeled>}
             {visibleFields.arrivalTime && <Labeled label="Arrival Time"><input value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Labeled>}
-            {visibleFields.aircraftType && <Labeled label="Aircraft Type"><input value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" /></Labeled>}
+            {visibleFields.aircraftType && <Labeled label="Aircraft Type">{
+              aircraftTypes.length ? (
+                <select value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)}>
+                  <option value="">-- Select --</option>
+                  {Array.from(new Set([...(aircraftTypes||[]), data.meta.aircraftType].filter(Boolean))).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              ) : (
+                <input value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
+              )
+            }</Labeled>}
             {visibleFields.tailNumber && <Labeled label="Tail #"><input value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>}
             {visibleFields.captain && <Labeled label="Captain"><input value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>}
             {visibleFields.coPilot && <Labeled label="Co-Pilot"><input value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}

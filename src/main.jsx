@@ -33,6 +33,7 @@ function RootRouter() {
 function NavShell({ page, content }) {
 	const { theme, team, changeTheme } = useTheme();
 	const [open, setOpen] = useState(false);
+	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
 	const ref = useRef(null);
 	const gearRef = useRef(null);
 	useEffect(()=>{
@@ -50,7 +51,7 @@ function NavShell({ page, content }) {
 					{ key: 'personnel', label: 'Personnel', color: '#c2571d' },
 					{ key: 'logistics', label: 'Logistics', color: '#198a5a' },
 					{ key: 'manifest', label: 'Manifest', color: '#d94f90' },
-					...(checkAdmin() ? [{ key: 'admin', label: 'Admin', color: '#555' }] : [])
+					...(adminEnabled ? [{ key: 'admin', label: 'Admin', color: '#555' }] : [])
 				].map(tab => {
 					const active = page === tab.key;
 					return (
@@ -66,12 +67,24 @@ function NavShell({ page, content }) {
 				<div style={{ marginLeft:'auto', position:'relative' }}>
 					<button ref={gearRef} onClick={()=>setOpen(o=>!o)} title="Theme Settings" style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:24, lineHeight:1, color:'#fff', padding:'0 4px' }}>⚙️</button>
 					{open && (
-						<div ref={ref} style={{ position:'absolute', top:40, right:0, background: theme.surface, color: theme.text, border:'1px solid '+(theme.primary||'#444'), borderRadius:10, padding:'12px 14px', boxShadow:'0 4px 14px rgba(0,0,0,0.4)', minWidth:180, zIndex:200 }}>
-							<div style={{ fontWeight:'bold', marginBottom:6 }}>Theme</div>
-							<select value={team} onChange={e=>{ changeTheme(e.target.value); setOpen(false); }} style={{ width:'100%' }}>
+						<div ref={ref} style={{ position:'absolute', top:40, right:0, background: theme.surface, color: theme.text, border:'1px solid '+(theme.primary||'#444'), borderRadius:10, padding:'12px 14px 14px', boxShadow:'0 4px 14px rgba(0,0,0,0.4)', minWidth:220, zIndex:200 }}>
+							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:13 }}>Settings</div>
+							<label style={{ fontSize:11, opacity:.7 }}>Theme:</label>
+							<select value={team} onChange={e=>{ changeTheme(e.target.value); setOpen(false); }} style={{ width:'100%', marginBottom:10 }}>
 								<option value='light'>Light</option>
 								<option value='dark'>Dark</option>
 							</select>
+							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
+							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>Admin</div>
+							{!adminEnabled && (
+								<button onClick={()=>{ try { localStorage.setItem('pobIsAdmin','true'); } catch{}; setAdminEnabled(true); setOpen(false); window.location.hash='#admin'; }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Enable Admin Mode</button>
+							)}
+							{adminEnabled && (
+								<div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+									<a href="#admin" onClick={()=>setOpen(false)} style={{ textDecoration:'none', background: theme.primary, color: theme.text, padding:'6px 8px', borderRadius:6, fontSize:12, fontWeight:600, border:'1px solid '+(theme.secondary||'#222'), textAlign:'center' }}>Admin Panel</a>
+									<button onClick={()=>{ if(window.confirm('Disable admin mode?')) { try { localStorage.removeItem('pobIsAdmin'); } catch{}; setAdminEnabled(false); if(window.location.hash==='#admin') window.location.hash='#dashboard'; setOpen(false);} }} style={{ background:'#922', color:'#fff', border:'1px solid #b55', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Disable Admin</button>
+								</div>
+							)}
 						</div>
 					)}
 				</div>

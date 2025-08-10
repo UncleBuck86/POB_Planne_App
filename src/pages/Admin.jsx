@@ -9,6 +9,11 @@ export const isAdmin = () => {
 export default function AdminPage() {
   const { theme } = useTheme();
   useEffect(()=> { if (!isAdmin()) window.location.hash = '#dashboard'; }, []);
+  // Show current manifest locations for quick reference (read-only here)
+  let manifestLocations = [];
+  try { manifestLocations = JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch {}
+  let aircraftTypes = [];
+  try { aircraftTypes = JSON.parse(localStorage.getItem('flightManifestAircraftTypes')) || []; } catch {}
   return (
     <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 60px' }}>
       <h2 style={{ marginTop:0 }}>Admin Panel</h2>
@@ -22,6 +27,22 @@ export default function AdminPage() {
         <div style={sectionHeader(theme)}>Admin Access</div>
         <p style={{ marginTop:0, fontSize:12, opacity:.7 }}>To revoke admin mode run in console:<br/><code>localStorage.removeItem('pobIsAdmin'); location.reload();</code></p>
       </section>
+      <div style={{ marginTop:20 }}>
+        <h3 style={{ margin:'8px 0 4px' }}>Current Flight Locations</h3>
+        {manifestLocations.length ? (
+          <ul style={{ margin:0, paddingLeft:18, fontSize:12 }}>
+            {manifestLocations.map(l=> <li key={l}>{l}</li>)}
+          </ul>
+        ) : <div style={{ fontSize:12, opacity:.6 }}>No locations defined yet. Open a manifest, click Customize, and add them.</div>}
+      </div>
+      <div style={{ marginTop:20 }}>
+        <h3 style={{ margin:'8px 0 4px' }}>Aircraft Types</h3>
+        {aircraftTypes.length ? (
+          <ul style={{ margin:0, paddingLeft:18, fontSize:12 }}>
+            {aircraftTypes.map(t=> <li key={t}>{t}</li>)}
+          </ul>
+        ) : <div style={{ fontSize:12, opacity:.6 }}>No aircraft types defined yet. Open a manifest, click Customize, and add them.</div>}
+      </div>
     </div>
   );
 }

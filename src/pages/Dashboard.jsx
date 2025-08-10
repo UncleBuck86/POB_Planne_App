@@ -78,6 +78,11 @@ function Dashboard() {
     acc[d.key] = visibleCompanies.reduce((sum, c) => sum + (parseInt(c[d.key], 10) || 0), 0);
     return acc;
   }, {});
+  // Precompute flight deltas once for next7 range
+  const flightDeltas = useMemo(() => {
+    const calc = generateFlightComments(rowData, next7.map(n => ({ date: n.key })));
+    return { out: calc.flightsOut, in: calc.flightsIn };
+  }, [rowData, next7]);
   // --- Movable widgets layout ---
   const GRID = 20; // px grid size
   const layoutKey = 'dashboardWidgetLayoutV1';
@@ -239,33 +244,45 @@ function Dashboard() {
         </div>
   <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Read-only snapshot.</div>
   </section>)}
-      {/* Flight Forecast Widget */}
+      {/* Flight Forecast Widget (horizontal like POB Forecast) */}
   {visible.flightForecast && (<section
       onPointerDown={e => onPointerDown(e,'flightForecast')}
-      style={{ position:'absolute', left:(layout.flightForecast?.x||340), top:(layout.flightForecast?.y||160), padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', minWidth: 320 }}>
+      style={{ position:'absolute', left:(layout.flightForecast?.x||340), top:(layout.flightForecast?.y||160), padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
     <h3 style={{ margin: '0 0 4px', color: theme.text, fontSize: 16 }}>Flight Forecast</h3>
-    <table style={{ borderCollapse:'collapse', width:'100%', tableLayout:'fixed', fontSize:11 }}>
-      <thead>
-        <tr>
-          <th style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text, width:95 }}>Date</th>
-          <th style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text }}>Flights Out (+)</th>
-          <th style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text }}>Flights In (-)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {next7.map(d => {
-          const outArr = (generateFlightComments(rowData, next7.map(n => ({ date: n.key }))).flightsOut[d.key]) || [];
-          const inArr = (generateFlightComments(rowData, next7.map(n => ({ date: n.key }))).flightsIn[d.key]) || [];
-          return (
-            <tr key={d.key}>
-              <td style={{ padding:'3px 6px', border:`1px solid ${widgetBorderColor}`, whiteSpace:'nowrap', fontWeight:500 }}>{d.dow} {d.label}</td>
-              <td style={{ padding:'3px 6px', border:`1px solid ${widgetBorderColor}`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={outArr.join(', ')}>{outArr.join(', ') || ''}</td>
-              <td style={{ padding:'3px 6px', border:`1px solid ${widgetBorderColor}`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={inArr.join(', ')}>{inArr.join(', ') || ''}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div style={{ overflowX:'auto' }}>
+      <table style={{ borderCollapse:'collapse', width:'auto', tableLayout:'auto', fontSize:11 }}>
+        <thead>
+          <tr>
+            <th style={thStyle(theme)}></th>
+            {next7.map(d => (
+              <th key={d.key} style={thStyle(theme)} title={d.key}>{d.dow} {d.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ ...tdLeft(theme), fontWeight:'bold' }}>Flights Out (+)</td>
+            {next7.map(d => {
+              const arr = flightDeltas.out[d.key] || [];
+              const total = arr.reduce((sum, s) => {
+                const n = parseInt(String(s).split('-')[0], 10); return sum + (isNaN(n)?0:n);
+              }, 0);
+              return <td key={d.key} style={tdStyle(theme)} title={arr.join(', ')}>{total || ''}</td>;
+            })}
+          </tr>
+          <tr>
+            <td style={{ ...tdLeft(theme), fontWeight:'bold' }}>Flights In (-)</td>
+            {next7.map(d => {
+              const arr = flightDeltas.in[d.key] || [];
+              const total = arr.reduce((sum, s) => {
+                const n = parseInt(String(s).split('-')[0], 10); return sum + (isNaN(n)?0:n);
+              }, 0);
+              return <td key={d.key} style={tdStyle(theme)} title={arr.join(', ')}>{total || ''}</td>;
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Derived from POB deltas (company count changes).</div>
   </section>)}
       {/* POB Onboard Widget */}

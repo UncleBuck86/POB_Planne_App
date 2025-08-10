@@ -263,6 +263,10 @@ export default function FlightManifestTemplate() {
       localStorage.removeItem('manifestSelectedPersonnel');
       setData(d=>{
         const outboundAdd=[]; const inboundAdd=[];
+        const mkKey = (p) => ((p.name||'').trim().toLowerCase()+'|'+(p.company||'').trim().toLowerCase());
+        const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
+        const existingOutbound = new Set(d.outbound.map(p=> mkKey(p)).filter(k=> k && !ignoreKeywords.some(w=> k.includes(w))));
+        const existingInbound = new Set(d.inbound.map(p=> mkKey(p)).filter(k=> k && !ignoreKeywords.some(w=> k.includes(w))));
         list.forEach(p=>{
           const pax = {
             id: crypto.randomUUID(),
@@ -274,7 +278,13 @@ export default function FlightManifestTemplate() {
             comments: 'Imported from movement widget ('+p.source+')',
             origin:'', destination:'', originAuto:true, destinationAuto:true
           };
-          if(p.direction==='inbound') inboundAdd.push(pax); else outboundAdd.push(pax);
+          const key = mkKey(pax);
+          if(!key || ignoreKeywords.some(w=> key.includes(w))) return; // ignore non-person entries
+          if(p.direction==='inbound') {
+            if(!existingInbound.has(key)) { inboundAdd.push(pax); existingInbound.add(key); }
+          } else {
+            if(!existingOutbound.has(key)) { outboundAdd.push(pax); existingOutbound.add(key); }
+          }
         });
         return { ...d, outbound:[...d.outbound, ...outboundAdd], inbound:[...d.inbound, ...inboundAdd] };
       });

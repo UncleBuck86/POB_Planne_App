@@ -63,6 +63,7 @@ export default function FlightsPage() {
   const [selectedPeople, setSelectedPeople] = useState({}); // key -> person payload
   // Current working manifest passengers (for green highlight if already present)
   const manifestPassengersSet = useMemo(()=>{
+    const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
     try {
       const raw = JSON.parse(localStorage.getItem('flightManifestTemplateV1'));
       if(!raw) return new Set();
@@ -72,7 +73,7 @@ export default function FlightsPage() {
           if(!p) return;
           const full = (p.name||'').trim().toLowerCase();
           const company = (p.company||'').trim().toLowerCase();
-            if(full) collect.push(full+'|'+company);
+            if(full && !ignoreKeywords.some(k=> full.includes(k))) collect.push(full+'|'+company);
         });
       });
       return new Set(collect);
@@ -113,7 +114,18 @@ export default function FlightsPage() {
   const selectedCount = Object.keys(selectedPeople).length;
   const sendSelectedToManifest = () => {
     try {
-      const payload = Object.values(selectedPeople);
+      const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
+      const existingRaw = JSON.parse(localStorage.getItem('flightManifestTemplateV1')||'{}');
+      const mkKey = (f,l,c) => ((f||'').trim().toLowerCase()+' '+(l||'').trim().toLowerCase()).trim()+'|'+(c||'').trim().toLowerCase();
+      const existingOutbound = new Set((existingRaw.outbound||[]).map(p=>mkKey(...((p.name||'').split(' ')).slice(0,1), (p.name||'').split(' ').slice(1).join(' '), p.company))); // simplified but will be refined below
+      const existingInbound = new Set((existingRaw.inbound||[]).map(p=>mkKey(...((p.name||'').split(' ')).slice(0,1), (p.name||'').split(' ').slice(1).join(' '), p.company)));
+      const payload = Object.values(selectedPeople).filter(p=>{
+        const key = mkKey(p.firstName, p.lastName, p.company);
+        if(ignoreKeywords.some(w=> key.includes(w))) return false;
+        if(p.direction==='outbound') return !existingOutbound.has(key);
+        if(p.direction==='inbound') return !existingInbound.has(key);
+        return true;
+      });
       localStorage.setItem('manifestSelectedPersonnel', JSON.stringify(payload));
     } catch {/* ignore */}
     // Check catalog for existing manifest on target date (use last selected date or today fallback)

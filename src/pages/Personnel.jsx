@@ -152,7 +152,7 @@ export default function Personnel() {
   const duplicateList = potentialDuplicates();
 
   return (
-    <div style={{ padding: 24, color: theme.text }}>
+  <div style={{ padding: 24, color: theme.text, background: theme.background, minHeight: '100vh' }}>
       {/* Settings Gear */}
       <button
         onClick={() => setSettingsOpen(o => !o)}
@@ -163,11 +163,11 @@ export default function Personnel() {
         <div style={{ position:'fixed', top:50, right:16, zIndex:310, background: theme.surface, color: theme.text, border:`1px solid ${theme.primary}`, borderRadius:10, padding:'14px 16px', minWidth:220, boxShadow:'0 4px 14px rgba(0,0,0,0.35)' }}>
           <div style={{ fontWeight:'bold', marginBottom:8 }}>Settings</div>
           <label style={{ fontSize:12, display:'block', marginBottom:4 }}>Theme:</label>
-          <select value={team} onChange={e => { changeTheme(e.target.value); }} style={{ ...select(theme), width:'100%', marginBottom:12 }}>
+          <select value={team} onChange={e => { changeTheme(e.target.value); setSettingsOpen(false); }} style={{ ...select(theme), width:'100%', marginBottom:12 }}>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
           </select>
-          <button onClick={() => setShowAdmin(s => !s)} style={{ ...btn(theme), width:'100%', fontSize:12, background: showAdmin ? theme.secondary : theme.primary }}>
+          <button onClick={() => { setShowAdmin(s => !s); setSettingsOpen(false); }} style={{ ...btn(theme), width:'100%', fontSize:12, background: showAdmin ? theme.secondary : theme.primary }}>
             {showAdmin ? 'Hide Manage Lists' : 'Manage Lists'}
           </button>
           <div style={{ marginTop:10 }}>
@@ -187,7 +187,12 @@ export default function Personnel() {
         <input placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} style={input(theme)} />
       </div>
       {showAdmin && (
-        <div style={{ marginBottom: 20, padding: 12, border: `1px solid ${borderColor}`, borderRadius: 8, background: theme.surface, display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))' }}>
+        <div style={{ marginBottom: 20, padding: 12, border: `1px solid ${borderColor}`, borderRadius: 8, background: theme.surface, display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', position:'relative' }}>
+          <button
+            onClick={() => setShowAdmin(false)}
+            title="Close"
+            style={{ position:'absolute', top:6, right:6, background:'transparent', border:'none', fontSize:18, cursor:'pointer', color: theme.text, lineHeight:1 }}
+          >✖</button>
           <div>
             <h4 style={{ margin: '0 0 6px' }}>Crew Options</h4>
             <textarea

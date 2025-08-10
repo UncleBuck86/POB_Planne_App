@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import Personnel from './pages/Personnel.jsx';
 import Logistics from './pages/Logistics.jsx';
 import FlightManifestTemplate from './pages/FlightManifestTemplate.jsx';
+import FlightManifestView from './pages/FlightManifestView.jsx';
 import AdminPage from './pages/Admin.jsx';
 import { isAdmin as checkAdmin } from './pages/Admin.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
@@ -20,6 +21,7 @@ function RootRouter() {
 	if (page === 'planner') content = <App />;
 	else if (page === 'personnel') content = <Personnel />;
 	else if (page === 'manifest') content = <FlightManifestTemplate />;
+	else if (page.startsWith('manifest-view')) content = <FlightManifestView />;
 	else if (page === 'admin') content = checkAdmin() ? <AdminPage /> : <Dashboard />;
 	else if (page.startsWith('logistics')) content = <Logistics />;
 	else content = <Dashboard />;

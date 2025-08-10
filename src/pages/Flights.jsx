@@ -20,14 +20,11 @@ export default function FlightsPage() {
   const catalog = useMemo(()=>{ try { return JSON.parse(localStorage.getItem('flightManifestCatalogV1'))||[]; } catch { return []; } }, []);
   const openCatalogManifest = (entry) => {
     try {
-      // seed manifestGenerateDates with just the entry date so existing logic pre-fills route if desired
       const d = new Date(entry.meta.date || entry.date);
       const key = keyForDate(d);
       localStorage.setItem('manifestGenerateDates', JSON.stringify([key]));
-      // store entry directly for immediate load
-      localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }));
-    } catch {}
-    window.location.hash = '#manifest';
+    } catch {/* ignore */}
+    window.location.hash = '#manifest-view/'+entry.id;
   };
   const openManifestTemplate = () => {
     try {
@@ -232,16 +229,14 @@ export default function FlightsPage() {
   // Open manifest for a specific planner date key (M/D/YYYY)
   const openManifestForDate = (mdyKey) => {
     try {
-      // store single date for template pre-fill
       localStorage.setItem('manifestGenerateDates', JSON.stringify([mdyKey]));
-      // attempt to find saved manifest and preload
       const [m,d,y] = mdyKey.split('/');
       const iso = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const existing = catalog.find(c=> c.meta && c.meta.date === iso);
       if(existing){
-        localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound }));
+        window.location.hash = '#manifest-view/'+existing.id;
+        return;
       } else {
-        // if none, seed a blank manifest with date only (preserve previous meta except date?)
         try {
           const prev = JSON.parse(localStorage.getItem('flightManifestTemplateV1'))||{};
           const meta = { ...(prev.meta||{}), date: iso };

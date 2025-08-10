@@ -481,7 +481,10 @@ export default function FlightManifestTemplate() {
         }
         .manifest-root ::placeholder { color: ${theme.name==='Dark' ? '#9aa4ad' : '#6c7a85'}; opacity: .85; }
       `}</style>
-  <h2 style={{ marginTop:0 }}>Flight Manifest Template {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}</h2>
+  <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+    <button onClick={()=> window.location.hash = '#logistics/flights'} style={{ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>← Flights</button>
+    <h2 style={{ marginTop:0 }}>Flight Manifest Template {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}</h2>
+  </div>
       <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
         <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center', gap:12 }}>

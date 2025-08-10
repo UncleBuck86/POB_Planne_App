@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 
 const STORAGE_KEY = 'flightManifestTemplateV1';
+const CATALOG_KEY = 'flightManifestCatalogV1';
 const FIELD_VIS_KEY = 'flightManifestVisibleFields';
 const LOCATIONS_KEY = 'flightManifestLocations';
 const AIRCRAFT_TYPES_KEY = 'flightManifestAircraftTypes'; // stores array of objects: { type, maxPax, maxOutboundWeight, maxInboundWeight }
@@ -41,6 +42,45 @@ export default function FlightManifestTemplate() {
     }
   });
   const isAdmin = () => { try { return localStorage.getItem('pobIsAdmin') === 'true'; } catch { return false; } };
+  // Catalog of saved manifests
+  const [catalog, setCatalog] = useState(()=>{ try { return JSON.parse(localStorage.getItem(CATALOG_KEY))||[]; } catch { return []; } });
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [currentCatalogId, setCurrentCatalogId] = useState(null); // which catalog entry is loaded (if any)
+  useEffect(()=>{ try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch {/*ignore*/} }, [catalog]);
+  const saveToCatalog = (asNew=false) => {
+    const snapshot = JSON.parse(JSON.stringify({
+      meta: data.meta,
+      outbound: data.outbound,
+      inbound: data.inbound
+    }));
+    if(!asNew && currentCatalogId) {
+      setCatalog(list=> list.map(e=> e.id===currentCatalogId ? { ...e, ...snapshot, date: snapshot.meta.date, flightNumber: snapshot.meta.flightNumber, updatedAt: new Date().toISOString() } : e));
+    } else {
+      const id = crypto.randomUUID();
+      const entry = { id, date: snapshot.meta.date, flightNumber: snapshot.meta.flightNumber, savedAt: new Date().toISOString(), ...snapshot };
+      setCatalog(list=> [entry, ...list]);
+      setCurrentCatalogId(id);
+    }
+  };
+  const loadFromCatalog = (id) => {
+    const entry = catalog.find(e=>e.id===id); if(!entry) return;
+    // deep clone to detach references
+    setData(JSON.parse(JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound })));
+    setCurrentCatalogId(id);
+    setCatalogOpen(false);
+  };
+  const deleteFromCatalog = (id) => {
+    if(!confirm('Delete saved manifest?')) return;
+    setCatalog(list=> list.filter(e=> e.id!==id));
+    if(currentCatalogId===id) { setCurrentCatalogId(null); }
+  };
+  const isDirtyRelativeToCatalog = useMemo(()=>{
+    if(!currentCatalogId) return true;
+    const entry = catalog.find(e=>e.id===currentCatalogId); if(!entry) return true;
+    try {
+      return JSON.stringify({meta:entry.meta,outbound:entry.outbound,inbound:entry.inbound}) !== JSON.stringify({meta:data.meta,outbound:data.outbound,inbound:data.inbound});
+    } catch { return true; }
+  }, [currentCatalogId, catalog, data]);
   const allFieldKeys = ['flightNumber','date','departure','departureTime','arrival','arrivalTime','aircraftType','tailNumber','captain','coPilot','dispatcher','notes'];
   const [visibleFields, setVisibleFields] = useState(()=>{
     try { const stored = JSON.parse(localStorage.getItem(FIELD_VIS_KEY)); if (stored && typeof stored === 'object') return { ...allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}), ...stored }; } catch{/*ignore*/}
@@ -567,6 +607,9 @@ export default function FlightManifestTemplate() {
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
+          <button onClick={()=>saveToCatalog(false)} style={actionBtn(theme)} disabled={!isDirtyRelativeToCatalog}>Save{currentCatalogId && !isDirtyRelativeToCatalog? ' (Saved)':''}</button>
+          <button onClick={()=>saveToCatalog(true)} style={actionBtn(theme)}>Save As New</button>
+          <button onClick={()=>setCatalogOpen(o=>!o)} style={actionBtn(theme)}>{catalogOpen? 'Close Catalog':'Catalog'}</button>
           <button onClick={clearAll} style={{ ...actionBtn(theme), background:'#aa3333' }}>Clear All</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
             <span>Grand Pax: {grandTotalPax}</span>
@@ -585,6 +628,24 @@ export default function FlightManifestTemplate() {
           </div>
         </div>
       </section>
+      {catalogOpen && (
+        <section style={card(theme)}>
+          <div style={{ ...sectionHeader(theme), marginBottom:10 }}>Saved Manifests ({catalog.length})</div>
+          {catalog.length===0 && <div style={{ fontSize:12, opacity:.6 }}>No saved manifests yet.</div>}
+          <div style={{ display:'grid', gap:8 }}>
+            {catalog.map(e=> (
+              <div key={e.id} style={{ display:'flex', gap:10, alignItems:'center', background: theme.name==='Dark'? '#2a3035':'#ecf1f5', padding:'6px 10px', borderRadius:8, border:'1px solid '+(currentCatalogId===e.id? (theme.primary||'#267') : (theme.name==='Dark'? '#444':'#ccc')) }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:600 }}>{e.meta.flightNumber || 'No Flight #'} - {e.date}</div>
+                  <div style={{ fontSize:11, opacity:.7 }}>Outbound {e.outbound.length} / Inbound {e.inbound.length} &nbsp; Saved {new Date(e.savedAt||e.updatedAt).toLocaleString()}</div>
+                </div>
+                <button style={smallBtn(theme)} onClick={()=>loadFromCatalog(e.id)}>Load</button>
+                <button style={smallBtn(theme)} onClick={()=>deleteFromCatalog(e.id)}>Del</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <div style={{ fontSize:10, opacity:.5, marginTop:30 }}>Future: auto-populate from planner deltas; attach saved templates to flights; CSV export.</div>
       {addPersonOpen && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'60px 20px', zIndex:600 }} onClick={e=>{ if(e.target===e.currentTarget) setAddPersonOpen(false); }}>

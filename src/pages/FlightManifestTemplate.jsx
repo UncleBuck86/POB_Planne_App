@@ -88,20 +88,22 @@ export default function FlightManifestTemplate() {
   // Add person modal state
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [addPersonDraft, setAddPersonDraft] = useState({ firstName:'', lastName:'', company:'', bodyWeight:'', bagWeight:'', bagCount:'' });
-  const [pendingPassengerId, setPendingPassengerId] = useState(null); // outbound passenger id to populate after add
-  const openAddPerson = (passengerId, prefillName) => {
+  const [pendingPassengerId, setPendingPassengerId] = useState(null); // passenger id to populate after add
+  const [pendingDir, setPendingDir] = useState(null); // 'outbound' | 'inbound'
+  const openAddPerson = (passengerId, prefillName, dir) => {
     const parts = (prefillName||'').trim().split(/\s+/);
     setAddPersonDraft(d=>({ ...d, firstName: parts[0]||'', lastName: parts.slice(1).join(' ')||'' }));
     setPendingPassengerId(passengerId);
+    setPendingDir(dir||'outbound');
     setAddPersonOpen(true);
   };
   const saveNewPerson = () => {
     const rec = { id: 'p_'+Math.random().toString(36).slice(2,9), firstName:addPersonDraft.firstName.trim(), lastName:addPersonDraft.lastName.trim(), company:addPersonDraft.company.trim(), position:'', location:'', crew:'', rotation:'', coreCrew:false, bodyWeight:addPersonDraft.bodyWeight, bagWeight:addPersonDraft.bagWeight, bagCount:addPersonDraft.bagCount, primaryPhone:'', secondaryPhone:'', address:'', dob:'', arrivalDate:new Date().toISOString().slice(0,10), departureDate:'', status:'Onboard', notes:'' };
     setPersonnelRecords(list=>{ const next=[...list, rec]; try{ localStorage.setItem('personnelRecords', JSON.stringify(next)); }catch{} return next; });
     if(pendingPassengerId){
-      setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===pendingPassengerId ? { ...p, name: rec.firstName + (rec.lastName? ' '+rec.lastName:''), company: rec.company, bodyWeight: rec.bodyWeight, bagWeight: rec.bagWeight, bagCount: rec.bagCount } : p) }));
+      setData(d=> ({ ...d, [pendingDir]: d[pendingDir].map(p => p.id===pendingPassengerId ? { ...p, name: rec.firstName + (rec.lastName? ' '+rec.lastName:''), company: rec.company, bodyWeight: rec.bodyWeight, bagWeight: rec.bagWeight, bagCount: rec.bagCount } : p) }));
     }
-    setAddPersonOpen(false); setPendingPassengerId(null);
+    setAddPersonOpen(false); setPendingPassengerId(null); setPendingDir(null);
   };
 
   useEffect(() => {
@@ -476,7 +478,9 @@ export default function FlightManifestTemplate() {
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Inbound Passengers ({totalInbound})</div>
-  {passengerTable(theme, 'inbound', safeInbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id), (pid,field,val)=> manualRouteUpdate('inbound',pid,field,val))}
+  {passengerTable(theme, 'inbound', safeInbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id), (pid,field,val)=> manualRouteUpdate('inbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
+    setData(d=> ({ ...d, inbound: d.inbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
+  })}
         <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
@@ -610,8 +614,8 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
             <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
               <Td>{i+1}</Td>
               <Td style={{ position:'relative' }}>
-                <input value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); if(dir==='outbound'){ setNameQuery(e.target.value); setActiveRow(p.id);} }} placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
-                {dir==='outbound' && activeRow===p.id && (matches.length>0 || (nameQuery.trim().length>=2 && !matches.length)) && (
+                <input value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); setNameQuery(e.target.value); setActiveRow(p.id);} } placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
+                {activeRow===p.id && (matches.length>0 || (nameQuery.trim().length>=2 && !matches.length)) && (
                   <div style={{ position:'absolute', top:'100%', left:0, zIndex:50, background: theme.background, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), borderRadius:6, padding:6, minWidth:200, boxShadow:'0 4px 12px rgba(0,0,0,0.35)' }}>
                     {matches.map(m=> (
                       <div key={m.id} style={{ padding:'4px 6px', cursor:'pointer', fontSize:11, borderRadius:4, background:'#0000' }} onMouseDown={()=>{ applyPersonRecord(p.id, m); setActiveRow(null); }} onMouseEnter={e=> e.currentTarget.style.background = (theme.name==='Dark'?'#2e3439':'#e6eef5')} onMouseLeave={e=> e.currentTarget.style.background='transparent'}>
@@ -621,7 +625,7 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
                     {!matches.length && (
                       <div style={{ fontSize:11, padding:'4px 2px' }}>
                         No match found.
-                        <button style={{ marginLeft:6, ...smallBtn(theme), padding:'2px 6px', fontSize:10 }} onMouseDown={()=>{ openAddPerson(p.id, nameQuery); setActiveRow(null); }}>Add Person</button>
+                        <button style={{ marginLeft:6, ...smallBtn(theme), padding:'2px 6px', fontSize:10 }} onMouseDown={()=>{ openAddPerson(p.id, nameQuery, dir); setActiveRow(null); }}>Add Person</button>
                       </div>
                     )}
                   </div>

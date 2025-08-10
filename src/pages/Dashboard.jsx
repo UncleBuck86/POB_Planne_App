@@ -162,9 +162,10 @@ function Dashboard() {
       const gear = gearRef.current;
       if (!menu) return;
       if (menu.contains(e.target) || gear?.contains(e.target)) return;
-      setSettingsOpen(false);
+      // Only auto-close on outside click when not editing layout
+      if (!editLayout) setSettingsOpen(false);
     };
-    const handleKey = (e) => { if (e.key === 'Escape') setSettingsOpen(false); };
+  const handleKey = (e) => { if (e.key === 'Escape') setSettingsOpen(false); };
     window.addEventListener('mousedown', handleClick);
     window.addEventListener('touchstart', handleClick);
     window.addEventListener('keydown', handleKey);
@@ -173,7 +174,7 @@ function Dashboard() {
       window.removeEventListener('touchstart', handleClick);
       window.removeEventListener('keydown', handleKey);
     };
-  }, [settingsOpen]);
+  }, [settingsOpen, editLayout]);
 
   return (
     <StyledThemeProvider theme={theme}>
@@ -184,19 +185,26 @@ function Dashboard() {
           <Dropdown ref={settingsRef}>
             <div style={{ marginBottom: 8, fontWeight: 'bold' }}>Theme Settings</div>
             <label htmlFor="dash-theme-select" style={{ marginRight: 8 }}>Select Theme:</label>
-            <select id="dash-theme-select" value={team} onChange={e => { changeTheme(e.target.value); setSettingsOpen(false); }}>
+            <select id="dash-theme-select" value={team} onChange={e => { changeTheme(e.target.value); if (!editLayout) setSettingsOpen(false); }}>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
             </select>
             <div style={{ marginTop:12, paddingTop:10, borderTop: '1px solid ' + (theme.name==='Dark' ? '#bfc4ca40':'#ccc'), fontSize:12 }}>
               <div style={{ fontWeight:'bold', marginBottom:6 }}>Layout</div>
-              <button onClick={() => { setEditLayout(e => !e); setSettingsOpen(false); }} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
+              <button onClick={() => {
+                setEditLayout(prev => {
+                  const next = !prev;
+                  // Close the settings only when turning OFF edit layout; keep open when enabling edit
+                  if (!next) setSettingsOpen(false);
+                  return next;
+                });
+              }} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
                 {editLayout ? 'Finish Layout' : 'Edit Layout'}
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
                 {['nav','forecast','flightForecast','onboard'].map(id => (
                   <label key={id} style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <input type="checkbox" checked={visible[id]} onChange={e => { setVisible(v => ({ ...v, [id]: e.target.checked })); setSettingsOpen(false); }} />
+                    <input type="checkbox" checked={visible[id]} onChange={e => { setVisible(v => ({ ...v, [id]: e.target.checked })); if (!editLayout) setSettingsOpen(false); }} />
                     <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : 'POB Onboard'}</span>
                   </label>
                 ))}

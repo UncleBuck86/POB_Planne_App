@@ -212,29 +212,28 @@ export default function FlightManifestTemplate() {
               {aircraftTypes.length === 0 && <div style={{ fontSize:11, opacity:.6, marginBottom:4 }}>No aircraft types yet. Add one.</div>}
               <div style={{ display:'grid', gap:6 }}>
                 {aircraftTypes.map((a,i)=> (
-                  <div key={i} style={{ display:'grid', gap:6, gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))', alignItems:'end', background: theme.name==='Dark'? '#24292f':'#f2f6f9', padding:8, borderRadius:8, position:'relative' }}>
-                        <div>
-                          <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Outbound Wt</label>
-                          <input type="number" value={a.maxOutboundWeight} onChange={e=>updateAircraftType(i,'maxOutboundWeight', e.target.value)} placeholder="lbs" />
-                        </div>
-                        <div>
-                          <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Inbound Wt</label>
-                          <input type="number" value={a.maxInboundWeight} onChange={e=>updateAircraftType(i,'maxInboundWeight', e.target.value)} placeholder="lbs" />
-                        </div>
-                    <div style={{ gridColumn:'span 2' }}>
+                  <div key={i} style={{ display:'grid', gap:6, gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))', alignItems:'end', background: theme.name==='Dark'? '#24292f':'#f2f6f9', padding:8, borderRadius:8, position:'relative' }}>
+                    <div>
                       <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Type</label>
                       <input value={a.type} onChange={e=>updateAircraftType(i,'type', e.target.value)} placeholder="e.g. S92" />
                     </div>
                     <div>
                       <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Pax</label>
-                      <input type="number" value={a.maxPax} onChange={e=>updateAircraftType(i,'maxPax', e.target.value)} placeholder="" />
+                      <input type="number" value={a.maxPax} onChange={e=>updateAircraftType(i,'maxPax', e.target.value)} />
                     </div>
-                    {/* Removed separate passenger / cargo weight caps */}
+                    <div>
+                      <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Inbound Wt</label>
+                      <input type="number" value={a.maxInboundWeight} onChange={e=>updateAircraftType(i,'maxInboundWeight', e.target.value)} placeholder="lbs" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Outbound Wt</label>
+                      <input type="number" value={a.maxOutboundWeight} onChange={e=>updateAircraftType(i,'maxOutboundWeight', e.target.value)} placeholder="lbs" />
+                    </div>
                     <button onClick={()=>removeAircraftType(i)} style={{ position:'absolute', top:4, right:4, background:'transparent', border:'none', color: theme.danger||'#c33', cursor:'pointer', fontSize:14 }} title="Remove">×</button>
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Directional limits now use total (body + bag) weight only.</div>
+              <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Directional limits use total (body + bag) weight only. Contact flight provider if additional details are required.</div>
             </div>
           </div>
         )}

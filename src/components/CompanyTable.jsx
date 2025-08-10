@@ -59,9 +59,39 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [saveMsg, setSaveMsg] = useState(''); // For save status message
   const [localComments, setLocalComments] = useState(comments); // For comments row
   const [autosave, setAutosave] = useState(true); // Autosave toggle
-  const [editCompanies, setEditCompanies] = useState(rowData.map(r => r.company)); // Companies being edited
-  const [pinnedCompanies, setPinnedCompanies] = useState([]); // Pinned companies
-  const [hiddenRows, setHiddenRows] = useState([]); // Hidden company rows
+  // Ensure each company row has a stable id
+  const generateId = () => 'cmp_' + Math.random().toString(36).slice(2, 10);
+  useEffect(() => {
+    setRowData(prev => prev.map(r => (r.id ? r : { ...r, id: generateId() })));
+  }, []); // run once
+  const [editCompanies, setEditCompanies] = useState([]); // Array of {id, company}
+  const [pinnedCompanies, setPinnedCompanies] = useState([]); // Array of pinned IDs
+  const [hiddenRows, setHiddenRows] = useState([]); // Array of hidden IDs
+
+  // After ids exist, load persisted pinned/hidden (filter to existing ids)
+  useEffect(() => {
+    if (!rowData.every(r => r.id)) return; // wait until all have ids
+    const storedPinned = JSON.parse(localStorage.getItem('pobPinnedIds') || '[]');
+    const storedHidden = JSON.parse(localStorage.getItem('pobHiddenIds') || '[]');
+    const ids = new Set(rowData.map(r => r.id));
+    setPinnedCompanies(storedPinned.filter(id => ids.has(id)));
+    setHiddenRows(storedHidden.filter(id => ids.has(id)));
+  }, [rowData]);
+
+  // Persist pinned & hidden changes
+  useEffect(() => {
+    localStorage.setItem('pobPinnedIds', JSON.stringify(pinnedCompanies));
+  }, [pinnedCompanies]);
+  useEffect(() => {
+    localStorage.setItem('pobHiddenIds', JSON.stringify(hiddenRows));
+  }, [hiddenRows]);
+
+  // Prune pinned/hidden if rows removed
+  useEffect(() => {
+    const existing = new Set(rowData.map(r => r.id));
+    setPinnedCompanies(prev => prev.filter(id => existing.has(id)));
+    setHiddenRows(prev => prev.filter(id => existing.has(id)));
+  }, [rowData.length]);
   const [lastSavedData, setLastSavedData] = useState(rowData); // Last saved table data
   const [lastSavedComments, setLastSavedComments] = useState(localComments); // Last saved comments
   const [flightsOut, setFlightsOut] = useState({}); // Flights out per date
@@ -72,24 +102,24 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const resizeMetaRef = useRef({ startY: 0, startHeight: 0, dragging: false });
 
   // --- Auto alphabetize (with pinned companies on top) ---
-  const companyNamesKey = rowData.map(r => r.company).join('|');
+  const companyNamesKey = rowData.map(r => r.company + ':' + r.id).join('|');
   useEffect(() => {
     setRowData(prev => {
       if (!prev || !Array.isArray(prev)) return prev;
-      const pinnedOrder = pinnedCompanies;
+      const pinnedOrder = pinnedCompanies; // ids
       const pinnedSet = new Set(pinnedOrder);
       const sorted = [...prev].sort((a, b) => {
-        const aPinned = pinnedSet.has(a.company);
-        const bPinned = pinnedSet.has(b.company);
+        const aPinned = pinnedSet.has(a.id);
+        const bPinned = pinnedSet.has(b.id);
         if (aPinned && bPinned) {
-          return pinnedOrder.indexOf(a.company) - pinnedOrder.indexOf(b.company);
+          return pinnedOrder.indexOf(a.id) - pinnedOrder.indexOf(b.id);
         }
         if (aPinned) return -1;
         if (bPinned) return 1;
         const aName = (a.company || '').toLowerCase();
         const bName = (b.company || '').toLowerCase();
         if (!aName && !bName) return 0;
-        if (!aName) return 1; // empty names sink to bottom
+        if (!aName) return 1;
         if (!bName) return -1;
         return aName.localeCompare(bName);
       });
@@ -206,21 +236,32 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Modal logic: open, add, remove, save companies
   const openEditor = () => {
-    setEditCompanies(rowData.map(r => r.company));
+    setEditCompanies(rowData.map(r => ({ id: r.id, company: r.company })));
     setEditing(true);
   };
-  const addCompany = () => setEditCompanies(prev => [...prev, '']);
-  const removeCompany = idx => setEditCompanies(prev => prev.filter((_, i) => i !== idx));
+  const addCompany = () => {
+    const id = generateId();
+    setEditCompanies(prev => [...prev, { id, company: '' }]);
+    setRowData(prev => [...prev, { id, company: '' }]);
+  };
+  const removeCompany = idx => {
+    setEditCompanies(prev => prev.filter((_, i) => i !== idx));
+    // Do not remove from rowData until save? We'll mirror immediate removal:
+    setRowData(prev => prev.filter((_, i) => i !== idx));
+  };
   const saveCompanies = () => {
-    setRowData(prev => editCompanies.map((name, i) => (prev[i] ? { ...prev[i], company: name } : { company: name })));
+    setRowData(prev => editCompanies.map(ec => {
+      const found = prev.find(r => r.id === ec.id);
+      return found ? { ...found, company: ec.company } : { id: ec.id, company: ec.company };
+    }));
     setEditing(false);
     setSaveMsg('Companies updated');
     setTimeout(() => setSaveMsg(''), 2000);
   };
 
   // Hide/unhide company row (manual override)
-  const toggleRow = (company, hide) => {
-    setHiddenRows(prev => hide ? [...new Set([...prev, company])] : prev.filter(c => c !== company));
+  const toggleRow = (id, hide) => {
+    setHiddenRows(prev => hide ? [...new Set([...prev, id])] : prev.filter(c => c !== id));
   };
 
   // Manual save button
@@ -265,7 +306,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         pushUndo={pushUndo}
         setUndoStack={setUndoStack}
         setRedoStack={setRedoStack}
-        rowData={rowData}
+  rowData={rowData}
         localComments={localComments}
         setRowData={setRowData}
         setLocalComments={setLocalComments}
@@ -319,7 +360,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
             {/* Render each company row */}
             {rowData.map((row, idx) => (
               <CompanyRow
-                key={row.company || idx}
+                key={row.id}
                 row={row}
                 idx={idx}
                 dates={dates}
@@ -344,24 +385,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               setComments={setComments}
               pushUndo={pushUndo}
             />
-            {/* Hidden rows controls */}
-            {rowData.map((row, idx) =>
-              hiddenRows.includes(row.company) ? (
-                <tr key={`${row.company}-hidden`} style={{ background: '#f9f9f9' }}>
-                  <td colSpan={dates.length + 1}>
-                    <span style={{ color: '#888' }}>{row.company} (hidden)</span>
-                    <input
-                      type="checkbox"
-                      checked
-                      onChange={() => toggleRow(row.company, false)}
-                      style={{ marginLeft: 8, transform: 'scale(0.8)', verticalAlign: 'middle' }}
-                      title="Show row"
-                    />
-                    <span style={{ fontSize: '0.8em', marginLeft: 4 }}>Unhide</span>
-                  </td>
-                </tr>
-              ) : null
-            )}
           </tbody>
           </table>
         </div>

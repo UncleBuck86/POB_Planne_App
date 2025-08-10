@@ -4,10 +4,10 @@ import React from 'react';
 import { useTheme } from '../../ThemeContext.jsx';
 
 export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData, manualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
-  if (hiddenRows.includes(row.company)) return null; // Skip hidden rows
+  if (hiddenRows.includes(row.id)) return null; // Skip hidden rows by id
   const { theme } = useTheme();
   return (
-    <tr key={row.company || idx}>
+    <tr key={row.id}>
       <td style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: '2px solid #000' }}>
         <span>{row.company}</span>
       </td>

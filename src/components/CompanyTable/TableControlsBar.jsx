@@ -40,7 +40,22 @@ export default function TableControlsBar({
         <button
           onClick={handleSave}
           disabled={autosave}
-          style={{ fontSize: '1em', padding: '6px 18px', background: autosave ? '#bbb' : theme.primary, color: theme.buttonText || theme.text, border: 'none', borderRadius: 4 }}
+          style={{
+            fontSize: '1em',
+            padding: '6px 18px',
+            background: autosave
+              ? 'repeating-linear-gradient(135deg, #c2c2c2 0 8px, #b5b5b5 8px 16px)'
+              : theme.primary,
+            color: autosave ? '#333' : (theme.buttonText || theme.text),
+            border: '1px solid ' + (autosave ? '#999' : theme.primary),
+            borderRadius: 4,
+            position: 'relative',
+            cursor: autosave ? 'not-allowed' : 'pointer',
+            opacity: autosave ? 0.85 : 1,
+            fontWeight: autosave ? '600' : 'bold',
+            letterSpacing: '0.5px'
+          }}
+          title={autosave ? 'Disabled while Autosave is ON' : 'Save changes'}
         >
           Save
         </button>

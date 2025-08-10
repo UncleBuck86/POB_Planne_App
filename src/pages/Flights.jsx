@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../utils/generateFlightComment.js';
 import { DayPicker } from 'react-day-picker';
@@ -12,6 +12,8 @@ export default function FlightsPage() {
   const rowData = useMemo(() => { try { return JSON.parse(localStorage.getItem('pobPlannerData')) || []; } catch { return []; } }, []);
   const today = new Date();
   const [displayMonth, setDisplayMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [largeCalendar, setLargeCalendar] = useState(()=>{ try { return localStorage.getItem('pobLargeCalendar')==='true'; } catch { return false; } });
+  useEffect(()=>{ try { localStorage.setItem('pobLargeCalendar', largeCalendar?'true':'false'); } catch{} }, [largeCalendar]);
   const [selectedDates, setSelectedDates] = useState([]);
   // Removed manifestOpen popup; movement widget + direct manifest link replaces it
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -173,7 +175,11 @@ export default function FlightsPage() {
       <a href="#logistics" style={{ textDecoration:'none', color: theme.primary, fontSize:12, fontWeight:600 }}>← Back</a>
       <h2 style={{ margin:'8px 0 12px' }}>Flights</h2>
       <div style={{ display:'flex', gap:40, alignItems:'flex-start', flexWrap:'wrap' }}>
-        <div style={{ background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)' }}>
+        <div style={{ background: theme.surface, padding:20, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:16, boxShadow:'0 4px 12px rgba(0,0,0,0.3)', display:'flex', flexDirection:'column', alignItems:'stretch' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <div style={{ fontSize:14, fontWeight:600 }}>Select Flight Date(s)</div>
+            <button onClick={()=> setLargeCalendar(l=>!l)} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 8px', borderRadius:8, cursor:'pointer', fontSize:11, fontWeight:600 }}>{largeCalendar? 'Normal Size':'Large Size'}</button>
+          </div>
           <DayPicker
             mode="multiple"
             month={displayMonth}
@@ -189,24 +195,28 @@ export default function FlightsPage() {
                 const k = keyForDate(day);
                 const movement = movementCounts[k] || 0;
                 return (
-                  <div style={{ position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }} title={movement? `${movement} flight movement change(s)`: undefined}>
+                  <div style={{ position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:500 }} title={movement? `${movement} flight movement change(s)`: undefined}>
                     <span>{day.getDate()}</span>
-                    {movement>0 && <span style={{ position:'absolute', bottom:2, right:2, fontSize:9, padding:'1px 3px', borderRadius:6, background: theme.secondary, color: theme.text }}>{movement}</span>}
+                    {movement>0 && <span style={{ position:'absolute', bottom:2, right:2, fontSize:largeCalendar?11:9, padding:largeCalendar?'2px 4px':'1px 3px', borderRadius:6, background: theme.secondary, color: theme.text }}>{movement}</span>}
                   </div>
                 );
               }
             }}
             styles={{
-              caption:{ color: theme.text },
-              head_cell:{ background: theme.primary, color: theme.text, fontWeight:600, fontSize:12 },
-              day:{ fontSize:'0.7rem', padding:'6px 0' },
-              day_selected:{ background: theme.primary, color: theme.text },
-              day_today:{ outline:'2px solid '+theme.secondary },
-              nav_button_previous:{ background: theme.primary, color: theme.text },
-              nav_button_next:{ background: theme.primary, color: theme.text }
+              caption:{ color: theme.text, fontSize: largeCalendar? '1.15rem':'0.9rem', padding: largeCalendar? '8px 0':'4px 0', fontWeight:700 },
+              head:{ marginTop:4 },
+              head_cell:{ background: theme.primary, color: theme.text, fontWeight:700, fontSize: largeCalendar? 14:12, padding: largeCalendar? '10px 0':'6px 0' },
+              table:{ width:'100%', fontSize: largeCalendar? '0.95rem':'0.75rem' },
+              day:{ fontSize: largeCalendar? '0.95rem':'0.70rem', padding: largeCalendar? '10px 0':'6px 0', margin:0, borderRadius:8 },
+              day_outside:{ opacity:.35 },
+              day_selected:{ background: theme.primary, color: theme.text, fontWeight:700, borderRadius:8, boxShadow:'0 0 0 2px '+(theme.secondary||'#000')+'55 inset' },
+              day_today:{ outline:'2px solid '+theme.secondary, fontWeight:700 },
+              nav:{ marginBottom:4 },
+              nav_button_previous:{ background: theme.primary, color: theme.text, width: largeCalendar? '2.2rem':'1.8rem', height: largeCalendar? '2.2rem':'1.8rem', borderRadius:8 },
+              nav_button_next:{ background: theme.primary, color: theme.text, width: largeCalendar? '2.2rem':'1.8rem', height: largeCalendar? '2.2rem':'1.8rem', borderRadius:8 }
             }}
           />
-          <div style={{ marginTop:8, fontSize:11, opacity:.75 }}>Select one or more dates to view flight manifest.</div>
+          <div style={{ marginTop:8, fontSize:largeCalendar?13:11, opacity:.75 }}>Select one or more dates to view flight manifest.</div>
           {selectedDates.length>0 && <button onClick={openManifestTemplate} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Open Manifest Template</button>}
           <button onClick={()=> setCatalogOpen(o=>!o)} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>{catalogOpen? 'Close Saved Catalog':'Saved Manifests'}</button>
           {selectedDates.length>0 && <button onClick={clearSelection} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Clear Selection</button>}

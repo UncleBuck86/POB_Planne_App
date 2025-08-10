@@ -119,10 +119,16 @@ export default function FlightManifestTemplate() {
   const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
   const [dedupeNotice, setDedupeNotice] = useState('');
-    const todayIso = new Date().toISOString().slice(0,10);
-    const locked = useMemo(()=>{
-      try { return data.meta.date && data.meta.date < todayIso; } catch { return false; }
-    }, [data.meta.date, todayIso]);
+  // Local-day (midnight rollover) locking rather than UTC slice
+  const localToday = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  };
+  const [todayIso, setTodayIso] = useState(localToday);
+  useEffect(()=>{ const int = setInterval(()=> setTodayIso(localToday()), 60*1000); return ()=> clearInterval(int); }, []);
+  const baseLocked = useMemo(()=>{ try { return data.meta.date && data.meta.date < todayIso; } catch { return false; } }, [data.meta.date, todayIso]);
+  const [overrideUnlock, setOverrideUnlock] = useState(false); // admin temporary unlock
+  const locked = baseLocked && !overrideUnlock;
   const saveTimer = useRef();
   // Personnel database cache for outbound lookup
   const [personnelRecords, setPersonnelRecords] = useState(()=>{ try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } });
@@ -372,20 +378,38 @@ export default function FlightManifestTemplate() {
 
   // --- Flight Splitting Logic (allocates multiple flight legs if limits exceeded) ---
   const allocateFlights = (list, maxPax, maxWeight) => {
-    if((!maxPax && !maxWeight) || !list.length) return [{ passengers:list, totalPax:list.length, totalWeight: list.reduce((s,p)=> s + ((parseFloat(p.bodyWeight)||0)+(parseFloat(p.bagWeight)||0)),0) }];
+    if(!list.length) return [{ passengers:[], totalPax:0, totalWeight:0 }];
+    const manual = list.filter(p=> Number.isInteger(p.flightIndex) && p.flightIndex>0);
+    const auto = list.filter(p=> !Number.isInteger(p.flightIndex) || p.flightIndex<=0);
     const flights = [];
-    let current = { passengers:[], totalPax:0, totalWeight:0 };
-    const commit = () => { if(current.passengers.length){ flights.push(current); current = { passengers:[], totalPax:0, totalWeight:0 }; } };
-    list.forEach(p=>{
-      const weight = (parseFloat(p.bodyWeight)||0)+(parseFloat(p.bagWeight)||0);
-      const paxLimitHit = maxPax!=null && current.totalPax + 1 > maxPax;
-      const weightLimitHit = maxWeight!=null && current.totalWeight + weight > maxWeight;
-      if(current.passengers.length && (paxLimitHit || weightLimitHit)) commit();
-      current.passengers.push(p);
-      current.totalPax += 1;
-      current.totalWeight += weight;
+    const ensureFlight = (idx)=> { while(flights.length < idx) flights.push({ passengers:[], totalPax:0, totalWeight:0 }); };
+    manual.sort((a,b)=> a.flightIndex - b.flightIndex).forEach(p=>{
+      ensureFlight(p.flightIndex);
+      const f = flights[p.flightIndex-1];
+      f.passengers.push(p);
+      f.totalPax += 1;
+      f.totalWeight += (parseFloat(p.bodyWeight)||0)+(parseFloat(p.bagWeight)||0);
     });
-    commit();
+    if(!flights.length) flights.push({ passengers:[], totalPax:0, totalWeight:0 });
+    // Best-fit (least utilization) placement for autos, sorted heavy-first
+    auto.sort((a,b)=> ((parseFloat(b.bodyWeight)||0)+(parseFloat(b.bagWeight)||0)) - ((parseFloat(a.bodyWeight)||0)+(parseFloat(a.bagWeight)||0)) ).forEach(p=>{
+      const wt = (parseFloat(p.bodyWeight)||0)+(parseFloat(p.bagWeight)||0);
+      let choice=-1, best=Infinity;
+      flights.forEach((f,i)=>{
+        const paxOk = maxPax==null || f.totalPax+1<=maxPax;
+        const wtOk = maxWeight==null || f.totalWeight+wt<=maxWeight;
+        if(paxOk && wtOk){
+          const score = (maxWeight? (f.totalWeight+wt)/maxWeight:0) + (maxPax? (f.totalPax+1)/maxPax:0);
+          if(score<best){ best=score; choice=i; }
+        }
+      });
+      if(choice===-1){
+        flights.push({ passengers:[p], totalPax:1, totalWeight:wt });
+      } else {
+        const f = flights[choice];
+        f.passengers.push(p); f.totalPax+=1; f.totalWeight+=wt;
+      }
+    });
     return flights;
   };
   const outboundFlights = useMemo(()=> allocateFlights(safeOutbound, selectedAircraft? (parseInt(selectedAircraft.maxPax)||null):null, selectedAircraft? (parseFloat(selectedAircraft.maxOutboundWeight)||null):null), [safeOutbound, selectedAircraft]);
@@ -457,13 +481,16 @@ export default function FlightManifestTemplate() {
         }
         .manifest-root ::placeholder { color: ${theme.name==='Dark' ? '#9aa4ad' : '#6c7a85'}; opacity: .85; }
       `}</style>
-      <h2 style={{ marginTop:0 }}>Flight Manifest Template {locked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>LOCKED</span>}</h2>
+  <h2 style={{ marginTop:0 }}>Flight Manifest Template {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}</h2>
       <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
         <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ flex:1 }}>Flight Details</span>
-          {isAdmin() && !locked && (
-            <button onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
+          {isAdmin() && (!locked || baseLocked) && (
+            <>
+              <button onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
+              {baseLocked && <button onClick={()=> setOverrideUnlock(o=>!o)} style={{ ...smallBtn(theme), background: overrideUnlock? '#c06512': smallBtn(theme).background }}>{overrideUnlock? 'Relock':'Admin Unlock'}</button>}
+            </>
           )}
         </div>
         {configOpen && isAdmin() && (
@@ -603,9 +630,9 @@ export default function FlightManifestTemplate() {
         <div style={{ fontSize:11, opacity:.6, marginTop:6 }}>{autoSaveState}</div>
   {dedupeNotice && <div style={{ fontSize:11, marginTop:4, color: theme.name==='Dark'? '#7be49c':'#0a5c24' }}>{dedupeNotice}</div>}
       </section>
-      {outboundFlights.map((flight, idx)=> (
+    {outboundFlights.map((flight, idx)=> (
         <section key={idx} style={card(theme)}>
-          <div style={sectionHeader(theme)}>Outbound Flight {outboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxOutboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxOutboundWeight? '/ '+selectedAircraft.maxOutboundWeight+' Wt':''}`:''}</div>
+      <div style={sectionHeader(theme)}>Outbound Flight {outboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxOutboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxOutboundWeight? '/ '+selectedAircraft.maxOutboundWeight+' Wt':''}`:''}{outboundFlights.length>1 && !locked && <span style={{ marginLeft:12, fontSize:10, opacity:.7 }}>Use arrows in Action to move pax</span>}</div>
     <PassengerTable
       theme={theme}
       dir='outbound'
@@ -619,6 +646,12 @@ export default function FlightManifestTemplate() {
         setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
       }}
   locked={locked}
+  flightNumber={idx+1}
+  flightsCount={outboundFlights.length}
+  onReassign={(passengerId, delta)=>{
+    if(locked) return; const targetIndex = (outboundFlights.length)+1; // upper bound lazily extended if needed
+    setData(d=> ({ ...d, outbound: d.outbound.map(p=> p.id===passengerId ? { ...p, flightIndex: Math.max(1,(p.flightIndex|| (idx+1)) + delta) } : p) }));
+  }}
     />
           {idx===outboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
@@ -638,9 +671,9 @@ export default function FlightManifestTemplate() {
           )}
         </section>
       ))}
-      {inboundFlights.map((flight, idx)=> (
+    {inboundFlights.map((flight, idx)=> (
         <section key={'in'+idx} style={card(theme)}>
-          <div style={sectionHeader(theme)}>Inbound Flight {inboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxInboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxInboundWeight? '/ '+selectedAircraft.maxInboundWeight+' Wt':''}`:''}</div>
+      <div style={sectionHeader(theme)}>Inbound Flight {inboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxInboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxInboundWeight? '/ '+selectedAircraft.maxInboundWeight+' Wt':''}`:''}{inboundFlights.length>1 && !locked && <span style={{ marginLeft:12, fontSize:10, opacity:.7 }}>Use arrows in Action to move pax</span>}</div>
     <PassengerTable
       theme={theme}
       dir='inbound'
@@ -654,6 +687,12 @@ export default function FlightManifestTemplate() {
         setData(d=> ({ ...d, inbound: d.inbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
       }}
   locked={locked}
+  flightNumber={idx+1}
+  flightsCount={inboundFlights.length}
+  onReassign={(passengerId, delta)=>{
+    if(locked) return;
+    setData(d=> ({ ...d, inbound: d.inbound.map(p=> p.id===passengerId ? { ...p, flightIndex: Math.max(1,(p.flightIndex|| (idx+1)) + delta) } : p) }));
+  }}
     />
           {idx===inboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
@@ -772,7 +811,7 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord, locked }) {
+function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord, locked, flightNumber, flightsCount, onReassign }) {
   const [nameQuery, setNameQuery] = useState('');
   const [activeRow, setActiveRow] = useState(null);
   const matches = useMemo(()=>{
@@ -837,7 +876,7 @@ function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, p
                   </div>
                 )}
               </Td>
-              <Td><input disabled={locked} style={{ width:'100%', boxSizing:'border-box' }} value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
+              <Td><input disabled={locked} style={{ width:'100%', boxSizing:'border-box' }} value={p.company||''} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
               <Td style={{ textAlign:'center' }}><input disabled={locked} value={p.bodyWeight||''} onChange={e=>onUpdate(p.id,'bodyWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
               <Td style={{ textAlign:'center' }}><input disabled={locked} value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
               <Td style={{ textAlign:'center' }}><input disabled={locked} value={p.bagCount||''} onChange={e=>onUpdate(p.id,'bagCount',e.target.value.replace(/[^0-9]/g,''))} placeholder="##" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={2} /></Td>
@@ -845,7 +884,18 @@ function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, p
               <Td><input disabled={locked} value={p.origin||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'origin',e.target.value) : onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} title="Origin (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
               <Td><input disabled={locked} value={p.destination||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'destination',e.target.value) : onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} title="Destination (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
               <Td><input disabled={locked} style={{ width:'100%', boxSizing:'border-box' }} value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
-              <Td>{!locked && <button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button>}</Td>
+              <Td>
+                <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                  {!locked && flightsCount>1 && (
+                    <>
+                      <button disabled={(p.flightIndex||flightNumber)<=1} onClick={()=> onReassign && onReassign(p.id,-1)} title="Move to previous flight" style={{ ...smallBtn(theme), padding:'2px 6px' }}>{'←'}</button>
+                      <button disabled={(p.flightIndex||flightNumber)>=flightsCount} onClick={()=> onReassign && onReassign(p.id,1)} title="Move to next flight" style={{ ...smallBtn(theme), padding:'2px 6px' }}>{'→'}</button>
+                    </>
+                  )}
+                  {!locked && <button onClick={()=>onRemove(p.id)} style={{ ...smallBtn(theme), background:'#833' }}>Del</button>}
+                  {flightsCount>1 && <span style={{ fontSize:10, opacity:.6, alignSelf:'center' }}>F{p.flightIndex || flightNumber}</span>}
+                </div>
+              </Td>
             </tr>
           )})}
           {list.length===0 && <tr><Td colSpan={11} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}

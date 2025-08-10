@@ -262,6 +262,27 @@ export default function FlightManifestTemplate() {
     return { maxPax, maxOutboundWeight, maxInboundWeight, totalPax, totalWeightOutbound, totalWeightInbound, issues };
   }, [selectedAircraft, grandTotalPax, totalWeightOutbound, totalWeightInbound]);
 
+  // --- Flight Splitting Logic (allocates multiple flight legs if limits exceeded) ---
+  const allocateFlights = (list, maxPax, maxWeight) => {
+    if((!maxPax && !maxWeight) || !list.length) return [{ passengers:list, totalPax:list.length, totalWeight: list.reduce((s,p)=> s + ((parseFloat(p.bodyWeight)||0)+(parseFloat(p.bagWeight)||0)),0) }];
+    const flights = [];
+    let current = { passengers:[], totalPax:0, totalWeight:0 };
+    const commit = () => { if(current.passengers.length){ flights.push(current); current = { passengers:[], totalPax:0, totalWeight:0 }; } };
+    list.forEach(p=>{
+      const weight = (parseFloat(p.bodyWeight)||0)+(parseFloat(p.bagWeight)||0);
+      const paxLimitHit = maxPax!=null && current.totalPax + 1 > maxPax;
+      const weightLimitHit = maxWeight!=null && current.totalWeight + weight > maxWeight;
+      if(current.passengers.length && (paxLimitHit || weightLimitHit)) commit();
+      current.passengers.push(p);
+      current.totalPax += 1;
+      current.totalWeight += weight;
+    });
+    commit();
+    return flights;
+  };
+  const outboundFlights = useMemo(()=> allocateFlights(safeOutbound, selectedAircraft? (parseInt(selectedAircraft.maxPax)||null):null, selectedAircraft? (parseFloat(selectedAircraft.maxOutboundWeight)||null):null), [safeOutbound, selectedAircraft]);
+  const inboundFlights = useMemo(()=> allocateFlights(safeInbound, selectedAircraft? (parseInt(selectedAircraft.maxPax)||null):null, selectedAircraft? (parseFloat(selectedAircraft.maxInboundWeight)||null):null), [safeInbound, selectedAircraft]);
+
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}.json`; a.click(); URL.revokeObjectURL(url);
@@ -473,57 +494,54 @@ export default function FlightManifestTemplate() {
         )}
         <div style={{ fontSize:11, opacity:.6, marginTop:6 }}>{autoSaveState}</div>
       </section>
-      <section style={card(theme)}>
-        <div style={sectionHeader(theme)}>Outbound Passengers ({totalOutbound})</div>
-  {passengerTable(theme, 'outbound', safeOutbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id), (pid,field,val)=> manualRouteUpdate('outbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
-    // apply selected record
-    setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
-  })}
-        <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-          <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
-          <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
-            <span>Pax: {totalOutbound}</span>
-            <span>Body Wt: {totalBodyOutbound.toFixed(1)}</span>
-            <span>Bag Wt: {totalBagOutbound.toFixed(1)}</span>
-            <span>Total: {totalWeightOutbound.toFixed(1)}</span>
-          </div>
-        </div>
-        {(() => {
-      const dirTotalLimit = parseFloat(selectedAircraft?.maxOutboundWeight)||null;
-      const totalRemain = dirTotalLimit!=null ? (dirTotalLimit - totalWeightOutbound) : null;
-      if(totalRemain==null) return null;
-          return (
-            <div style={{ marginTop:8, fontSize:12, display:'flex', gap:18, flexWrap:'wrap' }}>
-        {totalRemain!=null && <span style={{ color: totalRemain < 0 ? (theme.danger||'#c0392b') : undefined }}>Avail Outbound Wt: {totalRemain.toFixed(1)} {totalRemain < 0 ? '(Over)' : ''}</span>}
+      {outboundFlights.map((flight, idx)=> (
+        <section key={idx} style={card(theme)}>
+          <div style={sectionHeader(theme)}>Outbound Flight {outboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxOutboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxOutboundWeight? '/ '+selectedAircraft.maxOutboundWeight+' Wt':''}`:''}</div>
+    {passengerTable(theme, 'outbound', flight.passengers, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id), (pid,field,val)=> manualRouteUpdate('outbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
+      setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
+    })}
+          {idx===outboundFlights.length-1 && (
+          <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
+            <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
+            <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
+              <span>Pax: {totalOutbound}</span>
+              <span>Body Wt: {totalBodyOutbound.toFixed(1)}</span>
+              <span>Bag Wt: {totalBagOutbound.toFixed(1)}</span>
+              <span>Total: {totalWeightOutbound.toFixed(1)}</span>
             </div>
-          );
-        })()}
-      </section>
-      <section style={card(theme)}>
-        <div style={sectionHeader(theme)}>Inbound Passengers ({totalInbound})</div>
-  {passengerTable(theme, 'inbound', safeInbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id), (pid,field,val)=> manualRouteUpdate('inbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
-    setData(d=> ({ ...d, inbound: d.inbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
-  })}
-        <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-          <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
-          <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
-            <span>Pax: {totalInbound}</span>
-            <span>Body Wt: {totalBodyInbound.toFixed(1)}</span>
-            <span>Bag Wt: {totalBagInbound.toFixed(1)}</span>
-            <span>Total: {totalWeightInbound.toFixed(1)}</span>
           </div>
-        </div>
-        {(() => {
-      const dirTotalLimit = parseFloat(selectedAircraft?.maxInboundWeight)||null;
-      const totalRemain = dirTotalLimit!=null ? (dirTotalLimit - totalWeightInbound) : null;
-      if(totalRemain==null) return null;
-          return (
+          )}
+          {selectedAircraft && (selectedAircraft.maxOutboundWeight) && (
             <div style={{ marginTop:8, fontSize:12, display:'flex', gap:18, flexWrap:'wrap' }}>
-        {totalRemain!=null && <span style={{ color: totalRemain < 0 ? (theme.danger||'#c0392b') : undefined }}>Avail Inbound Wt: {totalRemain.toFixed(1)} {totalRemain < 0 ? '(Over)' : ''}</span>}
+              <span>Flight Wt: {flight.totalWeight.toFixed(1)} / {parseFloat(selectedAircraft.maxOutboundWeight)||'--'} {flight.totalWeight > (parseFloat(selectedAircraft.maxOutboundWeight)||Infinity)? '(Over)':''}</span>
             </div>
-          );
-        })()}
-      </section>
+          )}
+        </section>
+      ))}
+      {inboundFlights.map((flight, idx)=> (
+        <section key={'in'+idx} style={card(theme)}>
+          <div style={sectionHeader(theme)}>Inbound Flight {inboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxInboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxInboundWeight? '/ '+selectedAircraft.maxInboundWeight+' Wt':''}`:''}</div>
+    {passengerTable(theme, 'inbound', flight.passengers, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id), (pid,field,val)=> manualRouteUpdate('inbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
+      setData(d=> ({ ...d, inbound: d.inbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
+    })}
+          {idx===inboundFlights.length-1 && (
+          <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
+            <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
+            <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
+              <span>Pax: {totalInbound}</span>
+              <span>Body Wt: {totalBodyInbound.toFixed(1)}</span>
+              <span>Bag Wt: {totalBagInbound.toFixed(1)}</span>
+              <span>Total: {totalWeightInbound.toFixed(1)}</span>
+            </div>
+          </div>
+          )}
+          {selectedAircraft && (selectedAircraft.maxInboundWeight) && (
+            <div style={{ marginTop:8, fontSize:12, display:'flex', gap:18, flexWrap:'wrap' }}>
+              <span>Flight Wt: {flight.totalWeight.toFixed(1)} / {parseFloat(selectedAircraft.maxInboundWeight)||'--'} {flight.totalWeight > (parseFloat(selectedAircraft.maxInboundWeight)||Infinity)? '(Over)':''}</span>
+            </div>
+          )}
+        </section>
+      ))}
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Actions & Totals</div>
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>

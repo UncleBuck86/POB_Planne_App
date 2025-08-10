@@ -35,6 +35,7 @@ const blank = () => ({
   company: '',
   position: '',
   crew: '',
+  rotation: '',
   coreCrew: false,
   primaryPhone: '',
   secondaryPhone: '',
@@ -53,8 +54,23 @@ export default function Personnel() {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(blank());
+  // Admin-managed option lists
+  const loadList = (key) => {
+    try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
+  };
+  const [crewOptions, setCrewOptions] = useState(() => loadList('personnelCrewOptions'));
+  const [rotationOptions, setRotationOptions] = useState(() => loadList('personnelRotationOptions'));
+  const [showAdmin, setShowAdmin] = useState(false);
+  // Raw textarea values so user can insert blank new lines while typing
+  const [crewOptionsText, setCrewOptionsText] = useState(() => (crewOptions.join('\n')));
+  const [rotationOptionsText, setRotationOptionsText] = useState(() => (rotationOptions.join('\n')));
 
   useEffect(() => { saveRecords(records); }, [records]);
+  useEffect(() => { localStorage.setItem('personnelCrewOptions', JSON.stringify(crewOptions)); }, [crewOptions]);
+  useEffect(() => { localStorage.setItem('personnelRotationOptions', JSON.stringify(rotationOptions)); }, [rotationOptions]);
+  // Keep textareas in sync if lists change externally
+  useEffect(() => { setCrewOptionsText(crewOptions.join('\n')); }, [crewOptions]);
+  useEffect(() => { setRotationOptionsText(rotationOptions.join('\n')); }, [rotationOptions]);
 
   const filtered = useMemo(() => {
     return records.filter(r => {
@@ -77,6 +93,7 @@ export default function Personnel() {
     setEditingId(id);
     setDraft({
       crew: '',
+  rotation: '',
       coreCrew: false,
       primaryPhone: '',
       secondaryPhone: '',
@@ -138,6 +155,7 @@ export default function Personnel() {
       <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Personnel Database</h2>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <button onClick={startAdd} style={btn(theme)}>Add Person</button>
+        <button onClick={() => setShowAdmin(s => !s)} style={btn(theme)}>{showAdmin ? 'Close Admin Lists' : 'Manage Lists'}</button>
         <select value={filter} onChange={e => setFilter(e.target.value)} style={select(theme)}>
           <option value="all">All Statuses</option>
           <option value="Onboard">Onboard</option>
@@ -146,6 +164,34 @@ export default function Personnel() {
         </select>
         <input placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} style={input(theme)} />
       </div>
+      {showAdmin && (
+        <div style={{ marginBottom: 20, padding: 12, border: `1px solid ${borderColor}`, borderRadius: 8, background: theme.surface, display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))' }}>
+          <div>
+            <h4 style={{ margin: '0 0 6px' }}>Crew Options</h4>
+            <textarea
+              rows={6}
+              value={crewOptionsText}
+              onChange={e => setCrewOptionsText(e.target.value)}
+              onBlur={() => setCrewOptions(crewOptionsText.split(/\n/).map(v => v.trim()).filter(Boolean))}
+              style={{ width: '100%', ...input(theme), resize: 'vertical', whiteSpace: 'pre', fontFamily: 'monospace' }}
+              placeholder="One crew per line"
+            />
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Appears in Crew dropdown.</div>
+          </div>
+          <div>
+            <h4 style={{ margin: '0 0 6px' }}>Rotation Options</h4>
+            <textarea
+              rows={6}
+              value={rotationOptionsText}
+              onChange={e => setRotationOptionsText(e.target.value)}
+              onBlur={() => setRotationOptions(rotationOptionsText.split(/\n/).map(v => v.trim()).filter(Boolean))}
+              style={{ width: '100%', ...input(theme), resize: 'vertical', whiteSpace: 'pre', fontFamily: 'monospace' }}
+              placeholder="e.g. 14/14\n7/7\n28/28"
+            />
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Appears in Rotation dropdown.</div>
+          </div>
+        </div>
+      )}
       {editingId && (
         <div style={{ marginBottom: 20, padding: 12, border: `1px solid ${borderColor}`, borderRadius: 8, background: theme.surface }}>
           <h3 style={{ margin: '0 0 8px' }}>{editingId === 'new' ? 'Add Personnel' : 'Edit Personnel'}</h3>
@@ -185,7 +231,24 @@ export default function Personnel() {
               <input value={draft.position} onChange={e => setDraft({ ...draft, position: e.target.value })} style={input(theme)} />
             </Field>
             <Field label="Crew">
-              <input value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} style={input(theme)} placeholder="e.g. Crew A / Night" />
+              {crewOptions.length ? (
+                <select value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} style={select(theme)}>
+                  <option value="">-- Select Crew --</option>
+                  {crewOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : (
+                <input value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} style={input(theme)} placeholder="Define crews in Manage Lists" />
+              )}
+            </Field>
+            <Field label="Rotation">
+              {rotationOptions.length ? (
+                <select value={draft.rotation} onChange={e => setDraft({ ...draft, rotation: e.target.value })} style={select(theme)}>
+                  <option value="">-- Select Rotation --</option>
+                  {rotationOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              ) : (
+                <input value={draft.rotation} onChange={e => setDraft({ ...draft, rotation: e.target.value })} style={input(theme)} placeholder="Define rotations in Manage Lists" />
+              )}
             </Field>
             <Field label="Arrival Date">
               <input type="date" value={draft.arrivalDate} onChange={e => setDraft({ ...draft, arrivalDate: e.target.value })} style={input(theme)} />
@@ -259,6 +322,12 @@ export default function Personnel() {
           <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
             <button onClick={saveDraft} style={btn(theme)}>Save</button>
             <button onClick={cancelEdit} style={btn(theme)}>Cancel</button>
+            {editingId && editingId !== 'new' && (
+              <button
+                onClick={() => { if (window.confirm('Delete this record?')) { remove(editingId); } }}
+                style={{ ...btn(theme), background: '#922', borderColor: '#b55' }}
+              >Delete</button>
+            )}
           </div>
         </div>
       )}
@@ -266,7 +335,7 @@ export default function Personnel() {
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
           <thead>
             <tr>
-              {['First','Last','Company','Position','Crew','Core','Arrival','Departure','Status','DOB','Notes','Actions'].map(h => (
+              {['Actions','First','Last','Company','Position','Crew','Rotation','Core','Arrival','Departure','Status','DOB','Days Onboard','Days Since Departed','Notes'].map(h => (
                 <th
                   key={h}
                   style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '6px 8px', fontSize: 12 }}
@@ -283,8 +352,28 @@ export default function Personnel() {
                 if (!r.address) missing.push('Address');
                 if (!r.dob) missing.push('DOB');
               }
+              // Day calculations
+              const today = new Date();
+              const parseDate = (v) => { const d = v ? new Date(v + 'T00:00:00') : null; return isNaN(d) ? null : d; };
+              const arr = parseDate(r.arrivalDate);
+              const dep = parseDate(r.departureDate);
+              const dayDiff = (a,b) => a && b ? Math.floor((b - a) / 86400000) : null;
+              let daysOnboardDisplay = '';
+              let daysSinceDepartedDisplay = '';
+              if (r.status === 'Onboard' && arr) {
+                const d = dayDiff(arr, today);
+                if (d != null) daysOnboardDisplay = (d + 1) + 'd';
+              } else if (r.status === 'Departed' && arr && dep) {
+                const tenure = dayDiff(arr, dep);
+                if (tenure != null) daysOnboardDisplay = (tenure + 1) + 'd';
+                const since = dayDiff(dep, today);
+                if (since != null) daysSinceDepartedDisplay = since + 'd';
+              }
               return (
               <tr key={r.id} style={{ background: incomplete ? (theme.name === 'Dark' ? '#402323' : '#ffe7e7') : theme.surface }}>
+                <td style={cell(theme)}>
+                  <button onClick={() => startEdit(r.id)} style={miniBtn(theme)}>Edit</button>
+                </td>
                 <td style={cell(theme)}>
                   {incomplete && <span title={missing.length ? 'Missing: ' + missing.join(', ') : ''} style={{ color: theme.name === 'Dark' ? '#ffb3b3' : '#b30000', marginRight: 4 }}>⚠</span>}
                   {r.firstName}
@@ -293,21 +382,20 @@ export default function Personnel() {
                 <td style={cell(theme)}>{r.company}</td>
                 <td style={cell(theme)}>{r.position}</td>
                 <td style={cell(theme)}>{r.crew}</td>
+                <td style={cell(theme)}>{r.rotation}</td>
                 <td style={cell(theme)}>{r.coreCrew ? 'Yes' : ''}</td>
                 <td style={cell(theme)}>{r.arrivalDate}</td>
                 <td style={cell(theme)}>{r.departureDate}</td>
                 <td style={cell(theme)}>{r.status}</td>
                 <td style={cell(theme)}>{r.dob}</td>
+                <td style={cell(theme)}>{daysOnboardDisplay}</td>
+                <td style={cell(theme)}>{daysSinceDepartedDisplay}</td>
                 <td style={{ ...cell(theme), maxWidth: 160, whiteSpace: 'pre-wrap' }}>{r.notes}</td>
-                <td style={cell(theme)}>
-                  <button onClick={() => startEdit(r.id)} style={miniBtn(theme)}>Edit</button>
-                  <button onClick={() => remove(r.id)} style={miniBtn(theme)}>Del</button>
-                </td>
               </tr>
             );})}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={13} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
+                <td colSpan={16} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
               </tr>
             )}
           </tbody>

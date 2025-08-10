@@ -79,6 +79,30 @@ export default function FlightManifestTemplate() {
   const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
   const saveTimer = useRef();
+  // Personnel database cache for outbound lookup
+  const [personnelRecords, setPersonnelRecords] = useState(()=>{ try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } });
+  useEffect(()=>{
+    const onStorage = (e)=>{ if(e.key==='personnelRecords'){ try { setPersonnelRecords(JSON.parse(localStorage.getItem('personnelRecords'))||[]);}catch{} } };
+    window.addEventListener('storage', onStorage); return ()=> window.removeEventListener('storage', onStorage);
+  }, []);
+  // Add person modal state
+  const [addPersonOpen, setAddPersonOpen] = useState(false);
+  const [addPersonDraft, setAddPersonDraft] = useState({ firstName:'', lastName:'', company:'', bodyWeight:'', bagWeight:'', bagCount:'' });
+  const [pendingPassengerId, setPendingPassengerId] = useState(null); // outbound passenger id to populate after add
+  const openAddPerson = (passengerId, prefillName) => {
+    const parts = (prefillName||'').trim().split(/\s+/);
+    setAddPersonDraft(d=>({ ...d, firstName: parts[0]||'', lastName: parts.slice(1).join(' ')||'' }));
+    setPendingPassengerId(passengerId);
+    setAddPersonOpen(true);
+  };
+  const saveNewPerson = () => {
+    const rec = { id: 'p_'+Math.random().toString(36).slice(2,9), firstName:addPersonDraft.firstName.trim(), lastName:addPersonDraft.lastName.trim(), company:addPersonDraft.company.trim(), position:'', location:'', crew:'', rotation:'', coreCrew:false, bodyWeight:addPersonDraft.bodyWeight, bagWeight:addPersonDraft.bagWeight, bagCount:addPersonDraft.bagCount, primaryPhone:'', secondaryPhone:'', address:'', dob:'', arrivalDate:new Date().toISOString().slice(0,10), departureDate:'', status:'Onboard', notes:'' };
+    setPersonnelRecords(list=>{ const next=[...list, rec]; try{ localStorage.setItem('personnelRecords', JSON.stringify(next)); }catch{} return next; });
+    if(pendingPassengerId){
+      setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===pendingPassengerId ? { ...p, name: rec.firstName + (rec.lastName? ' '+rec.lastName:''), company: rec.company, bodyWeight: rec.bodyWeight, bagWeight: rec.bagWeight, bagCount: rec.bagCount } : p) }));
+    }
+    setAddPersonOpen(false); setPendingPassengerId(null);
+  };
 
   useEffect(() => {
     clearTimeout(saveTimer.current);
@@ -426,7 +450,10 @@ export default function FlightManifestTemplate() {
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Outbound Passengers ({totalOutbound})</div>
-  {passengerTable(theme, 'outbound', safeOutbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id), (pid,field,val)=> manualRouteUpdate('outbound',pid,field,val))}
+  {passengerTable(theme, 'outbound', safeOutbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id), (pid,field,val)=> manualRouteUpdate('outbound',pid,field,val), personnelRecords, openAddPerson, (passengerId, record)=>{
+    // apply selected record
+    setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
+  })}
         <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
@@ -494,6 +521,41 @@ export default function FlightManifestTemplate() {
         </div>
       </section>
       <div style={{ fontSize:10, opacity:.5, marginTop:30 }}>Future: auto-populate from planner deltas; attach saved templates to flights; CSV export.</div>
+      {addPersonOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'60px 20px', zIndex:600 }} onClick={e=>{ if(e.target===e.currentTarget) setAddPersonOpen(false); }}>
+          <div style={{ background: theme.background, color: theme.text, padding:20, borderRadius:12, width:'min(480px,100%)', border:'1px solid '+(theme.name==='Dark'? '#666':'#444'), boxShadow:'0 8px 24px rgba(0,0,0,0.4)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <h3 style={{ margin:0, fontSize:18 }}>Add Person</h3>
+              <button onClick={()=>setAddPersonOpen(false)} style={smallBtn(theme)}>Close</button>
+            </div>
+            <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))' }}>
+              <label style={{ fontSize:12 }}>First Name
+                <input value={addPersonDraft.firstName} onChange={e=>setAddPersonDraft(d=>({...d, firstName:e.target.value}))} />
+              </label>
+              <label style={{ fontSize:12 }}>Last Name
+                <input value={addPersonDraft.lastName} onChange={e=>setAddPersonDraft(d=>({...d, lastName:e.target.value}))} />
+              </label>
+              <label style={{ fontSize:12 }}>Company
+                <input value={addPersonDraft.company} onChange={e=>setAddPersonDraft(d=>({...d, company:e.target.value}))} />
+              </label>
+              <label style={{ fontSize:12 }}>Body Wt
+                <input value={addPersonDraft.bodyWeight} onChange={e=>setAddPersonDraft(d=>({...d, bodyWeight:e.target.value.replace(/[^0-9.]/g,'')}))} placeholder="lbs" />
+              </label>
+              <label style={{ fontSize:12 }}>Bag Wt
+                <input value={addPersonDraft.bagWeight} onChange={e=>setAddPersonDraft(d=>({...d, bagWeight:e.target.value.replace(/[^0-9.]/g,'')}))} placeholder="lbs" />
+              </label>
+              <label style={{ fontSize:12 }}># Bags
+                <input value={addPersonDraft.bagCount} onChange={e=>setAddPersonDraft(d=>({...d, bagCount:e.target.value.replace(/[^0-9]/g,'')}))} placeholder="#" />
+              </label>
+            </div>
+            <div style={{ marginTop:16, display:'flex', justifyContent:'flex-end', gap:10 }}>
+              <button onClick={()=>setAddPersonOpen(false)} style={smallBtn(theme)}>Cancel</button>
+              <button onClick={saveNewPerson} style={actionBtn(theme)}>Save Person</button>
+            </div>
+            <div style={{ fontSize:11, opacity:.65, marginTop:10 }}>Record will be stored in local personnel database.</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -513,7 +575,14 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute) {
+function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord) {
+  const [nameQuery, setNameQuery] = useState(''); // not per-row, ephemeral
+  const [activeRow, setActiveRow] = useState(null);
+  const matches = useMemo(()=>{
+    if(!personnelRecords || !nameQuery || nameQuery.trim().length<2) return [];
+    const q=nameQuery.toLowerCase();
+    return personnelRecords.filter(r=> (r.firstName+' '+r.lastName).toLowerCase().includes(q)).slice(0,6);
+  }, [nameQuery, personnelRecords]);
   return (
     <div style={{ overflowX:'auto' }}>
       <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
@@ -540,7 +609,24 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute) {
             return (
             <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
               <Td>{i+1}</Td>
-              <Td><input value={p.name} onChange={e=>onUpdate(p.id,'name',e.target.value)} placeholder="Full Name" /></Td>
+              <Td style={{ position:'relative' }}>
+                <input value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); if(dir==='outbound'){ setNameQuery(e.target.value); setActiveRow(p.id);} }} placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
+                {dir==='outbound' && activeRow===p.id && (matches.length>0 || (nameQuery.trim().length>=2 && !matches.length)) && (
+                  <div style={{ position:'absolute', top:'100%', left:0, zIndex:50, background: theme.background, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), borderRadius:6, padding:6, minWidth:200, boxShadow:'0 4px 12px rgba(0,0,0,0.35)' }}>
+                    {matches.map(m=> (
+                      <div key={m.id} style={{ padding:'4px 6px', cursor:'pointer', fontSize:11, borderRadius:4, background:'#0000' }} onMouseDown={()=>{ applyPersonRecord(p.id, m); setActiveRow(null); }} onMouseEnter={e=> e.currentTarget.style.background = (theme.name==='Dark'?'#2e3439':'#e6eef5')} onMouseLeave={e=> e.currentTarget.style.background='transparent'}>
+                        {m.firstName} {m.lastName} <span style={{ opacity:.65 }}>({m.company||'No Company'})</span>
+                      </div>
+                    ))}
+                    {!matches.length && (
+                      <div style={{ fontSize:11, padding:'4px 2px' }}>
+                        No match found.
+                        <button style={{ marginLeft:6, ...smallBtn(theme), padding:'2px 6px', fontSize:10 }} onMouseDown={()=>{ openAddPerson(p.id, nameQuery); setActiveRow(null); }}>Add Person</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Td>
               <Td><input value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
               <Td style={{ width:80 }}><input value={p.bodyWeight||''} onChange={e=>onUpdate(p.id,'bodyWeight',e.target.value.replace(/[^0-9.]/g,''))} placeholder="Body" /></Td>
               <Td style={{ width:80 }}><input value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9.]/g,''))} placeholder="Bags" /></Td>

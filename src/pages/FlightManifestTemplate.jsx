@@ -304,7 +304,30 @@ export default function FlightManifestTemplate() {
   };
 
   return (
-  <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
+  <div className="manifest-root" style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
+      <style>{`
+        .manifest-root input:not([type=checkbox]):not([type=radio]),
+        .manifest-root select,
+        .manifest-root textarea {
+          background: ${theme.name==='Dark' ? '#2e3439' : '#ffffff'};
+          color: ${theme.text};
+          border: 1px solid ${theme.name==='Dark' ? '#58616a' : '#b8c2cc'};
+          padding: 4px 6px;
+          border-radius: 6px;
+          font-size: 12px;
+          font-family: inherit;
+          box-shadow: inset 0 0 0 1px ${theme.name==='Dark' ? '#00000040' : '#ffffff00'};
+          transition: border-color .15s, background .2s;
+        }
+        .manifest-root input:not([type=checkbox]):not([type=radio]):focus,
+        .manifest-root select:focus,
+        .manifest-root textarea:focus {
+          outline: none;
+          border-color: ${theme.primary || '#2d6cdf'};
+          box-shadow: 0 0 0 2px ${theme.primary || '#2d6cdf'}33;
+        }
+        .manifest-root ::placeholder { color: ${theme.name==='Dark' ? '#9aa4ad' : '#6c7a85'}; opacity: .85; }
+      `}</style>
       <h2 style={{ marginTop:0 }}>Flight Manifest Template</h2>
       <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>

@@ -14,6 +14,13 @@ export default function FlightsPage() {
   const [displayMonth, setDisplayMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDates, setSelectedDates] = useState([]);
   const [manifestOpen, setManifestOpen] = useState(false);
+  const openManifestTemplate = () => {
+    try {
+      const keys = selectedDates.map(d=> keyForDate(d));
+      localStorage.setItem('manifestGenerateDates', JSON.stringify(keys));
+    } catch {}
+    window.location.hash = '#manifest';
+  };
 
   const allDatesForMonth = useMemo(() => {
     const y = displayMonth.getFullYear();
@@ -76,6 +83,7 @@ export default function FlightsPage() {
             }}
           />
           <div style={{ marginTop:8, fontSize:11, opacity:.75 }}>Select one or more dates to view flight manifest.</div>
+          {selectedDates.length>0 && <button onClick={openManifestTemplate} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Open Manifest Template</button>}
           {selectedDates.length>0 && <button onClick={clearSelection} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Clear Selection</button>}
         </div>
       </div>

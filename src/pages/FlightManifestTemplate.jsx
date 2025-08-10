@@ -94,6 +94,34 @@ export default function FlightManifestTemplate() {
   const updatePassenger = (dir, id, field, value) => setData(d => ({ ...d, [dir]: d[dir].map(p => p.id === id ? { ...p, [field]: value } : p) }));
   const removePassenger = (dir, id) => setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) }));
   const clearAll = () => { if (confirm('Clear all manifest data?')) setData(defaultData); };
+  // If navigated from Flights page with selected dates, attempt to pre-fill notes with movement summary once (idempotent)
+  useEffect(()=>{
+    try {
+      const raw = localStorage.getItem('manifestGenerateDates');
+      if(!raw) return;
+      const dates = JSON.parse(raw)||[]; if(!Array.isArray(dates) || !dates.length) return;
+      localStorage.removeItem('manifestGenerateDates');
+      // build summary based on flight movement comments util if available in storage
+      const planner = JSON.parse(localStorage.getItem('pobPlannerData'))||[];
+      // Re-run comment generation for needed window (include one day prior if possible)
+      const parseMDY = str => new Date(str);
+      const sorted = [...dates].sort((a,b)=> new Date(a)-new Date(b));
+      const first = new Date(sorted[0]); const prev = new Date(first); prev.setDate(prev.getDate()-1);
+      const dateObjs = [prev, ...sorted.map(d=> new Date(d))].map(d=> ({ date: (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear() }));
+      // inline simple diff (avoid circular import)
+      const flightsOutTmp = {}; const flightsInTmp = {};
+      for(let i=1;i<dateObjs.length;i++){ const prevKey=dateObjs[i-1].date; const curKey=dateObjs[i].date; const out=[]; const inn=[]; planner.forEach(row=>{ const pv=Number(row[prevKey])||0; const cv=Number(row[curKey])||0; if(cv>pv) out.push(`${cv-pv}-${row.company}`); else if(cv<pv) inn.push(`${pv-cv}-${row.company}`); }); flightsOutTmp[curKey]=out; flightsInTmp[curKey]=inn; }
+      flightsOutTmp[dateObjs[0].date]=[]; flightsInTmp[dateObjs[0].date]=[];
+      // Create summary lines for selected dates
+      const lines = sorted.map(k=> {
+        const outs = flightsOutTmp[k]||[]; const ins = flightsInTmp[k]||[];
+        const totalOut = outs.reduce((s,v)=> s + (parseInt(String(v).split('-')[0],10)||0),0);
+        const totalIn = ins.reduce((s,v)=> s + (parseInt(String(v).split('-')[0],10)||0),0);
+        return `${k}: Out +${totalOut||0}${outs.length? ' ['+outs.join(', ')+']':''} | In -${totalIn||0}${ins.length? ' ['+ins.join(', ')+']':''}`;
+      });
+      setData(d=> ({ ...d, meta:{ ...d.meta, notes: (d.meta.notes? d.meta.notes+'\n':'') + 'Flight movements selected:\n'+lines.join('\n') } }));
+    } catch {/* ignore */}
+  }, []);
 
   const safeOutbound = data.outbound || [];
   const safeInbound = data.inbound || [];

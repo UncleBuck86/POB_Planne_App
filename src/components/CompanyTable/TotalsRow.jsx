@@ -7,8 +7,8 @@ export default function TotalsRow({ rowData, dates }) {
   const { theme } = useTheme();
   const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
   return (
-    <tr style={{ background: theme.surface, color: theme.text, fontWeight: 'bold' }}>
-      <td style={{ position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }}>Total Daily POB</td>
+    <tr style={{ background: theme.surface, color: theme.text, fontWeight: 'bold', position:'sticky', bottom:0, zIndex:4 }}>
+      <td style={{ position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 5, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }}>Total Daily POB</td>
       {dates.map(d => {
         // Sum all company values for this date
         const total = rowData.reduce((sum, row) => sum + (Number(row[d.date]) || 0), 0);

@@ -21,7 +21,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const minZoom = 0.6;   // allow shrinking
   const maxZoom = 1.6;   // allow enlargement
   // Removed frame height & auto-fit (direct table layout)
-  const [autoFit, setAutoFit] = useState(false); // retained for button state only (no effect)
+  // autoFit removed
   // Auto-hide past dates (can be toggled off if user sets custom range)
   const [autoHide, setAutoHide] = useState(true);
   const initialRangeRef = useRef({ viewStart, viewEnd });
@@ -134,7 +134,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     });
   }, [rowData, pinnedCompanies]);
 
-  const toggleAutoFit = () => setAutoFit(a => !a); // inert toggle
+  // toggleAutoFit removed
   // (Removed separate horizontal sync; unified scroll container will handle alignment)
 
   // (Removed dynamic column width measurement; using fixed colgroup widths)
@@ -348,8 +348,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         minZoom={minZoom}
         maxZoom={maxZoom}
   scrollTable={scrollTable}
-  autoFit={autoFit}
-  toggleAutoFit={toggleAutoFit}
   onBulkImport={openBulk}
       />
       {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}

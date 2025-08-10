@@ -24,8 +24,6 @@ export default function TableControlsBar({
   minZoom,
   maxZoom = 1,
   resetZoom,
-  autoFit,
-  toggleAutoFit,
   scrollTable,
   onBulkImport
 }) {
@@ -85,13 +83,6 @@ export default function TableControlsBar({
             style={{ width: 140 }}
           />
           <span style={{ marginLeft: 8 }}>{Math.round(zoom * 100)}%</span>
-          <button
-            onClick={toggleAutoFit}
-            style={{ marginLeft: 8, padding: '4px 10px', background: autoFit ? theme.secondary || '#555' : theme.primary, color: theme.buttonText || theme.text, border: 'none', borderRadius: 4, fontSize: '0.75em', fontWeight: 'bold' }}
-            title={autoFit ? 'Click to set max frame height' : 'Click to auto-fit frame height'}
-          >
-            {autoFit ? 'Auto-Fit ON' : 'Auto-Fit OFF'}
-          </button>
         </div>
       </div>
     </div>

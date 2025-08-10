@@ -91,9 +91,10 @@ function Dashboard() {
     nav: { x: 20, y: 20 },
     forecast: { x: 20, y: 160 },
     flightForecast: { x: 340, y: 160 },
-    onboard: { x: 20, y: 360 }
+    onboard: { x: 20, y: 360 },
+    pobCompanies: { x: 340, y: 360 }
   };
-  const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true };
+  const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true, pobCompanies: true };
   const [layout, setLayout] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(layoutKey));
@@ -204,21 +205,21 @@ function Dashboard() {
                 {editLayout ? 'Finish Layout' : 'Edit Layout'}
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {['nav','forecast','flightForecast','onboard'].map(id => (
+                {['nav','forecast','flightForecast','onboard','pobCompanies'].map(id => (
                   <label key={id} style={{ display:'flex', alignItems:'center', gap:6 }}>
                     <input type="checkbox" checked={visible[id]} onChange={e => { setVisible(v => ({ ...v, [id]: e.target.checked })); if (!editLayout) setSettingsOpen(false); }} />
-                    <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : 'POB Onboard'}</span>
+                    <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : id === 'onboard' ? 'POB Onboard' : 'POB Companies'}</span>
                   </label>
                 ))}
               </div>
               {editLayout && (
                 <div style={{ marginTop:10 }}>
                   <div style={{ fontWeight:'bold', marginBottom:4 }}>Widget Colors (mini theme)</div>
-                  {['nav','forecast','flightForecast','onboard'].map(id => {
+                  {['nav','forecast','flightForecast','onboard','pobCompanies'].map(id => {
                     const c = widgetColors[id] || '';
                     return (
                       <div key={id} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
-                        <span style={{ width:90, fontSize:11 }}>{id==='nav'?'Navigation': id==='forecast'?'POB Forecast': id==='flightForecast'?'Flight Forecast':'POB Onboard'}</span>
+                        <span style={{ width:90, fontSize:11 }}>{id==='nav'?'Navigation': id==='forecast'?'POB Forecast': id==='flightForecast'?'Flight Forecast': id==='onboard'?'POB Onboard':'POB Companies'}</span>
                         <input type="color" value={c || '#ffffff'} onChange={e => setWidgetColor(id, e.target.value)} style={{ width:30, height:24, padding:0, border:'1px solid #888', background:'transparent', cursor:'pointer' }} />
                         {c && <button onClick={()=>clearWidgetColor(id)} style={{ fontSize:10, padding:'2px 4px', border:'1px solid '+theme.secondary, background:'transparent', color: theme.text, borderRadius:4, cursor:'pointer' }}>Reset</button>}
                       </div>
@@ -382,6 +383,54 @@ function Dashboard() {
         <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Snapshot of personnelRecords (Onboard only).</div>
     </section>
   ); })()}
+      {/* POB Companies Widget */}
+  {visible.pobCompanies && (() => {
+    const wc = widgetColorTheme('pobCompanies');
+    // Aggregate counts by company for onboard personnel
+    const coreCounts = {};
+    const nonCoreCounts = {};
+    onboard.forEach(p => {
+      const comp = p.company || 'Unassigned';
+      if (p.coreCrew) coreCounts[comp] = (coreCounts[comp] || 0) + 1; else nonCoreCounts[comp] = (nonCoreCounts[comp] || 0) + 1;
+    });
+    const sortedCore = Object.entries(coreCounts).sort((a,b)=> a[0].localeCompare(b[0]));
+    const sortedNon = Object.entries(nonCoreCounts).sort((a,b)=> a[0].localeCompare(b[0]));
+    const totalOnboard = onboard.length;
+    const longestNameLen = Math.max(0, ...sortedCore.map(c=>c[0].length), ...sortedNon.map(c=>c[0].length));
+    // Estimate width: charLength * 7px + padding + number column; clamp to sensible bounds
+    const widgetWidth = Math.min(300, Math.max(150, longestNameLen * 7 + 70));
+    const nameMaxWidth = widgetWidth - 60; // reserve space for count & gaps
+    return (
+      <section
+        onPointerDown={e => onPointerDown(e,'pobCompanies')}
+        style={{ position:'absolute', left:layout.pobCompanies.x, top:layout.pobCompanies.y, padding:'10px 12px', background: wc.base||theme.surface, border:'1px solid '+(wc.border||widgetBorderColor), borderRadius:8, width: widgetWidth, cursor: editLayout? 'grab':'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)':'none', color: wc.text||theme.text }}>
+        <div style={{ fontSize:30, fontWeight:'bold', lineHeight:1, textAlign:'center', marginBottom:6, background: wc.header||'transparent', padding: wc.header?'4px 6px':0, borderRadius:4 }} title="Total persons onboard">{totalOnboard}</div>
+        <div style={{ fontSize:12, fontWeight:'bold', marginBottom:4, borderBottom:'1px solid '+(wc.border||widgetBorderColor), paddingBottom:2 }}>Core Crew</div>
+        {sortedCore.length>0 ? (
+          <ul style={{ listStyle:'none', margin:0, padding:0, fontSize:11, marginBottom:8 }}>
+            {sortedCore.map(([comp,count]) => (
+              <li key={comp} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dashed '+(wc.border||'#999'), gap:6 }}>
+                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:nameMaxWidth }}>{comp}</span>
+                <span style={{ fontWeight:600 }}>{count}</span>
+              </li>
+            ))}
+          </ul>
+        ) : <div style={{ fontSize:10, fontStyle:'italic', opacity:0.6, marginBottom:6 }}>None</div>}
+        <div style={{ fontSize:12, fontWeight:'bold', marginBottom:4, borderBottom:'1px solid '+(wc.border||widgetBorderColor), paddingBottom:2 }}>Non-Core</div>
+        {sortedNon.length>0 ? (
+          <ul style={{ listStyle:'none', margin:0, padding:0, fontSize:11 }}>
+            {sortedNon.map(([comp,count]) => (
+              <li key={comp} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dashed '+(wc.border||'#999'), gap:6 }}>
+                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:nameMaxWidth }}>{comp}</span>
+                <span style={{ fontWeight:600 }}>{count}</span>
+              </li>
+            ))}
+          </ul>
+        ) : <div style={{ fontSize:10, fontStyle:'italic', opacity:0.6 }}>None</div>}
+        <div style={{ marginTop:6, fontSize:9, opacity:0.55 }}>Grouped by company (onboard only).</div>
+      </section>
+    );
+  })()}
   </div>
       </div>
     </StyledThemeProvider>

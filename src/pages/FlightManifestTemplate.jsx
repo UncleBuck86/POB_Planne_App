@@ -588,7 +588,7 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
     return personnelRecords.filter(r=> (r.firstName+' '+r.lastName).toLowerCase().includes(q)).slice(0,6);
   }, [nameQuery, personnelRecords]);
   return (
-    <div style={{ overflowX:'auto' }}>
+  <div style={{ overflowX:'auto', position:'relative', zIndex:1 }}>
       <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
         <thead>
           <tr>
@@ -616,7 +616,7 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
               <Td style={{ position:'relative' }}>
                 <input value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); setNameQuery(e.target.value); setActiveRow(p.id);} } placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
                 {activeRow===p.id && (matches.length>0 || (nameQuery.trim().length>=2 && !matches.length)) && (
-                  <div style={{ position:'absolute', top:'100%', left:0, zIndex:50, background: theme.background, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), borderRadius:6, padding:6, minWidth:200, boxShadow:'0 4px 12px rgba(0,0,0,0.35)' }}>
+                  <div style={{ position:'absolute', top:'100%', left:0, zIndex:500, background: theme.background, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), borderRadius:6, padding:6, minWidth:220, boxShadow:'0 8px 20px rgba(0,0,0,0.45)' }}>
                     {matches.map(m=> (
                       <div key={m.id} style={{ padding:'4px 6px', cursor:'pointer', fontSize:11, borderRadius:4, background:'#0000' }} onMouseDown={()=>{ applyPersonRecord(p.id, m); setActiveRow(null); }} onMouseEnter={e=> e.currentTarget.style.background = (theme.name==='Dark'?'#2e3439':'#e6eef5')} onMouseLeave={e=> e.currentTarget.style.background='transparent'}>
                         {m.firstName} {m.lastName} <span style={{ opacity:.65 }}>({m.company||'No Company'})</span>
@@ -645,6 +645,8 @@ function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute, per
           {list.length===0 && <tr><Td colSpan={11} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}
         </tbody>
       </table>
+  {/* Spacer to create gap between last row and scrollbar equal to one row height */}
+  <div style={{ height:38 }} />
     </div>
   );
 }

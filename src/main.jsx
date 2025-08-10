@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Personnel from './pages/Personnel.jsx';
+import Logistics from './pages/Logistics.jsx';
 import { ThemeProvider } from './ThemeContext.jsx';
 
 function RootRouter() {
@@ -15,6 +16,7 @@ function RootRouter() {
 	let content = null;
 	if (page === 'planner') content = <App />;
 	else if (page === 'personnel') content = <Personnel />;
+	else if (page.startsWith('logistics')) content = <Logistics />;
 	else content = <Dashboard />;
 	return (
 		<ThemeProvider>
@@ -23,7 +25,8 @@ function RootRouter() {
 					{[
 						{ key: 'dashboard', label: 'Dashboard', color: '#2d6cdf' },
 						{ key: 'planner', label: 'Planner', color: '#7a3cc2' },
-						{ key: 'personnel', label: 'Personnel', color: '#c2571d' }
+						{ key: 'personnel', label: 'Personnel', color: '#c2571d' },
+						{ key: 'logistics', label: 'Logistics', color: '#198a5a' }
 					].map(tab => {
 						const active = page === tab.key;
 						return (

@@ -1,0 +1,69 @@
+// CompanyRow.jsx
+// Renders a single company row with editable cells for each date
+import React from 'react';
+
+export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData, manualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
+  if (hiddenRows.includes(row.company)) return null; // Skip hidden rows
+  return (
+    <tr key={row.company || idx}>
+      <td style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, background: '#fff', zIndex: 2, borderRight: '2px solid #000' }}>
+        <span>{row.company}</span>
+      </td>
+      {dates.map((d, colIdx) => {
+        // Calculate cell background and value
+        const lastSavedVal = lastSavedData[idx]?.[d.date] ?? '';
+        const currVal = row[d.date] ?? '';
+        const changed = String(currVal) !== String(lastSavedVal);
+        const cellKey = `${idx}-${d.date}`;
+        const manuallyHighlighted = manualHighlights[cellKey];
+        let bgColor = '';
+        if (manuallyHighlighted) {
+          bgColor = '#b3e5fc';
+        } else if (changed) {
+          bgColor = '#ffeeba';
+        }
+        return (
+          <td
+            key={d.date}
+            style={{ minWidth: 80, width: 80, ...(bgColor ? { background: bgColor } : {}) }}
+            onDoubleClick={() => {
+              manualHighlights[cellKey] = !manualHighlights[cellKey]; // Toggle highlight
+            }}
+          >
+            <input
+              type="number"
+              value={currVal}
+              min={0}
+              style={{ width: '60px', textAlign: 'center', background: bgColor || undefined }}
+              ref={el => {
+                if (!inputRefs.current[idx]) inputRefs.current[idx] = [];
+                inputRefs.current[idx][colIdx] = el;
+              }}
+              onChange={e => {
+                pushUndo();
+                const newValue = e.target.value === '' ? '' : Number(e.target.value);
+                setRowData(prev => prev.map((r, i) => (i === idx ? { ...r, [d.date]: newValue } : r)));
+              }}
+              onKeyDown={e => {
+                // Keyboard navigation between cells
+                if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  focusCell(idx, colIdx + 1);
+                } else if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  focusCell(idx, colIdx - 1);
+                } else if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  focusCell(idx + 1, colIdx);
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  focusCell(idx - 1, colIdx);
+                }
+              }}
+            />
+          </td>
+        );
+      })}
+    </tr>
+  );
+}

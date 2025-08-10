@@ -30,6 +30,10 @@ const comments = {
 };
 
 export default function App() {
+  const handleReset = () => {
+    setViewStart(defaultStartStr);
+    setViewEnd(defaultEndStr);
+  };
   const [rowData, setRowData] = useState(() => {
     const saved = localStorage.getItem('pobPlannerData');
     return saved ? JSON.parse(saved) : initialPobData;
@@ -65,10 +69,6 @@ export default function App() {
     }, 300);
   }, [viewStart, viewEnd]);
 
-  const handleReset = () => {
-    setViewStart(defaultStartStr);
-    setViewEnd(defaultEndStr);
-  };
 
   return (
     <div style={{ background: '#888', minHeight: '100vh', padding: 0, margin: 0 }}>

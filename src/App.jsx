@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useState as useReactState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
 import CompanyTable from './components/CompanyTable';
 import { generateFlightComments } from './utils/generateFlightComment';
@@ -47,35 +47,7 @@ function ThemeSelector() {
 }
  
 
-const GearButton = styled.button`
-  position: fixed;
-  top: 12px;
-  right: 16px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  z-index: 200;
-  font-size: 24px;
-  color: ${({ theme }) => theme.primary || '#fff'};
-  line-height: 1;
-  padding: 0;
-  &:hover { color: ${({ theme }) => theme.secondary || '#ccc'}; transform: rotate(20deg); }
-  transition: color 0.2s, transform 0.2s;
-`;
-
-const Dropdown = styled.div`
-  position: fixed;
-  top: 54px;
-  right: 16px;
-  background: ${({ theme }) => theme.background || '#fff'};
-  color: ${({ theme }) => theme.text || '#222'};
-  border: 1px solid ${({ theme }) => theme.primary};
-  border-radius: 10px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-  min-width: 200px;
-  padding: 14px 16px 16px;
-  z-index: 210;
-`;
+// Removed individual gear button / dropdown (now unified in global nav)
 
 const GlobalStyle = createGlobalStyle`
   body {
@@ -99,10 +71,7 @@ function ThemeConsumerWrapper(props) {
 }
 
 function AppContent(props) {
-  const { theme, team, changeTheme } = useTheme();
-  const [settingsOpen, setSettingsOpen] = useReactState(false);
-  const settingsRef = useRef(null);
-  const gearRef = useRef(null);
+  const { theme, team } = useTheme();
   const [editingCompanies, setEditingCompanies] = useState(false);
   const handleReset = () => {
     setViewStart(defaultStartStr);
@@ -142,43 +111,16 @@ function AppContent(props) {
       }
     }, 300);
   }, [viewStart, viewEnd]);
-  // Outside click / escape close settings
-  useEffect(() => {
-    if (!settingsOpen) return;
-    const handleClick = (e) => {
-      const menu = settingsRef.current; const gear = gearRef.current;
-      if (!menu) return; if (menu.contains(e.target) || gear?.contains(e.target)) return;
-      setSettingsOpen(false);
-    };
-    const handleKey = (e) => { if (e.key === 'Escape') setSettingsOpen(false); };
-    window.addEventListener('mousedown', handleClick);
-    window.addEventListener('touchstart', handleClick);
-    window.addEventListener('keydown', handleKey);
-    return () => { window.removeEventListener('mousedown', handleClick); window.removeEventListener('touchstart', handleClick); window.removeEventListener('keydown', handleKey); };
-  }, [settingsOpen]);
+  // Listen for global event to open Edit Companies from unified gear
+  useEffect(()=>{
+    const handler = () => setEditingCompanies(true);
+    window.addEventListener('openPlannerEditCompanies', handler);
+    return () => window.removeEventListener('openPlannerEditCompanies', handler);
+  },[]);
 
   return (
   <div style={{ background: team === 'dark' ? theme.background : theme.background, color: theme.text, minHeight: '100vh' }}>
-      <GearButton ref={gearRef} theme={theme} onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">
-        ⚙️
-      </GearButton>
-      {settingsOpen && (
-        <Dropdown ref={settingsRef} theme={theme}>
-          <div style={{ marginBottom: 8, fontWeight: 'bold' }}>Theme Settings</div>
-          <label htmlFor="theme-select" style={{ marginRight: 8 }}>Select Theme:</label>
-          <select id="theme-select" value={team} onChange={e => { changeTheme(e.target.value); setSettingsOpen(false); }}>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-          <hr style={{ margin: '12px 0' }} />
-          <button
-            onClick={() => { setEditingCompanies(true); setSettingsOpen(false); }}
-            style={{ width: '100%', padding: '8px', background: theme.primary, color: theme.buttonText || theme.text, border: 'none', borderRadius: 4, fontWeight: 'bold', marginTop: 8 }}
-          >
-            Edit Companies
-          </button>
-        </Dropdown>
-      )}
+  {/* Unified settings handled by global nav gear */}
       <div style={{ position: 'fixed', top: 10, left: 60, color: 'yellow', fontWeight: 'bold', fontSize: '14px', letterSpacing: '1px', textShadow: '0 0 4px rgba(0,0,0,0.6)' }}>
         v2.0
       </div>

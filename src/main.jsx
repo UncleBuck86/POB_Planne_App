@@ -76,6 +76,9 @@ function NavShell({ page, content }) {
 								<option value='light'>Light</option>
 								<option value='dark'>Dark</option>
 							</select>
+							{page==='planner' && (
+								<button onClick={()=>{ window.dispatchEvent(new Event('openPlannerEditCompanies')); setOpen(false); }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginBottom:10 }}>Edit Companies</button>
+							)}
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>Admin</div>
 							{!adminEnabled && (

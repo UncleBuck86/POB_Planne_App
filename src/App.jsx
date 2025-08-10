@@ -48,27 +48,32 @@ function ThemeSelector() {
 
 const GearButton = styled.button`
   position: fixed;
-  top: 16px;
-  left: 16px;
+  top: 12px;
+  right: 16px;
   background: transparent;
   border: none;
   cursor: pointer;
-  z-index: 100;
+  z-index: 200;
   font-size: 24px;
-  color: ${({ theme }) => theme.primary || '#222'};
+  color: ${({ theme }) => theme.primary || '#fff'};
+  line-height: 1;
+  padding: 0;
+  &:hover { color: ${({ theme }) => theme.secondary || '#ccc'}; transform: rotate(20deg); }
+  transition: color 0.2s, transform 0.2s;
 `;
 
 const Dropdown = styled.div`
-  position: absolute;
-  top: 40px;
-  left: 0;
+  position: fixed;
+  top: 54px;
+  right: 16px;
   background: ${({ theme }) => theme.background || '#fff'};
   color: ${({ theme }) => theme.text || '#222'};
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  min-width: 180px;
-  padding: 12px;
+  border: 1px solid ${({ theme }) => theme.primary};
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  min-width: 200px;
+  padding: 14px 16px 16px;
+  z-index: 210;
 `;
 
 const GlobalStyle = createGlobalStyle`
@@ -137,8 +142,8 @@ function AppContent(props) {
 
   return (
     <div style={{ background: team === 'dark' ? '#22223b' : theme.background, color: theme.text, minHeight: '100vh' }}>
-      <GearButton theme={theme} onClick={() => setSettingsOpen(o => !o)} title="Settings">
-        <span role="img" aria-label="settings">⚙️</span>
+      <GearButton theme={theme} onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">
+        ⚙️
       </GearButton>
       {settingsOpen && (
         <Dropdown theme={theme}>

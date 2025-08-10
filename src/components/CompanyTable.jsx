@@ -356,7 +356,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
       {/* Unified scrollable table with sticky header & first column */}
       <div style={{ position: 'relative', width: '100%', maxWidth: '100vw', margin: '0 auto' }}>
-        <div ref={unifiedScrollRef} style={{ position:'relative', border:'2px solid '+appliedTheme.primary, borderRadius:8, background:appliedTheme.background, width:'100%', boxSizing:'border-box', overflowX:'auto', overflowY:'visible', paddingBottom:8 }}>
+  <div ref={unifiedScrollRef} style={{ position:'relative', border:'2px solid '+appliedTheme.primary, borderRadius:8, background:appliedTheme.background, width:'100%', boxSizing:'border-box', height:'70vh', maxHeight:'70vh', overflow:'auto', paddingBottom:8 }}>
           <table
             border="0"
             cellPadding="6"
@@ -378,7 +378,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               ))}
             </colgroup>
             <CompanyTableHeader dates={effectiveDates} todayKey={todayKey} todayColumnRef={todayColumnRef} />
-    <tbody ref={tbodyRef} style={{ transform: `scaleY(${zoom})`, transformOrigin: 'top left', transition: 'transform 0.2s ease' }}>
+            <tbody ref={tbodyRef}>
               {sortedRows.map((row, idx) => (
                 <CompanyRow
                   key={row.id}
@@ -406,6 +406,10 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                 setComments={setComments}
                 pushUndo={pushUndo}
               />
+              {/* Spacer row so user can scroll until totals line reaches sticky header */}
+              <tr>
+                <td colSpan={1 + effectiveDates.length} style={{ padding:0, border:'none', height: 300 }} />
+              </tr>
             </tbody>
           </table>
         </div>

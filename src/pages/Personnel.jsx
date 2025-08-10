@@ -9,6 +9,11 @@ import { useTheme } from '../ThemeContext.jsx';
   company: string,
   position: string,
   crew: string, // crew identifier / crew name / crew number
+  coreCrew: boolean, // indicates core crew -> enables contact/address fields
+  primaryPhone?: string,
+  secondaryPhone?: string,
+  address?: string,
+  dob?: string, // Date of Birth YYYY-MM-DD
   arrivalDate: YYYY-MM-DD,
   departureDate?: YYYY-MM-DD | '',
   status: 'Onboard' | 'Departed' | 'Pending',
@@ -30,6 +35,11 @@ const blank = () => ({
   company: '',
   position: '',
   crew: '',
+  coreCrew: false,
+  primaryPhone: '',
+  secondaryPhone: '',
+  address: '',
+  dob: '',
   arrivalDate: new Date().toISOString().split('T')[0],
   departureDate: '',
   status: 'Onboard',
@@ -65,7 +75,15 @@ export default function Personnel() {
     const rec = records.find(r => r.id === id);
     if (!rec) return;
     setEditingId(id);
-  setDraft({ crew: '', ...rec }); // ensure crew key exists
+    setDraft({
+      crew: '',
+      coreCrew: false,
+      primaryPhone: '',
+      secondaryPhone: '',
+      address: '',
+      dob: '',
+      ...rec
+    }); // ensure new keys exist
   }
   function cancelEdit() {
     setEditingId(null);
@@ -125,6 +143,58 @@ export default function Personnel() {
             <Field label="Departure Date">
               <input type="date" value={draft.departureDate} onChange={e => setDraft({ ...draft, departureDate: e.target.value })} style={input(theme)} />
             </Field>
+            <Field label="DOB">
+              <input type="date" value={draft.dob} disabled={!draft.coreCrew} onChange={e => setDraft({ ...draft, dob: e.target.value })} style={{ ...input(theme), opacity: draft.coreCrew ? 1 : 0.5 }} />
+            </Field>
+            <Field label="Core Crew">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="checkbox"
+                  checked={!!draft.coreCrew}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setDraft(d => ({
+                      ...d,
+                      coreCrew: checked,
+                      primaryPhone: checked ? d.primaryPhone : '',
+                      secondaryPhone: checked ? d.secondaryPhone : '',
+                      address: checked ? d.address : '',
+                      dob: checked ? d.dob : ''
+                    }));
+                  }}
+                  style={{ transform: 'scale(1.2)' }}
+                />
+                <span style={{ fontSize: 12 }}>Enable contact details</span>
+              </div>
+            </Field>
+            <Field label="Primary Phone">
+              <input
+                value={draft.primaryPhone}
+                disabled={!draft.coreCrew}
+                onChange={e => setDraft({ ...draft, primaryPhone: e.target.value })}
+                style={{ ...input(theme), opacity: draft.coreCrew ? 1 : 0.5 }}
+                placeholder="(###) ###-####"
+              />
+            </Field>
+            <Field label="Secondary Phone">
+              <input
+                value={draft.secondaryPhone}
+                disabled={!draft.coreCrew}
+                onChange={e => setDraft({ ...draft, secondaryPhone: e.target.value })}
+                style={{ ...input(theme), opacity: draft.coreCrew ? 1 : 0.5 }}
+                placeholder="optional"
+              />
+            </Field>
+            <Field label="Address" full>
+              <textarea
+                value={draft.address}
+                disabled={!draft.coreCrew}
+                onChange={e => setDraft({ ...draft, address: e.target.value })}
+                rows={2}
+                style={{ ...input(theme), resize: 'vertical', opacity: draft.coreCrew ? 1 : 0.5 }}
+                placeholder="Street, City, State"
+              />
+            </Field>
             <Field label="Status">
               <select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })} style={select(theme)}>
                 <option>Onboard</option>
@@ -146,32 +216,43 @@ export default function Personnel() {
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
           <thead>
             <tr>
-              {['First','Last','Company','Position','Crew','Arrival','Departure','Status','Notes','Actions'].map(h => (
+              {['First','Last','Company','Position','Crew','Core','Arrival','Departure','Status','DOB','Flag','Notes','Actions'].map(h => (
                 <th key={h} style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '6px 8px', fontSize: 12 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map(r => (
-              <tr key={r.id} style={{ background: theme.surface }}>
+            {filtered.map(r => {
+              const incomplete = r.coreCrew && (!r.primaryPhone || !r.address || !r.dob);
+              const missing = [];
+              if (r.coreCrew) {
+                if (!r.primaryPhone) missing.push('Primary Phone');
+                if (!r.address) missing.push('Address');
+                if (!r.dob) missing.push('DOB');
+              }
+              return (
+              <tr key={r.id} style={{ background: incomplete ? (theme.name === 'Dark' ? '#402323' : '#ffe7e7') : theme.surface }}>
                 <td style={cell(theme)}>{r.firstName}</td>
                 <td style={cell(theme)}>{r.lastName}</td>
                 <td style={cell(theme)}>{r.company}</td>
                 <td style={cell(theme)}>{r.position}</td>
                 <td style={cell(theme)}>{r.crew}</td>
+                <td style={cell(theme)}>{r.coreCrew ? 'Yes' : ''}</td>
                 <td style={cell(theme)}>{r.arrivalDate}</td>
                 <td style={cell(theme)}>{r.departureDate}</td>
                 <td style={cell(theme)}>{r.status}</td>
+                <td style={cell(theme)}>{r.dob}</td>
+                <td style={cell(theme)} title={missing.length ? 'Missing: ' + missing.join(', ') : ''}>{incomplete ? '⚠' : ''}</td>
                 <td style={{ ...cell(theme), maxWidth: 160, whiteSpace: 'pre-wrap' }}>{r.notes}</td>
                 <td style={cell(theme)}>
                   <button onClick={() => startEdit(r.id)} style={miniBtn(theme)}>Edit</button>
                   <button onClick={() => remove(r.id)} style={miniBtn(theme)}>Del</button>
                 </td>
               </tr>
-            ))}
+            );})}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
+                <td colSpan={13} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
               </tr>
             )}
           </tbody>

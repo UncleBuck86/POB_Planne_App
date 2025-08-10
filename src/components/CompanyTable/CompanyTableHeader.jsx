@@ -12,7 +12,7 @@ export default function CompanyTableHeader({ dates, todayKey, todayColumnRef }) 
   return (
     <thead>
       <tr>
-    <th style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, top: 0, background: headerBg, color: headerText, zIndex: 3, borderRight: `2px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}`, borderLeft: `1px solid ${borderColor}` }}>
+  <th style={{ width:160, minWidth: 160, maxWidth:160, textAlign: 'left', position: 'sticky', left: 0, top: 0, background: headerBg, color: headerText, zIndex: 3, borderRight: `2px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}`, borderLeft: `1px solid ${borderColor}` }}>
           Company
         </th>
         {dates.map(d => {

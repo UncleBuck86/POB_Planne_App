@@ -3,21 +3,21 @@
 import React from 'react';
 import { useTheme } from '../../ThemeContext.jsx';
 
-export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData, manualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
+export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById, manualHighlights, setManualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
   if (hiddenRows.includes(row.id)) return null; // Skip hidden rows by id
   const { theme } = useTheme();
   const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
   return (
     <tr key={row.id}>
-      <td style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderBottom: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}` }}>
+  <td style={{ width:160, minWidth:160, maxWidth:160, textAlign: 'left', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderBottom: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
         <span>{row.company}</span>
       </td>
       {dates.map((d, colIdx) => {
-        // Calculate cell background and value
-        const lastSavedVal = lastSavedData[idx]?.[d.date] ?? '';
+        const lastSavedRow = lastSavedById[row.id] || {};
+        const lastSavedVal = lastSavedRow[d.date] ?? '';
         const currVal = row[d.date] ?? '';
         const changed = String(currVal) !== String(lastSavedVal);
-        const cellKey = `${idx}-${d.date}`;
+        const cellKey = `${row.id}-${d.date}`;
         const manuallyHighlighted = manualHighlights[cellKey];
         let bgColor = theme.surface;
         if (manuallyHighlighted) {
@@ -30,7 +30,11 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData,
             key={d.date}
             style={{ minWidth: 80, width: 80, background: bgColor, color: theme.text, border: `1px solid ${borderColor}` }}
             onDoubleClick={() => {
-              manualHighlights[cellKey] = !manualHighlights[cellKey]; // Toggle highlight
+              setManualHighlights(prev => {
+                const next = { ...prev };
+                next[cellKey] = !next[cellKey];
+                return next;
+              });
             }}
           >
             <input
@@ -45,7 +49,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData,
               onChange={e => {
                 pushUndo();
                 const newValue = e.target.value === '' ? '' : Number(e.target.value);
-                setRowData(prev => prev.map((r, i) => (i === idx ? { ...r, [d.date]: newValue } : r)));
+                setRowData(prev => prev.map(r => (r.id === row.id ? { ...r, [d.date]: newValue } : r)));
               }}
               onKeyDown={e => {
                 // Keyboard navigation between cells

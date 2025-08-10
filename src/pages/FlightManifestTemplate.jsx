@@ -25,6 +25,19 @@ const defaultData = {
   inbound: []   // passengers arriving (Flights In)
 };
 
+// Helper to format date (YYYY-MM-DD) -> MMDDYY
+function formatDateCompact(isoDate){
+  if(!isoDate) return '';
+  const [y,m,d] = isoDate.split('-');
+  return `${m}${d}${y.slice(-2)}`;
+}
+function buildAutoFlightNumber(location, isoDate, index){
+  const loc = (location||'LOC').replace(/\s+/g,'').toUpperCase();
+  const datePart = formatDateCompact(isoDate|| new Date().toISOString().slice(0,10));
+  return `${loc}-${datePart}-flight ${index||1}`;
+}
+const AUTO_FLIGHT_REGEX = /^[A-Z0-9]+-\d{6}-flight \d+$/;
+
 export default function FlightManifestTemplate() {
   const { theme } = useTheme();
   const [data, setData] = useState(() => {
@@ -193,6 +206,18 @@ export default function FlightManifestTemplate() {
   }, [data.outbound, data.inbound, locked]);
 
   const updateMeta = (field, value) => setData(d => ({ ...d, meta: { ...d.meta, [field]: value } }));
+  // Auto-generate flight number when departure/date change and existing flight number is empty or still auto pattern
+  useEffect(()=>{
+    if(locked) return; // don't auto adjust locked historical data
+    setData(d=>{
+      const current = d.meta.flightNumber||'';
+      const shouldAuto = !current || AUTO_FLIGHT_REGEX.test(current);
+      if(!shouldAuto) return d;
+      const next = buildAutoFlightNumber(d.meta.departure, d.meta.date, 1);
+      if(next===current) return d;
+      return { ...d, meta: { ...d.meta, flightNumber: next } };
+    });
+  }, [data.meta.departure, data.meta.date, locked]);
   const newPax = (dir, meta) => ({
     id: crypto.randomUUID(),
     name:'',
@@ -635,7 +660,10 @@ export default function FlightManifestTemplate() {
       </section>
     {outboundFlights.map((flight, idx)=> (
         <section key={idx} style={card(theme)}>
-      <div style={sectionHeader(theme)}>Outbound Flight {outboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxOutboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxOutboundWeight? '/ '+selectedAircraft.maxOutboundWeight+' Wt':''}`:''}{outboundFlights.length>1 && !locked && <span style={{ marginLeft:12, fontSize:10, opacity:.7 }}>Use arrows in Action to move pax</span>}</div>
+      <div style={sectionHeader(theme)}>Outbound Flight {outboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax})
+        <span style={{ marginLeft:10, fontSize:11, fontWeight:500, opacity:.75 }}>#{buildAutoFlightNumber(data.meta.departure, data.meta.date, idx+1)}</span>
+        {selectedAircraft && (selectedAircraft.maxOutboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxOutboundWeight? '/ '+selectedAircraft.maxOutboundWeight+' Wt':''}`:''}{outboundFlights.length>1 && !locked && <span style={{ marginLeft:12, fontSize:10, opacity:.7 }}>Use arrows in Action to move pax</span>}
+      </div>
     <PassengerTable
       theme={theme}
       dir='outbound'
@@ -676,7 +704,10 @@ export default function FlightManifestTemplate() {
       ))}
     {inboundFlights.map((flight, idx)=> (
         <section key={'in'+idx} style={card(theme)}>
-      <div style={sectionHeader(theme)}>Inbound Flight {inboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax}){selectedAircraft && (selectedAircraft.maxInboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxInboundWeight? '/ '+selectedAircraft.maxInboundWeight+' Wt':''}`:''}{inboundFlights.length>1 && !locked && <span style={{ marginLeft:12, fontSize:10, opacity:.7 }}>Use arrows in Action to move pax</span>}</div>
+      <div style={sectionHeader(theme)}>Inbound Flight {inboundFlights.length>1 ? idx+1 : ''} Passengers ({flight.totalPax})
+        <span style={{ marginLeft:10, fontSize:11, fontWeight:500, opacity:.75 }}>#{buildAutoFlightNumber(data.meta.arrival, data.meta.date, idx+1)}</span>
+        {selectedAircraft && (selectedAircraft.maxInboundWeight || selectedAircraft.maxPax) ? ` / Cap ${selectedAircraft.maxPax||'-'} Pax ${selectedAircraft.maxInboundWeight? '/ '+selectedAircraft.maxInboundWeight+' Wt':''}`:''}{inboundFlights.length>1 && !locked && <span style={{ marginLeft:12, fontSize:10, opacity:.7 }}>Use arrows in Action to move pax</span>}
+      </div>
     <PassengerTable
       theme={theme}
       dir='inbound'

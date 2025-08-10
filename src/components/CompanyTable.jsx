@@ -31,12 +31,13 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   }, [frameHeight]);
   // Recompute frame height when autoFit is on and zoom or data changes
   useEffect(() => {
-    if (autoFit && tableScrollRef.current) {
-      const raw = tableScrollRef.current.scrollHeight; // unscaled
-      const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
-      if (estimated !== frameHeight) setFrameHeight(estimated);
-    }
-  }, [autoFit, zoom, rowData.length, frameHeight]);
+    if (!autoFit) return;
+    const el = unifiedScrollRef?.current;
+    if (!el) return;
+    const raw = el.scrollHeight;
+    const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
+    setFrameHeight(prev => (prev === estimated ? prev : estimated));
+  }, [autoFit, zoom, rowData.length]);
   // Persist zoom setting
   useEffect(() => {
     localStorage.setItem('pobZoom', String(zoom));
@@ -109,7 +110,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [flightsOut, setFlightsOut] = useState({}); // Flights out per date
   const [flightsIn, setFlightsIn] = useState({}); // Flights in per date
   const inputRefs = useRef([]); // Refs for table cell inputs
-  const tableScrollRef = useRef(null); // Ref for scrollable table div
+  const unifiedScrollRef = useRef(null); // Unified scroll container
   // Resize drag handling refs
   const resizeMetaRef = useRef({ startY: 0, startHeight: 0, dragging: false });
 
@@ -150,9 +151,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
       setFrameHeight(defaultH);
       return;
     }
-    if (tableScrollRef.current) {
-      // Estimate content height: actual scrollHeight doesn't include transform scaleY effect
-      const raw = tableScrollRef.current.scrollHeight;
+    if (unifiedScrollRef.current) {
+      const raw = unifiedScrollRef.current.scrollHeight;
       const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
       setFrameHeight(estimated);
     }
@@ -160,8 +160,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const toggleAutoFit = () => {
     if (!autoFit) {
       // Turn on auto-fit and compute once immediately
-      if (tableScrollRef.current) {
-        const raw = tableScrollRef.current.scrollHeight;
+      if (unifiedScrollRef.current) {
+        const raw = unifiedScrollRef.current.scrollHeight;
         const estimated = Math.min(1000, Math.max(200, Math.round(raw * zoom) + 8));
         setFrameHeight(estimated);
       }
@@ -188,6 +188,17 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     window.removeEventListener('mousemove', onResizeMouseMove);
     window.removeEventListener('mouseup', onResizeMouseUp);
   }, []);
+  // (Removed separate horizontal sync; unified scroll container will handle alignment)
+
+  // Derive effective dates list based on autoHide (hide dates prior to today)
+  // Moved above effects that reference it to avoid temporal dead zone errors
+  const effectiveDates = useMemo(() => {
+    if (!autoHide || !todayKey) return dates;
+    const todayIndex = dates.findIndex(d => d.date === todayKey);
+    if (todayIndex === -1) return dates;
+    return dates.slice(todayIndex); // from today forward
+  }, [dates, autoHide, todayKey]);
+  // (Removed dynamic column width measurement; using fixed colgroup widths)
 
   // Helper: merge flights into comments (not used for user comments)
   const generateMergedComments = (out, inn) => {
@@ -282,48 +293,92 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Scroll table horizontally by px (used for scroll buttons)
   const scrollTable = (action) => {
-    if (tableScrollRef.current) {
-      if (action === 'start') {
-        tableScrollRef.current.scrollLeft = 0;
-      } else if (action === 'end') {
-        tableScrollRef.current.scrollLeft = tableScrollRef.current.scrollWidth;
-      } else if (action === 'left') {
-        tableScrollRef.current.scrollLeft -= 100;
-      } else if (action === 'right') {
-        tableScrollRef.current.scrollLeft += 100;
-      }
-    }
+    const el = unifiedScrollRef.current;
+    if (!el) return;
+    if (action === 'start') el.scrollLeft = 0;
+    else if (action === 'end') el.scrollLeft = el.scrollWidth;
+    else if (action === 'left') el.scrollLeft -= 100;
+    else if (action === 'right') el.scrollLeft += 100;
   };
 
   // One-time horizontal scroll so today's date is leftmost visible
   const didInitialScroll = useRef(false);
   useEffect(() => {
-    if (didInitialScroll.current) return;
-    if (!todayKey || !todayColumnRef?.current || !tableScrollRef.current) return;
+  if (didInitialScroll.current) return;
+  if (!todayKey || !todayColumnRef?.current || !unifiedScrollRef.current) return;
     const companyColWidth = 160;
     const targetOffset = todayColumnRef.current.offsetLeft - companyColWidth;
     if (targetOffset > 0) {
-      tableScrollRef.current.scrollLeft = targetOffset;
+  unifiedScrollRef.current.scrollLeft = targetOffset;
       didInitialScroll.current = true;
     }
   }, [todayKey, dates]);
 
   // When autoHide is turned on, scroll to far left (home position)
   useEffect(() => {
-    if (autoHide && tableScrollRef.current) {
-      tableScrollRef.current.scrollLeft = 0;
+    if (autoHide && unifiedScrollRef.current) {
+      unifiedScrollRef.current.scrollLeft = 0;
       // After scrolling left, ensure we don't skip potential initial alignment if needed later
       didInitialScroll.current = true; // effectiveDates already start at today so leftmost is correct
     }
   }, [autoHide]);
 
-  // Derive effective dates list based on autoHide (hide dates prior to today)
-  const effectiveDates = useMemo(() => {
-    if (!autoHide || !todayKey) return dates;
-    const todayIndex = dates.findIndex(d => d.date === todayKey);
-    if (todayIndex === -1) return dates;
-    return dates.slice(todayIndex); // from today forward
-  }, [dates, autoHide, todayKey]);
+  // (effectiveDates definition moved above)
+
+  // -------- Bulk Import --------
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkPreview, setBulkPreview] = useState([]); // parsed rows
+  const openBulk = () => { setBulkOpen(true); setBulkText(''); setBulkPreview([]); };
+  const closeBulk = () => { setBulkOpen(false); };
+  // Parse pasted text (tab or comma separated). Columns: Company, Date1, Date2, ... (M/D/YYYY or MM/DD/YYYY) values (numbers) or blank
+  const parseBulk = (txt) => {
+    const lines = txt.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+    if(!lines.length) return [];
+    // Split by tab first, fallback to comma
+    const splitLine = (l) => l.includes('\t') ? l.split('\t') : l.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/);
+    const header = splitLine(lines[0]).map(h=>h.trim());
+    // Expect first column is Company
+    const dateCols = header.slice(1);
+    const normDate = (dstr) => {
+      // Accept M/D/YYYY
+      if(!dstr) return null;
+      const m = dstr.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if(!m) return null; return parseInt(m[1])+'/'+parseInt(m[2])+'/'+m[3];
+    };
+    const mappedDates = dateCols.map(normDate);
+    const out = [];
+    for(let i=1;i<lines.length;i++){
+      const cols = splitLine(lines[i]);
+      if(!cols.length) continue; const company = (cols[0]||'').trim(); if(!company) continue;
+      const rowVals = {};
+      mappedDates.forEach((dk, idx)=>{
+        if(!dk) return; const raw = (cols[idx+1]||'').trim(); if(!raw) return; const num = parseInt(raw,10); if(!isNaN(num)) rowVals[dk]=num; });
+      out.push({ company, values: rowVals });
+    }
+    return out;
+  };
+  useEffect(()=>{ setBulkPreview(parseBulk(bulkText)); }, [bulkText]);
+  const applyBulk = () => {
+    if(!bulkPreview.length) { closeBulk(); return; }
+    pushUndo();
+    setRowData(prev => {
+      const map = new Map(prev.map(r=> [ (r.company||'').toLowerCase(), r ]));
+      const next = [...prev];
+      bulkPreview.forEach(br => {
+        const key = br.company.toLowerCase();
+        let row = map.get(key);
+        if(!row){
+          row = { id: generateId(), company: br.company };
+          map.set(key, row);
+          next.push(row);
+        }
+        Object.entries(br.values).forEach(([k,v])=>{ row[k]=v; });
+      });
+      return next;
+    });
+    closeBulk();
+  };
 
   // Main render
   return (
@@ -353,79 +408,82 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   scrollTable={scrollTable}
   autoFit={autoFit}
   toggleAutoFit={toggleAutoFit}
+  onBulkImport={openBulk}
       />
       {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}
 
-      {/* Table/chart inside adjustable frame */}
+      {/* Unified scrollable table with sticky header & first column */}
       <div style={{ position: 'relative', width: '100%', maxWidth: '100vw', margin: '0 auto' }}>
         <div
-          ref={tableScrollRef}
+          ref={unifiedScrollRef}
           style={{
-            overflowX: 'auto',
-            overflowY: 'auto',
-            height: frameHeight,
-            minHeight: 200,
-            maxHeight: 1000,
+            position: 'relative',
+            border: '2px solid ' + appliedTheme.primary,
+            borderRadius: 8,
             background: appliedTheme.background,
             width: '100%',
             boxSizing: 'border-box',
-            border: '2px solid ' + appliedTheme.primary,
-            borderRadius: 8,
-            position: 'relative',
-            transition: 'height 0.15s ease'
+            height: frameHeight,
+            minHeight: 200,
+            maxHeight: 1000,
+            overflow: 'auto',
+            transition: 'height 0.15s ease',
+            scrollbarGutter: 'stable both-edges'
           }}
         >
           <table
-            border="1"
+            border="0"
             cellPadding="6"
             style={{
               minWidth: '900px',
               width: 'max-content',
-              borderCollapse: 'collapse',
-              tableLayout: 'auto',
-              marginTop: 0,
+              borderCollapse: 'separate',
+              borderSpacing: 0,
+              tableLayout: 'fixed',
               background: appliedTheme.background,
               color: appliedTheme.text,
-              transform: `scaleY(${zoom})`,
-              transformOrigin: 'top left',
-              transition: 'transform 0.2s ease'
+              margin: 0
             }}
           >
-          <CompanyTableHeader dates={effectiveDates} todayKey={todayKey} todayColumnRef={todayColumnRef} />
-          <tbody>
-            {/* Render each company row */}
-            {sortedRows.map((row, idx) => (
-              <CompanyRow
-                key={row.id}
-                row={row}
-                idx={idx}
+            <colgroup>
+              <col style={{ width: 160 }} />
+              {effectiveDates.map(d => (
+                <col key={d.date} style={{ width: 80 }} />
+              ))}
+            </colgroup>
+            <CompanyTableHeader dates={effectiveDates} todayKey={todayKey} todayColumnRef={todayColumnRef} />
+            <tbody style={{ transform: `scaleY(${zoom})`, transformOrigin: 'top left', transition: 'transform 0.2s ease' }}>
+              {sortedRows.map((row, idx) => (
+                <CompanyRow
+                  key={row.id}
+                  row={row}
+                  idx={idx}
+                  dates={effectiveDates}
+                  hiddenRows={hiddenRows}
+                  lastSavedById={Object.fromEntries(lastSavedData.map(r=>[r.id,r]))}
+                  manualHighlights={manualHighlights}
+                  setManualHighlights={setManualHighlights}
+                  inputRefs={inputRefs}
+                  pushUndo={pushUndo}
+                  setRowData={setRowData}
+                  focusCell={focusCell}
+                />
+              ))}
+              <TotalsRow rowData={rowData} dates={effectiveDates} />
+              <FlightsRow type="Flights Out" dates={effectiveDates} flights={flightsOut} />
+              <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
+              <CommentsRow
                 dates={effectiveDates}
-                hiddenRows={hiddenRows}
-                lastSavedData={lastSavedData}
+                comments={comments}
+                lastSavedComments={lastSavedComments}
                 manualHighlights={manualHighlights}
-                inputRefs={inputRefs}
+                setComments={setComments}
                 pushUndo={pushUndo}
-                setRowData={setRowData}
-                focusCell={focusCell}
               />
-            ))}
-            {/* Render totals, flights, comments rows */}
-            <TotalsRow rowData={rowData} dates={effectiveDates} />
-            <FlightsRow type="Flights Out" dates={effectiveDates} flights={flightsOut} />
-            <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
-            <CommentsRow
-              dates={effectiveDates}
-              comments={comments}
-              lastSavedComments={lastSavedComments}
-              manualHighlights={manualHighlights}
-              setComments={setComments}
-              pushUndo={pushUndo}
-            />
-          </tbody>
+            </tbody>
           </table>
-        </div>
-        {/* Corner resize handle anchored to outer wrapper so always visible */}
-        <div
+          {/* Corner resize handle anchored within scroll frame */}
+          <div
           onMouseDown={onResizeMouseDown}
           onDoubleClick={onResizeDoubleClick}
           title="Drag to adjust frame height (double-click to toggle fit/reset)"
@@ -451,6 +509,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         >
           <span style={{ fontSize: 9, color: theme.buttonText || '#fff', fontWeight: 'bold', userSelect: 'none', letterSpacing: 1 }}>≡</span>
         </div>
+        </div>
       </div>
       {/* Edit companies modal */}
       <EditCompaniesModal
@@ -466,6 +525,46 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         saveCompanies={saveCompanies}
         setEditing={setEditing}
       />
+      {bulkOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:1200, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 20px' }} onClick={e=> { if(e.target===e.currentTarget) closeBulk(); }}>
+          <div style={{ background:'#fff', color:'#222', width:'min(780px,100%)', maxHeight:'90vh', overflowY:'auto', borderRadius:14, padding:24, boxShadow:'0 8px 24px rgba(0,0,0,0.4)', position:'relative' }}>
+            <h3 style={{ marginTop:0 }}>Bulk Import Companies</h3>
+            <p style={{ fontSize:12, lineHeight:1.4 }}>
+              Paste rows from a spreadsheet (first row header). First column must be Company. Subsequent headers should be dates (M/D/YYYY). Cells with numbers will be imported. Blank cells ignored.
+              <br/>Example (Tab separated):
+              <br/>Company	8/10/2025	8/11/2025
+              <br/>ACME	3	4
+            </p>
+            <textarea value={bulkText} onChange={e=> setBulkText(e.target.value)} placeholder={'Company\t8/10/2025\t8/11/2025\nACME\t3\t4'} style={{ width:'100%', minHeight:160, fontFamily:'monospace', fontSize:12, padding:10, border:'1px solid #888', borderRadius:8, resize:'vertical' }} />
+            <div style={{ marginTop:14, fontSize:12 }}>
+              <strong>Preview ({bulkPreview.length} rows)</strong>
+              {bulkPreview.length>0 ? (
+                <div style={{ marginTop:8, maxHeight:200, overflowY:'auto', border:'1px solid #ccc', borderRadius:8 }}>
+                  <table style={{ borderCollapse:'collapse', width:'100%', fontSize:11 }}>
+                    <thead><tr><th style={bpTh}>Company</th><th style={bpTh}>Dates & Values</th></tr></thead>
+                    <tbody>
+                      {bulkPreview.map((r,i)=> (
+                        <tr key={i}>
+                          <td style={bpTd}>{r.company}</td>
+                          <td style={bpTd}>{Object.entries(r.values).map(([k,v])=> k+':'+v).join(', ')||'(no values)'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <div style={{ marginTop:4, fontStyle:'italic', opacity:.6 }}>No parsable rows yet.</div>}
+            </div>
+            <div style={{ marginTop:16, display:'flex', justifyContent:'flex-end', gap:8 }}>
+              <button onClick={closeBulk} style={{ padding:'6px 14px', background:'#bbb', border:'1px solid #999', borderRadius:8, cursor:'pointer' }}>Cancel</button>
+              <button disabled={!bulkPreview.length} onClick={applyBulk} style={{ padding:'6px 14px', background: bulkPreview.length? '#388e3c':'#888', color:'#fff', border:'1px solid '+(bulkPreview.length? '#2e7030':'#666'), borderRadius:8, cursor: bulkPreview.length? 'pointer':'not-allowed', fontWeight:'bold' }}>Apply Import</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// Bulk preview cell styles
+const bpTh = { padding:'4px 6px', border:'1px solid #999', background:'#f0f3f6', position:'sticky', top:0 };
+const bpTd = { padding:'4px 6px', border:'1px solid #ccc', verticalAlign:'top' };

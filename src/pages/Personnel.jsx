@@ -54,6 +54,13 @@ export default function Personnel() {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(blank());
+  // Company options sourced automatically from POB planner companies
+  const [companyOptions, setCompanyOptions] = useState(() => {
+    try {
+      const data = JSON.parse(localStorage.getItem('pobPlannerData')) || [];
+      return [...new Set(data.map(r => (r.company || '').trim()).filter(Boolean))].sort();
+    } catch { return []; }
+  });
   // Admin-managed option lists
   const loadList = (key) => {
     try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
@@ -72,6 +79,21 @@ export default function Personnel() {
   // Keep textareas in sync if lists change externally
   useEffect(() => { setCrewOptionsText(crewOptions.join('\n')); }, [crewOptions]);
   useEffect(() => { setRotationOptionsText(rotationOptions.join('\n')); }, [rotationOptions]);
+  // Refresh company options when storage changes (other tab) or periodically while on page
+  useEffect(() => {
+    const load = () => {
+      try {
+        const data = JSON.parse(localStorage.getItem('pobPlannerData')) || [];
+        const opts = [...new Set(data.map(r => (r.company || '').trim()).filter(Boolean))].sort();
+        setCompanyOptions(opts);
+      } catch { /* ignore */ }
+    };
+    const onStorage = (e) => { if (e.key === 'pobPlannerData') load(); };
+    window.addEventListener('storage', onStorage);
+    // Also poll lightly in-case same-tab edits happen without route change
+    const interval = setInterval(load, 5000);
+    return () => { window.removeEventListener('storage', onStorage); clearInterval(interval); };
+  }, []);
 
   const filtered = useMemo(() => {
     return records.filter(r => {
@@ -252,7 +274,12 @@ export default function Personnel() {
               <input value={draft.lastName} onChange={e => setDraft({ ...draft, lastName: e.target.value })} style={input(theme)} />
             </Field>
             <Field label="Company">
-              <input value={draft.company} onChange={e => setDraft({ ...draft, company: e.target.value })} style={input(theme)} />
+              <input list="companyOptionsList" value={draft.company} onChange={e => setDraft({ ...draft, company: e.target.value })} style={input(theme)} placeholder={companyOptions.length ? 'Start typing to select' : ''} />
+              {companyOptions.length > 0 && (
+                <datalist id="companyOptionsList">
+                  {companyOptions.map(c => <option key={c} value={c} />)}
+                </datalist>
+              )}
             </Field>
             <Field label="Position">
               <input value={draft.position} onChange={e => setDraft({ ...draft, position: e.target.value })} style={input(theme)} />

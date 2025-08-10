@@ -6,9 +6,10 @@ import { useTheme } from '../../ThemeContext.jsx';
 export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData, manualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
   if (hiddenRows.includes(row.id)) return null; // Skip hidden rows by id
   const { theme } = useTheme();
+  const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
   return (
     <tr key={row.id}>
-      <td style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: '2px solid #000' }}>
+      <td style={{ minWidth: 160, textAlign: 'left', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderBottom: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}` }}>
         <span>{row.company}</span>
       </td>
       {dates.map((d, colIdx) => {
@@ -27,7 +28,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData,
         return (
           <td
             key={d.date}
-            style={{ minWidth: 80, width: 80, background: bgColor, color: theme.text }}
+            style={{ minWidth: 80, width: 80, background: bgColor, color: theme.text, border: `1px solid ${borderColor}` }}
             onDoubleClick={() => {
               manualHighlights[cellKey] = !manualHighlights[cellKey]; // Toggle highlight
             }}
@@ -36,7 +37,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedData,
               type="number"
               value={currVal}
               min={0}
-              style={{ width: '60px', textAlign: 'center', background: bgColor, color: theme.text }}
+              style={{ width: '60px', textAlign: 'center', background: bgColor, color: theme.text, border: 'none' }}
               ref={el => {
                 if (!inputRefs.current[idx]) inputRefs.current[idx] = [];
                 inputRefs.current[idx][colIdx] = el;

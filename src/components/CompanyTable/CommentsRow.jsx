@@ -6,11 +6,12 @@ import { useTheme } from '../../ThemeContext.jsx';
 export default function CommentsRow({ dates, comments, lastSavedComments, manualHighlights, setComments, pushUndo }) {
   const { theme } = useTheme();
   const isDark = theme.name === 'Dark' || (theme.background || '').toLowerCase() === '#22223b';
+  const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
   return (
     <tr style={{ background: theme.surface, color: theme.text, fontStyle: 'italic', height: 'auto' }}>
-      <td style={{ verticalAlign: 'top', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: '2px solid #000' }}>Comments</td>
+      <td style={{ verticalAlign: 'top', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }}>Comments</td>
       {dates.map(d => (
-        <td key={d.date} style={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', background: theme.surface, color: theme.text }}>
+        <td key={d.date} style={{ verticalAlign: 'top', whiteSpace: 'pre-wrap', background: theme.surface, color: theme.text, border: `1px solid ${borderColor}` }}>
           <textarea
             value={comments[d.date] || ''}
             style={{
@@ -25,7 +26,7 @@ export default function CommentsRow({ dates, comments, lastSavedComments, manual
                     ? '#fffbe6'
                     : theme.surface,
               color: theme.text,
-              border: '1px solid #ccc',
+              border: '1px solid transparent',
               padding: '4px 6px',
               marginBottom: '4px',
               resize: 'none',

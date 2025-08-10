@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 
 /* Personnel record shape (persisted in localStorage under 'personnelRecords')
@@ -178,6 +178,42 @@ export default function Personnel() {
     ));
   };
   const duplicateList = potentialDuplicates();
+
+  // --- Auto-fit column widths (excluding Notes which can wrap) ---
+  const tableRef = useRef(null);
+  const [colWidths, setColWidths] = useState([]); // px widths
+  useEffect(() => {
+    // Defer until after DOM paint
+    const handle = requestAnimationFrame(() => {
+      if (!tableRef.current) return;
+      const table = tableRef.current;
+      const headerCells = Array.from(table.querySelectorAll('thead th'));
+      if (!headerCells.length) return;
+      const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+      const newWidths = headerCells.map((th, colIdx) => {
+        if (th.innerText === 'Notes') return null; // allow flexible wrapping later
+        let max = th.getBoundingClientRect().width;
+        // Check up to first 200 rows or fewer for performance
+        for (let i = 0; i < Math.min(bodyRows.length, 200); i++) {
+          const cell = bodyRows[i].children[colIdx];
+            if (!cell) continue;
+            const w = cell.getBoundingClientRect().width;
+            if (w > max) max = w;
+        }
+        // Clamp width bounds
+        max = Math.min(300, Math.max(50, Math.ceil(max)));
+        return max;
+      });
+      setColWidths(newWidths);
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [filtered, theme.name]);
+  // Recompute on window resize (debounced)
+  useEffect(() => {
+    let t; const onResize = () => { clearTimeout(t); t = setTimeout(() => setColWidths([]), 120); };
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('resize', onResize); clearTimeout(t); };
+  }, []);
 
   return (
   <div style={{ padding: 24, color: theme.text, background: theme.background, minHeight: '100vh' }}>
@@ -414,13 +450,18 @@ export default function Personnel() {
         </div>
       )}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
+        <table ref={tableRef} style={{ borderCollapse: 'collapse', width: 'auto', minWidth: 720, tableLayout: 'auto' }}>
+          {colWidths.length > 0 && (
+            <colgroup>
+              {colWidths.map((w, i) => w ? <col key={i} style={{ width: w + 'px' }} /> : <col key={i} />)}
+            </colgroup>
+          )}
           <thead>
             <tr>
               {['Actions','First','Last','Company','Position','Location','Crew','Rotation','Core','Arrival','Departure','Status','DOB','Days Onboard','Days Since Departed','Notes'].map(h => (
                 <th
                   key={h}
-                  style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '6px 8px', fontSize: 12 }}
+                  style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '4px 6px', fontSize: 12, whiteSpace: 'nowrap' }}
                 >{h}</th>
               ))}
             </tr>
@@ -473,7 +514,7 @@ export default function Personnel() {
                 <td style={cell(theme)}>{r.dob}</td>
                 <td style={cell(theme)}>{daysOnboardDisplay}</td>
                 <td style={cell(theme)}>{daysSinceDepartedDisplay}</td>
-                <td style={{ ...cell(theme), maxWidth: 160, whiteSpace: 'pre-wrap' }}>{r.notes}</td>
+                <td style={{ ...cell(theme), whiteSpace: 'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth: 500 }} title={r.notes}>{r.notes}</td>
               </tr>
             );})}
             {filtered.length === 0 && (
@@ -508,5 +549,5 @@ const input = (theme) => {
   const borderCol = theme.name === 'Dark' ? '#bfc4ca' : theme.primary;
   return { background: theme.background, color: theme.text, border: '1px solid ' + borderCol, padding: '4px 8px', borderRadius: 4 };
 };
-const cell = (theme) => ({ border: '1px solid ' + (theme.name === 'Dark' ? '#bfc4ca40' : '#444'), padding: '4px 6px', fontSize: 12, verticalAlign: 'top' });
+const cell = (theme) => ({ border: '1px solid ' + (theme.name === 'Dark' ? '#bfc4ca40' : '#444'), padding: '4px 6px', fontSize: 12, verticalAlign: 'top', whiteSpace: 'nowrap' });
 const miniBtn = (theme) => ({ background: theme.secondary, color: theme.text, border: 'none', padding: '2px 6px', borderRadius: 4, cursor: 'pointer', fontSize: 11, marginRight: 4 });

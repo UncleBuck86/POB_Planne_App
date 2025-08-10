@@ -36,6 +36,27 @@ function NavShell({ page, content }) {
 	const { theme, team, changeTheme } = useTheme();
 	const [open, setOpen] = useState(false);
 	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
+	// Planner page location selection state
+	const [plannerLocation, setPlannerLocation] = useState(() => {
+		try { return localStorage.getItem('pobPlannerLocation') || ''; } catch { return ''; }
+	});
+	const [plannerLocationOptions, setPlannerLocationOptions] = useState(() => {
+		try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
+	});
+	// Persist planner location selection
+	useEffect(() => {
+		try { localStorage.setItem('pobPlannerLocation', plannerLocation); } catch {/* ignore */}
+	}, [plannerLocation]);
+	// Listen for external updates to locations list (Admin page changes)
+	useEffect(() => {
+		const handler = (e) => {
+			if (e.key === 'flightManifestLocations') {
+				try { setPlannerLocationOptions(JSON.parse(e.newValue) || []); } catch { setPlannerLocationOptions([]); }
+			}
+		};
+		window.addEventListener('storage', handler);
+		return () => window.removeEventListener('storage', handler);
+	}, []);
 	const ref = useRef(null);
 	const gearRef = useRef(null);
 	useEffect(()=>{
@@ -76,6 +97,15 @@ function NavShell({ page, content }) {
 								<option value='light'>Light</option>
 								<option value='dark'>Dark</option>
 							</select>
+							{page==='planner' && (
+								<div style={{ marginBottom:10 }}>
+									<label style={{ fontSize:11, opacity:.7 }}>Planner Location:</label>
+									<select value={plannerLocation} onChange={e=> setPlannerLocation(e.target.value)} style={{ width:'100%', marginTop:4 }} title="Select active planner location">
+										<option value=''>-- Select Location --</option>
+										{plannerLocationOptions.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+									</select>
+								</div>
+							)}
 							{page==='planner' && (
 								<button onClick={()=>{ window.dispatchEvent(new Event('openPlannerEditCompanies')); setOpen(false); }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginBottom:10 }}>Edit Companies</button>
 							)}

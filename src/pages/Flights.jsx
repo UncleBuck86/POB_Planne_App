@@ -56,7 +56,52 @@ export default function FlightsPage() {
     allDatesForMonth.forEach(d => { const k = keyForDate(d); map[k] = (flightsOut[k]?.length||0) + (flightsIn[k]?.length||0); });
     return map;
   }, [allDatesForMonth, flightsOut, flightsIn]);
+  // Highlight map: yellow if planner has pax but no manifest; green if manifest exists and passenger counts match planner (excluding cargo-like items)
+  const highlightMap = useMemo(()=>{
+    const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
+    const map = {};
+    const parseEntries = (arr) => arr.reduce((sum, e)=>{ const dash=e.indexOf('-'); if(dash===-1) return sum; const num=parseInt(e.slice(0,dash),10); return sum + (isNaN(num)?0:num); },0);
+    const isoFromKey = (k)=>{ try { const [m,d,y]=k.split('/'); return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); } catch { return null; } };
+    // load aircraft type limits for capacity error detection
+    let aircraftTypes=[]; try { aircraftTypes = JSON.parse(localStorage.getItem('flightManifestAircraftTypes'))||[]; } catch { aircraftTypes=[]; }
+    allDatesForMonth.forEach(d=>{
+      const k=keyForDate(d); const iso=isoFromKey(k);
+      const plannerCount = parseEntries(flightsOut[k]||[]) + parseEntries(flightsIn[k]||[]);
+      let manifestEntry = null;
+      if(iso) manifestEntry = catalog.find(c=> (c.meta && c.meta.date===iso) || c.date===iso);
+      let manifestCount = 0; let capacityError=false; const reasons=[];
+      if(manifestEntry){
+        const outbound = manifestEntry.outbound||[];
+        const inbound = manifestEntry.inbound||[];
+        const allPax = [...outbound, ...inbound];
+        manifestCount = allPax.filter(p=>{ const full=((p.name||'')+' '+(p.company||'')).toLowerCase(); return !ignoreKeywords.some(w=> full.includes(w)); }).length;
+        const type = aircraftTypes.find(a=> a.type === (manifestEntry.meta?.aircraftType));
+        if(type){
+          const maxPax = parseInt(type.maxPax)||null;
+          const maxOutboundWeight = parseFloat(type.maxOutboundWeight)||null;
+          const maxInboundWeight = parseFloat(type.maxInboundWeight)||null;
+          const totalPax = (outbound.length + inbound.length);
+            const sumWeight = (list)=> list.reduce((s,p)=> s + ((parseFloat(p.bodyWeight)||0)+(parseFloat(p.bagWeight)||0)),0);
+          const outboundWt = sumWeight(outbound);
+          const inboundWt = sumWeight(inbound);
+          if(maxPax!=null && totalPax>maxPax){ capacityError=true; reasons.push(`PAX ${totalPax}/${maxPax} OVER`); }
+          if(maxOutboundWeight!=null && outboundWt>maxOutboundWeight){ capacityError=true; reasons.push(`Outbound Wt ${outboundWt.toFixed(1)}/${maxOutboundWeight} OVER`); }
+          if(maxInboundWeight!=null && inboundWt>maxInboundWeight){ capacityError=true; reasons.push(`Inbound Wt ${inboundWt.toFixed(1)}/${maxInboundWeight} OVER`); }
+        }
+      }
+      let color=null;
+      if(plannerCount>0 && !manifestEntry) color='yellow';
+      else if(manifestEntry){
+        if(capacityError){ color='red'; if(!reasons.length) reasons.push('Capacity limit exceeded'); }
+        else if(plannerCount>0 && manifestCount !== plannerCount){ color='red'; reasons.push(`Planner PAX ${plannerCount} vs Manifest ${manifestCount}`); }
+        else if(plannerCount>0 && manifestCount === plannerCount) color='green';
+      }
+      if(color) map[k] = { color, plannerCount, manifestCount, reasons };
+    });
+    return map;
+  }, [allDatesForMonth, flightsOut, flightsIn, catalog]);
   const sortedSelectedKeys = selectedDates.map(d => keyForDate(d)).sort((a,b)=> new Date(a)-new Date(b));
+  const [popup, setPopup] = useState(null);
   const clearSelection = () => { setSelectedDates([]); };
   // Personnel movement widget data (combines personnel database and planner delta logic)
   const personnelRecords = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
@@ -189,13 +234,27 @@ export default function FlightsPage() {
             showOutsideDays
             weekStartsOn={0}
             modifiers={{}}
+            onDayClick={(day)=>{
+              const k = keyForDate(day);
+              const hl = highlightMap[k];
+              if(hl && hl.color==='red' && hl.reasons && hl.reasons.length){
+                setPopup({ dateKey:k, reasons: hl.reasons });
+              }
+            }}
             components={{
               DayContent: (props) => {
                 const day = props.date;
                 const k = keyForDate(day);
                 const movement = movementCounts[k] || 0;
+                const hl = highlightMap[k];
+                let bg='transparent', border='transparent';
+                if(hl){
+                  if(hl.color==='yellow') { bg = theme.name==='Dark'? '#665c1b':'#ffe58a'; border = theme.name==='Dark'? '#c8a93c':'#d1a500'; }
+                  else if(hl.color==='green'){ bg = theme.name==='Dark'? '#1f6135':'#9de6b9'; border = theme.name==='Dark'? '#2fa764':'#1f7a44'; }
+                  else if(hl.color==='red'){ bg = theme.name==='Dark'? '#632727':'#ffb3b3'; border = theme.name==='Dark'? '#c33':'#c62828'; }
+                }
                 return (
-                  <div style={{ position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:500 }} title={movement? `${movement} flight movement change(s)`: undefined}>
+                  <div style={{ position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:600, background:bg, border: hl? '1px solid '+border: undefined, borderRadius:8, boxSizing:'border-box', padding:0 }} title={movement? `${movement} flight movement change(s)` : undefined}>
                     <span>{day.getDate()}</span>
                     {movement>0 && <span style={{ position:'absolute', bottom:2, right:2, fontSize:largeCalendar?11:9, padding:largeCalendar?'2px 4px':'1px 3px', borderRadius:6, background: theme.secondary, color: theme.text }}>{movement}</span>}
                   </div>
@@ -222,6 +281,20 @@ export default function FlightsPage() {
           {selectedDates.length>0 && <button onClick={clearSelection} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Clear Selection</button>}
         </div>
       </div>
+      {popup && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:800 }} onClick={e=>{ if(e.target===e.currentTarget) setPopup(null); }}>
+          <div style={{ background: theme.surface, color: theme.text, padding:24, borderRadius:14, width:'min(440px,90%)', border:'1px solid '+(theme.name==='Dark'? '#666':'#555'), boxShadow:'0 8px 28px rgba(0,0,0,0.45)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <h3 style={{ margin:0, fontSize:18 }}>Flight Issues - {popup.dateKey}</h3>
+              <button onClick={()=>setPopup(null)} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:600 }}>Close</button>
+            </div>
+            <ul style={{ margin:0, padding:'0 0 0 18px', fontSize:13 }}>
+              {popup.reasons.map((r,i)=>(<li key={i} style={{ marginBottom:4 }}>{r}</li>))}
+            </ul>
+            <div style={{ fontSize:11, opacity:.7, marginTop:10 }}>Resolve by adjusting manifest counts or weights to stay within aircraft limits and match planner totals.</div>
+          </div>
+        </div>
+      )}
       {movementForSelected.length>0 && (
         <div style={{ marginTop:24, display:'flex', flexDirection:'column', gap:24 }}>
           {movementForSelected.map(mv => (

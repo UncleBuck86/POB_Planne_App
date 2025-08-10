@@ -145,7 +145,7 @@ function Dashboard() {
       {/* POB Onboard Widget */}
       <section style={{ marginTop: 24, padding: '12px 14px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-          <h3 style={{ margin:0, fontSize:16 }}>POB Onboard ({withComputed.length})</h3>
+          <h3 style={{ margin:0, fontSize:16 }}>POB Onboard</h3>
           <button onClick={refreshPersonnel} style={{ background: theme.primary, color: theme.text, border: '1px solid '+theme.secondary, padding: '4px 8px', borderRadius:4, cursor:'pointer', fontSize:11 }}>Refresh</button>
         </div>
         <div style={{ overflowX:'auto' }}>

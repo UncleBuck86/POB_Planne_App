@@ -22,6 +22,25 @@ function Dashboard() {
   const settingsRef = useRef(null);
   const gearRef = useRef(null);
   const widgetBorderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
+  // User location setting (persist per user in localStorage)
+  const userLocKey = 'pobUserLocation';
+  const [userLocation, setUserLocation] = useState(() => {
+    try { return localStorage.getItem(userLocKey) || ''; } catch { return ''; }
+  });
+  const [availableLocations, setAvailableLocations] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
+  });
+  useEffect(() => {
+    // Listen for admin updates to locations
+    const onStorage = (e) => {
+      if (e.key === 'flightManifestLocations') {
+        try { setAvailableLocations(JSON.parse(e.newValue) || []); } catch { setAvailableLocations([]); }
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+  useEffect(() => { try { localStorage.setItem(userLocKey, userLocation); } catch {} }, [userLocation]);
   // Load stored planner data (non-editable view)
   const rowData = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('pobPlannerData')) || []; } catch { return []; }
@@ -237,7 +256,21 @@ function Dashboard() {
             </div>
           </Dropdown>
         )}
-  <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Dashboard</h2>
+  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+    <h2 style={{ margin:'0 0 4px', color: team === 'dark' ? theme.text : theme.primary }}>Dashboard</h2>
+    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+      <label htmlFor="user-location-select" style={{ fontSize:12, opacity:0.8 }}>Location:</label>
+      <select
+        id="user-location-select"
+        value={userLocation}
+        onChange={e=> setUserLocation(e.target.value)}
+        style={{ padding:'6px 10px', border:'1px solid '+(theme.name==='Dark' ? '#666':'#888'), background: theme.surface, color: theme.text, borderRadius:8, fontSize:12 }}
+      >
+        <option value="">-- Select --</option>
+        {availableLocations.map(loc => <option value={loc} key={loc}>{loc}</option>)}
+      </select>
+    </div>
+  </div>
   <div ref={containerRef} style={{ position:'relative', minHeight:600 }}>
     {editLayout && (
       <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px)`, pointerEvents:'none', zIndex:0 }} />
@@ -248,7 +281,7 @@ function Dashboard() {
       onPointerDown={e => onPointerDown(e,'nav')}
       style={{ position:'absolute', left:layout.nav.x, top:layout.nav.y, cursor: editLayout ? 'grab' : 'default', userSelect: editLayout ? 'none':'auto', padding: '12px 16px', background: wc.base || theme.surface, border: '1px solid '+(wc.border || '#bfc4ca'), borderRadius: 8, minWidth:260, boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text || theme.text }}
     >
-      <h3 style={{ margin: '0 0 8px', background: wc.header||'transparent', padding: wc.header? '4px 6px':0, borderRadius:4, color: wc.text || (team === 'dark' ? theme.text : theme.secondary), fontSize:16 }}>Navigation</h3>
+  <h3 style={{ margin: '0 0 8px', background: wc.header||'transparent', padding: wc.header? '4px 6px':0, borderRadius:4, color: wc.text || (team === 'dark' ? theme.text : theme.secondary), fontSize:16 }}>Navigation {userLocation && <span style={{ fontSize:11, fontWeight:400, opacity:0.75 }}>({userLocation})</span>}</h3>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
         <li><a href="#planner" style={{ color: wc.text || theme.text, fontWeight: 'bold', textDecoration: 'none' }}>Go to Planner</a></li>
       </ul>

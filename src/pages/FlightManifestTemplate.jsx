@@ -118,6 +118,11 @@ export default function FlightManifestTemplate() {
   useEffect(()=>{ try { localStorage.setItem(FIELD_VIS_KEY, JSON.stringify(visibleFields)); } catch {/* ignore */} }, [visibleFields]);
   const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
+  const [dedupeNotice, setDedupeNotice] = useState('');
+    const todayIso = new Date().toISOString().slice(0,10);
+    const locked = useMemo(()=>{
+      try { return data.meta.date && data.meta.date < todayIso; } catch { return false; }
+    }, [data.meta.date, todayIso]);
   const saveTimer = useRef();
   // Personnel database cache for outbound lookup
   const [personnelRecords, setPersonnelRecords] = useState(()=>{ try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } });
@@ -154,6 +159,33 @@ export default function FlightManifestTemplate() {
     return () => clearTimeout(saveTimer.current);
   }, [data]);
 
+  // Prevent duplicate passengers on the same leg (across all split flights) (skip when locked)
+  useEffect(()=>{
+    if(locked) return; // don't mutate historical locked manifests
+    const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
+    let removed = 0;
+    setData(d=>{
+      const process = (list) => {
+        const seen = new Set();
+        const result = [];
+        list.forEach(p=>{
+          const name = (p.name||'').trim().toLowerCase();
+          if(!name) { result.push(p); return; }
+          if(ignoreKeywords.some(k=> name.includes(k))) { result.push(p); return; }
+          const key = name+'|'+(p.company||'').trim().toLowerCase();
+          if(seen.has(key)) { removed++; return; }
+          seen.add(key); result.push(p);
+        });
+        return result;
+      };
+      const newOutbound = process(d.outbound||[]);
+      const newInbound = process(d.inbound||[]);
+      if(removed===0) return d;
+      return { ...d, outbound:newOutbound, inbound:newInbound };
+    });
+    if(removed>0) setDedupeNotice(prev=> 'Removed '+removed+' duplicate passenger'+(removed>1?'s':'')+' at '+new Date().toLocaleTimeString());
+  }, [data.outbound, data.inbound, locked]);
+
   const updateMeta = (field, value) => setData(d => ({ ...d, meta: { ...d.meta, [field]: value } }));
   const newPax = (dir, meta) => ({
     id: crypto.randomUUID(),
@@ -168,10 +200,10 @@ export default function FlightManifestTemplate() {
     originAuto:true,
     destinationAuto:true
   });
-  const addPassenger = (dir) => setData(d => ({ ...d, [dir]: [...d[dir], newPax(dir, d.meta)] }));
-  const updatePassenger = (dir, id, field, value) => setData(d => ({ ...d, [dir]: d[dir].map(p => p.id === id ? { ...p, [field]: value } : p) }));
+  const addPassenger = (dir) => { if(locked) return; setData(d => ({ ...d, [dir]: [...d[dir], newPax(dir, d.meta)] })); };
+  const updatePassenger = (dir, id, field, value) => { if(locked) return; setData(d => ({ ...d, [dir]: d[dir].map(p => p.id === id ? { ...p, [field]: value } : p) })); };
   // Specialized update for origin/destination to mark manual override & regroup by destination
-  const manualRouteUpdate = (dir, id, field, value) => setData(d => {
+  const manualRouteUpdate = (dir, id, field, value) => { if(locked) return; setData(d => {
     const updated = d[dir].map(p => p.id===id ? { ...p, [field]: value, [field+"Auto"]: false } : p);
     // group/sort by destination (case-insensitive), blanks last
     const sorted = [...updated].sort((a,b)=>{
@@ -180,9 +212,9 @@ export default function FlightManifestTemplate() {
       if(!da && db) return 1; if(!db && da) return -1; if(da<db) return -1; if(da>db) return 1; return 0;
     });
     return { ...d, [dir]: sorted };
-  });
-  const removePassenger = (dir, id) => setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) }));
-  const clearAll = () => { if (confirm('Clear all manifest data?')) setData(defaultData); };
+  }); };
+  const removePassenger = (dir, id) => { if(locked) return; setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) })); };
+  const clearAll = () => { if(locked) return; if (confirm('Clear all manifest data?')) setData(defaultData); };
   // If navigated from Flights page with selected dates, attempt to pre-fill notes with movement summary once (idempotent)
   useEffect(()=>{
     try {
@@ -425,12 +457,12 @@ export default function FlightManifestTemplate() {
         }
         .manifest-root ::placeholder { color: ${theme.name==='Dark' ? '#9aa4ad' : '#6c7a85'}; opacity: .85; }
       `}</style>
-      <h2 style={{ marginTop:0 }}>Flight Manifest Template</h2>
+      <h2 style={{ marginTop:0 }}>Flight Manifest Template {locked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>LOCKED</span>}</h2>
       <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
         <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ flex:1 }}>Flight Details</span>
-          {isAdmin() && (
+          {isAdmin() && !locked && (
             <button onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
           )}
         </div>
@@ -496,39 +528,39 @@ export default function FlightManifestTemplate() {
           </div>
         )}
         <div style={gridForm}>
-          {visibleFields.flightNumber && <Labeled label="Flight #"><input value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>}
-          {visibleFields.date && <Labeled label="Date"><input type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>}
+          {visibleFields.flightNumber && <Labeled label="Flight #"><input disabled={locked} value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>}
+          {visibleFields.date && <Labeled label="Date"><input disabled={locked} type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>}
           {visibleFields.departure && <Labeled label="Departure">{
             locationOptions.length ? (
-              <select value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)}>
+              <select disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)}>
                 <option value="">-- Select --</option>
                 {Array.from(new Set([...(locationOptions||[]), data.meta.departure].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
               </select>
             ) : (
-              <input value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" />
+              <input disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" />
             )
           }</Labeled>}
-          {visibleFields.departureTime && <Labeled label="Departure Time"><input value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Labeled>}
+          {visibleFields.departureTime && <Labeled label="Departure Time"><input disabled={locked} value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Labeled>}
           {visibleFields.arrival && <Labeled label="Arrival">{
             locationOptions.length ? (
-              <select value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)}>
+              <select disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)}>
                 <option value="">-- Select --</option>
                 {Array.from(new Set([...(locationOptions||[]), data.meta.arrival].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
               </select>
             ) : (
-              <input value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" />
+              <input disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" />
             )
           }</Labeled>}
-            {visibleFields.arrivalTime && <Labeled label="Arrival Time"><input value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Labeled>}
+            {visibleFields.arrivalTime && <Labeled label="Arrival Time"><input disabled={locked} value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Labeled>}
             {visibleFields.aircraftType && <Labeled label="Aircraft Type">{
               aircraftTypes.length ? (
-                <select value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)}>
+                <select disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)}>
                   <option value="">-- Select --</option>
                   {aircraftTypes.map(t => t.type).filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
                   {!aircraftTypes.find(a=>a.type===data.meta.aircraftType) && data.meta.aircraftType && <option value={data.meta.aircraftType}>{data.meta.aircraftType}</option>}
                 </select>
               ) : (
-                <input value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
+                <input disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
               )
             }
             {(() => {
@@ -558,17 +590,18 @@ export default function FlightManifestTemplate() {
               );
             })()}
             </Labeled>}
-            {visibleFields.tailNumber && <Labeled label="Tail #"><input value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>}
-            {visibleFields.captain && <Labeled label="Captain"><input value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>}
-            {visibleFields.coPilot && <Labeled label="Co-Pilot"><input value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}
-            {visibleFields.dispatcher && <Labeled label="Dispatcher"><input value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Labeled>}
+            {visibleFields.tailNumber && <Labeled label="Tail #"><input disabled={locked} value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>}
+            {visibleFields.captain && <Labeled label="Captain"><input disabled={locked} value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>}
+            {visibleFields.coPilot && <Labeled label="Co-Pilot"><input disabled={locked} value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}
+            {visibleFields.dispatcher && <Labeled label="Dispatcher"><input disabled={locked} value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Labeled>}
         </div>
         {visibleFields.notes && (
           <Labeled label="Notes" full>
-            <textarea rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
+            <textarea disabled={locked} rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
           </Labeled>
         )}
         <div style={{ fontSize:11, opacity:.6, marginTop:6 }}>{autoSaveState}</div>
+  {dedupeNotice && <div style={{ fontSize:11, marginTop:4, color: theme.name==='Dark'? '#7be49c':'#0a5c24' }}>{dedupeNotice}</div>}
       </section>
       {outboundFlights.map((flight, idx)=> (
         <section key={idx} style={card(theme)}>
@@ -585,10 +618,11 @@ export default function FlightManifestTemplate() {
       applyPersonRecord={(passengerId, record)=>{
         setData(d=> ({ ...d, outbound: d.outbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
       }}
+  locked={locked}
     />
           {idx===outboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-            <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
+            {!locked && <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>}
             <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
               <span>Pax: {totalOutbound}</span>
               <span>Body Wt: {totalBodyOutbound.toFixed(1)}</span>
@@ -619,10 +653,11 @@ export default function FlightManifestTemplate() {
       applyPersonRecord={(passengerId, record)=>{
         setData(d=> ({ ...d, inbound: d.inbound.map(p => p.id===passengerId ? { ...p, name: record.firstName + (record.lastName? ' '+record.lastName:''), company: record.company, bodyWeight: record.bodyWeight, bagWeight: record.bagWeight, bagCount: record.bagCount } : p) }));
       }}
+  locked={locked}
     />
           {idx===inboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-            <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
+            {!locked && <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>}
             <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
               <span>Pax: {totalInbound}</span>
               <span>Body Wt: {totalBodyInbound.toFixed(1)}</span>
@@ -643,10 +678,10 @@ export default function FlightManifestTemplate() {
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
-          <button onClick={()=>saveToCatalog(false)} style={actionBtn(theme)} disabled={!isDirtyRelativeToCatalog}>Save{currentCatalogId && !isDirtyRelativeToCatalog? ' (Saved)':''}</button>
-          <button onClick={()=>saveToCatalog(true)} style={actionBtn(theme)}>Save As New</button>
+          <button onClick={()=>saveToCatalog(false)} style={actionBtn(theme)} disabled={locked || !isDirtyRelativeToCatalog}>Save{currentCatalogId && !isDirtyRelativeToCatalog? ' (Saved)':''}</button>
+          <button onClick={()=>saveToCatalog(true)} style={actionBtn(theme)} disabled={locked}>Save As New</button>
           <button onClick={()=>setCatalogOpen(o=>!o)} style={actionBtn(theme)}>{catalogOpen? 'Close Catalog':'Catalog'}</button>
-          <button onClick={clearAll} style={{ ...actionBtn(theme), background:'#aa3333' }}>Clear All</button>
+          <button onClick={clearAll} style={{ ...actionBtn(theme), background:'#aa3333' }} disabled={locked}>Clear All</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
             <span>Grand Pax: {grandTotalPax}</span>
             <span>Grand Wt: {grandTotalWeight.toFixed(1)}</span>
@@ -737,7 +772,7 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord }) {
+function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord, locked }) {
   const [nameQuery, setNameQuery] = useState('');
   const [activeRow, setActiveRow] = useState(null);
   const matches = useMemo(()=>{
@@ -785,7 +820,7 @@ function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, p
             <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
               <Td style={{ textAlign:'center' }}>{i+1}</Td>
               <Td style={{ position:'relative' }}>
-                <input style={{ width:'100%', boxSizing:'border-box' }} value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); setNameQuery(e.target.value); setActiveRow(p.id);} } placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
+                <input disabled={locked} style={{ width:'100%', boxSizing:'border-box' }} value={p.name} onChange={e=>{ onUpdate(p.id,'name',e.target.value); setNameQuery(e.target.value); setActiveRow(p.id);} } placeholder="Full Name" onBlur={e=>{ setTimeout(()=>{ if(activeRow===p.id) setActiveRow(null); },200); }} />
                 {activeRow===p.id && (matches.length>0 || (nameQuery.trim().length>=2 && !matches.length)) && (
                   <div style={{ position:'absolute', top:'100%', left:0, zIndex:500, background: theme.background, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), borderRadius:6, padding:6, minWidth:220, boxShadow:'0 8px 20px rgba(0,0,0,0.45)' }}>
                     {matches.map(m=> (
@@ -802,15 +837,15 @@ function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, p
                   </div>
                 )}
               </Td>
-              <Td><input style={{ width:'100%', boxSizing:'border-box' }} value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
-              <Td style={{ textAlign:'center' }}><input value={p.bodyWeight||''} onChange={e=>onUpdate(p.id,'bodyWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
-              <Td style={{ textAlign:'center' }}><input value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
-              <Td style={{ textAlign:'center' }}><input value={p.bagCount||''} onChange={e=>onUpdate(p.id,'bagCount',e.target.value.replace(/[^0-9]/g,''))} placeholder="##" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={2} /></Td>
+              <Td><input disabled={locked} style={{ width:'100%', boxSizing:'border-box' }} value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
+              <Td style={{ textAlign:'center' }}><input disabled={locked} value={p.bodyWeight||''} onChange={e=>onUpdate(p.id,'bodyWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
+              <Td style={{ textAlign:'center' }}><input disabled={locked} value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9]/g,''))} placeholder="###" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={3} /></Td>
+              <Td style={{ textAlign:'center' }}><input disabled={locked} value={p.bagCount||''} onChange={e=>onUpdate(p.id,'bagCount',e.target.value.replace(/[^0-9]/g,''))} placeholder="##" style={{ width:'100%', textAlign:'center', boxSizing:'border-box' }} maxLength={2} /></Td>
               <Td style={{ fontWeight:600, textAlign:'center' }}>{total ? total.toFixed(0) : ''}</Td>
-              <Td><input value={p.origin||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'origin',e.target.value) : onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} title="Origin (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
-              <Td><input value={p.destination||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'destination',e.target.value) : onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} title="Destination (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
-              <Td><input style={{ width:'100%', boxSizing:'border-box' }} value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
-              <Td><button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button></Td>
+              <Td><input disabled={locked} value={p.origin||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'origin',e.target.value) : onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} title="Origin (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
+              <Td><input disabled={locked} value={p.destination||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'destination',e.target.value) : onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} title="Destination (auto-set unless manually changed)" style={{ width:'100%', boxSizing:'border-box' }} /></Td>
+              <Td><input disabled={locked} style={{ width:'100%', boxSizing:'border-box' }} value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
+              <Td>{!locked && <button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button>}</Td>
             </tr>
           )})}
           {list.length===0 && <tr><Td colSpan={11} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}

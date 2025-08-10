@@ -13,7 +13,7 @@ export default function FlightsPage() {
   const today = new Date();
   const [displayMonth, setDisplayMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDates, setSelectedDates] = useState([]);
-  const [manifestOpen, setManifestOpen] = useState(false);
+  // Removed manifestOpen popup; movement widget + direct manifest link replaces it
   const [catalogOpen, setCatalogOpen] = useState(false);
   const catalog = useMemo(()=>{ try { return JSON.parse(localStorage.getItem('flightManifestCatalogV1'))||[]; } catch { return []; } }, []);
   const openCatalogManifest = (entry) => {
@@ -55,34 +55,27 @@ export default function FlightsPage() {
     return map;
   }, [allDatesForMonth, flightsOut, flightsIn]);
   const sortedSelectedKeys = selectedDates.map(d => keyForDate(d)).sort((a,b)=> new Date(a)-new Date(b));
-  const clearSelection = () => { setSelectedDates([]); setManifestOpen(false); };
+  const clearSelection = () => { setSelectedDates([]); };
   // Personnel movement widget data (combines personnel database and planner delta logic)
   const personnelRecords = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
   const plannerRows = rowData; // existing rowData from planner
-  const selectedSingleDate = selectedDates.length===1 ? selectedDates[0] : null;
   const movementForSelected = useMemo(()=>{
-    if(!selectedSingleDate) return null;
-    const key = keyForDate(selectedSingleDate);
-    // Planner based movements (already computed in flightsOut / flightsIn maps)
-    const plannerOutRaw = flightsOut[key]||[]; // entries like '3-Company'
-    const plannerInRaw = flightsIn[key]||[];
+    if(!selectedDates.length) return [];
     const parseEntries = (arr, dir) => arr.flatMap(e=>{ const dash=e.indexOf('-'); if(dash===-1) return []; const num=parseInt(e.slice(0,dash),10)||0; const company=e.slice(dash+1); return [{ company, count:num, dir }]; });
-    const plannerMovements = [...parseEntries(plannerOutRaw,'OUT'), ...parseEntries(plannerInRaw,'IN')];
-    // Personnel DB based movements: arrivals on this date, departures on this date
-    const dateIso = selectedSingleDate.toISOString().slice(0,10);
-    const arrivals = personnelRecords.filter(p=> p.arrivalDate===dateIso);
-    const departures = personnelRecords.filter(p=> p.departureDate===dateIso);
-    const onBoard = personnelRecords.filter(p=> {
-      if(!p.arrivalDate) return false; const arr = new Date(p.arrivalDate+'T00:00:00'); const dep = p.departureDate? new Date(p.departureDate+'T00:00:00'): null; return arr <= selectedSingleDate && (!dep || dep >= selectedSingleDate);
+    return selectedDates.sort((a,b)=>a-b).map(dateObj=>{
+      const key = keyForDate(dateObj);
+      const plannerOutRaw = flightsOut[key]||[];
+      const plannerInRaw = flightsIn[key]||[];
+      const plannerMovements = [...parseEntries(plannerOutRaw,'OUT'), ...parseEntries(plannerInRaw,'IN')];
+      const dateIso = dateObj.toISOString().slice(0,10);
+      const arrivals = personnelRecords.filter(p=> p.arrivalDate===dateIso);
+      const departures = personnelRecords.filter(p=> p.departureDate===dateIso);
+      const onBoard = personnelRecords.filter(p=> {
+        if(!p.arrivalDate) return false; const arr = new Date(p.arrivalDate+'T00:00:00'); const dep = p.departureDate? new Date(p.departureDate+'T00:00:00'): null; return arr <= dateObj && (!dep || dep >= dateObj);
+      });
+      return { date:key, plannerMovements, arrivals, departures, onBoard };
     });
-    return {
-      date:key,
-      plannerMovements,
-      arrivals,
-      departures,
-      onBoard
-    };
-  }, [selectedSingleDate, flightsOut, flightsIn, personnelRecords]);
+  }, [selectedDates, flightsOut, flightsIn, personnelRecords]);
 
   return (
     <div style={{ color: theme.text, background: theme.background, minHeight:'100vh', padding:'24px' }}>
@@ -95,7 +88,7 @@ export default function FlightsPage() {
             month={displayMonth}
             onMonthChange={setDisplayMonth}
             selected={selectedDates}
-            onSelect={(days)=> { setSelectedDates(days||[]); if (days && days.length) setManifestOpen(true); }}
+            onSelect={(days)=> { setSelectedDates(days||[]); }}
             showOutsideDays
             weekStartsOn={0}
             modifiers={{}}
@@ -128,30 +121,34 @@ export default function FlightsPage() {
           {selectedDates.length>0 && <button onClick={clearSelection} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Clear Selection</button>}
         </div>
       </div>
-      {movementForSelected && (
-        <div style={{ marginTop:24, background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(900px,100%)' }}>
-          <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>Personnel Movement - {movementForSelected.date}</div>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:24 }}>
-            <div style={{ minWidth:220 }}>
-              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Arrivals (Personnel DB)</div>
-              {movementForSelected.arrivals.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{movementForSelected.arrivals.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
-            </div>
-            <div style={{ minWidth:220 }}>
-              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Departures (Personnel DB)</div>
-              {movementForSelected.departures.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{movementForSelected.departures.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
-            </div>
-            <div style={{ minWidth:220 }}>
-              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Planner Movements</div>
-              {movementForSelected.plannerMovements.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{movementForSelected.plannerMovements.map((m,i)=> <li key={i}>{m.dir==='OUT'? '+':''}{m.dir==='IN'? '-':''}{m.count} {m.company}</li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
-            </div>
-            <div style={{ flex:1, minWidth:200 }}>
-              <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>On Board (Combined)</div>
-              <div style={{ fontSize:12, marginBottom:6 }}>Total: {movementForSelected.onBoard.length}</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:4, maxHeight:160, overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#444':'#bbb'), padding:6, borderRadius:6 }}>
-                {movementForSelected.onBoard.map(p=> <div key={p.id} style={{ fontSize:11, background: theme.name==='Dark'? '#2e3439':'#eef3f7', padding:'4px 5px', borderRadius:6 }}>{p.firstName} {p.lastName}<br/><span style={{ opacity:.6 }}>{p.company||''}</span></div>)}
+      {movementForSelected.length>0 && (
+        <div style={{ marginTop:24, display:'flex', flexDirection:'column', gap:24 }}>
+          {movementForSelected.map(mv => (
+            <div key={mv.date} style={{ background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(900px,100%)' }}>
+              <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>Personnel Movement - {mv.date}</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:24 }}>
+                <div style={{ minWidth:220 }}>
+                  <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Arrivals</div>
+                  {mv.arrivals.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{mv.arrivals.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+                </div>
+                <div style={{ minWidth:220 }}>
+                  <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Departures</div>
+                  {mv.departures.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{mv.departures.map(p=> <li key={p.id}>{p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span></li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+                </div>
+                <div style={{ minWidth:220 }}>
+                  <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Planner Movements</div>
+                  {mv.plannerMovements.length? <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>{mv.plannerMovements.map((m,i)=> <li key={i}>{m.dir==='OUT'? '+':''}{m.dir==='IN'? '-':''}{m.count} {m.company}</li>)}</ul> : <div style={{ fontSize:11, opacity:.6 }}>None</div>}
+                </div>
+                <div style={{ flex:1, minWidth:200 }}>
+                  <div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>On Board</div>
+                  <div style={{ fontSize:12, marginBottom:6 }}>Total: {mv.onBoard.length}</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:4, maxHeight:160, overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#444':'#bbb'), padding:6, borderRadius:6 }}>
+                    {mv.onBoard.map(p=> <div key={p.id} style={{ fontSize:11, background: theme.name==='Dark'? '#2e3439':'#eef3f7', padding:'4px 5px', borderRadius:6 }}>{p.firstName} {p.lastName}<br/><span style={{ opacity:.6 }}>{p.company||''}</span></div>)}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          ))}
         </div>
       )}
       {catalogOpen && (
@@ -175,33 +172,7 @@ export default function FlightsPage() {
         </div>
       )}
 
-  {manifestOpen && selectedDates.length>0 && (
-        <div style={overlayStyle} onClick={e=> { if(e.target===e.currentTarget) setManifestOpen(false); }}>
-          <div style={modalStyle(theme)}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-              <div style={{ fontSize:18, fontWeight:700 }}>Flight Manifest</div>
-              <button onClick={()=> setManifestOpen(false)} style={navBtnStyle(theme)}>Close</button>
-            </div>
-    {sortedSelectedKeys.map(k => {
-      const outs = flightsOut[k] || [];
-      const ins = flightsIn[k] || [];
-              const totalOut = outs.reduce((s,v)=> s + (parseInt(String(v).split('-')[0],10)||0),0);
-              const totalIn = ins.reduce((s,v)=> s + (parseInt(String(v).split('-')[0],10)||0),0);
-              return (
-                <div key={k} style={{ marginBottom:16, border:'1px solid '+(theme.name==='Dark' ? '#666':'#ccc'), borderRadius:8, overflow:'hidden' }}>
-                  <div style={{ background: theme.primary, color: theme.text, padding:'6px 10px', fontWeight:600 }}>{k}</div>
-                  <div style={{ padding:'8px 10px', background: theme.surface }}>
-                    <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>Flights Out (+) {totalOut? `Total: ${totalOut}`:''}</div>
-                    {outs.length ? <ul style={{ margin:0, padding:'0 0 0 18px', fontSize:12 }}>{outs.map((c,i)=> <li key={i}>{c}</li>)}</ul> : <div style={{ fontSize:11, fontStyle:'italic', opacity:.6 }}>No increases</div>}
-                    <div style={{ fontSize:12, fontWeight:600, margin:'8px 0 4px' }}>Flights In (-) {totalIn? `Total: ${totalIn}`:''}</div>
-                    {ins.length ? <ul style={{ margin:0, padding:'0 0 0 18px', fontSize:12 }}>{ins.map((c,i)=> <li key={i}>{c}</li>)}</ul> : <div style={{ fontSize:11, fontStyle:'italic', opacity:.6 }}>No decreases</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+  {/* Removed legacy manifest popup overlay */}
     </div>
   );
 }

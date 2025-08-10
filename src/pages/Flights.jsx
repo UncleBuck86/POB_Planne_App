@@ -15,6 +15,8 @@ export default function FlightsPage() {
   const [largeCalendar, setLargeCalendar] = useState(()=>{ try { return localStorage.getItem('pobLargeCalendar')==='true'; } catch { return false; } });
   useEffect(()=>{ try { localStorage.setItem('pobLargeCalendar', largeCalendar?'true':'false'); } catch{} }, [largeCalendar]);
   const [selectedDates, setSelectedDates] = useState([]);
+    const [hideNoMovement, setHideNoMovement] = useState(()=> { try { return localStorage.getItem('pobHideNoMovement')==='true'; } catch { return false; } });
+    useEffect(()=>{ try { localStorage.setItem('pobHideNoMovement', hideNoMovement?'true':'false'); } catch {/* ignore */} }, [hideNoMovement]);
   // Removed manifestOpen popup; movement widget + direct manifest link replaces it
   const [catalogOpen, setCatalogOpen] = useState(false);
   const catalog = useMemo(()=>{ try { return JSON.parse(localStorage.getItem('flightManifestCatalogV1'))||[]; } catch { return []; } }, []);
@@ -308,6 +310,16 @@ export default function FlightsPage() {
             }}
           />
           <div style={{ marginTop:8, fontSize:largeCalendar?13:11, opacity:.75 }}>Select one or more dates to view flight manifest.</div>
+            <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:6 }}>
+              <label style={{ fontSize:11, display:'flex', alignItems:'center', gap:6 }}>
+                <input type='checkbox' checked={hideNoMovement} onChange={e=> setHideNoMovement(e.target.checked)} /> Hide days with no movements
+              </label>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', fontSize:11 }}>
+                <span style={legendBadge(theme,'yellow')}>Missing Manifest</span>
+                <span style={legendBadge(theme,'green')}>Counts Match</span>
+                <span style={legendBadge(theme,'red')}>Issue</span>
+              </div>
+            </div>
           {selectedDates.length>0 && <button onClick={openManifestTemplate} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Open Manifest Template</button>}
           <button onClick={()=> setCatalogOpen(o=>!o)} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>{catalogOpen? 'Close Saved Catalog':'Saved Manifests'}</button>
           {selectedDates.length>0 && <button onClick={clearSelection} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Clear Selection</button>}
@@ -432,5 +444,12 @@ export default function FlightsPage() {
 }
 
 const navBtnStyle = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+theme.secondary, borderRadius:6, padding:'4px 8px', cursor:'pointer', fontSize:12, fontWeight:600 });
+const legendBadge = (theme,color)=>{
+  let bg='#ccc', border='#999';
+  if(color==='yellow'){ bg= theme.name==='Dark'? '#665c1b':'#ffe58a'; border= theme.name==='Dark'? '#c8a93c':'#d1a500'; }
+  if(color==='green'){ bg= theme.name==='Dark'? '#1f6135':'#9de6b9'; border= theme.name==='Dark'? '#2fa764':'#1f7a44'; }
+  if(color==='red'){ bg= theme.name==='Dark'? '#632727':'#ffb3b3'; border= theme.name==='Dark'? '#c33':'#c62828'; }
+  return { background:bg, border:'1px solid '+border, padding:'4px 8px', borderRadius:20, fontWeight:600 };
+};
 const overlayStyle = { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'flex-start', justifyContent:'center', overflowY:'auto', padding:'60px 20px', zIndex:400 };
 const modalStyle = (theme) => ({ background: theme.background, color: theme.text, width:'min(820px,100%)', maxHeight:'80vh', overflowY:'auto', border:'1px solid '+(theme.name==='Dark'?'#777':'#444'), borderRadius:12, padding:'14px 16px', boxShadow:'0 8px 24px rgba(0,0,0,0.35)' });

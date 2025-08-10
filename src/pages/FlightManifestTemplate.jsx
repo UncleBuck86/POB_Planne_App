@@ -89,9 +89,32 @@ export default function FlightManifestTemplate() {
   }, [data]);
 
   const updateMeta = (field, value) => setData(d => ({ ...d, meta: { ...d.meta, [field]: value } }));
-  const newPax = () => ({ id: crypto.randomUUID(), name:'', company:'', bodyWeight:'', bagWeight:'', bagCount:'', comments:'' });
-  const addPassenger = (dir) => setData(d => ({ ...d, [dir]: [...d[dir], newPax()] }));
+  const newPax = (dir, meta) => ({
+    id: crypto.randomUUID(),
+    name:'',
+    company:'',
+    bodyWeight:'',
+    bagWeight:'',
+    bagCount:'',
+    comments:'',
+    origin: dir==='outbound'? meta.departure : meta.arrival,
+    destination: dir==='outbound'? meta.arrival : meta.departure,
+    originAuto:true,
+    destinationAuto:true
+  });
+  const addPassenger = (dir) => setData(d => ({ ...d, [dir]: [...d[dir], newPax(dir, d.meta)] }));
   const updatePassenger = (dir, id, field, value) => setData(d => ({ ...d, [dir]: d[dir].map(p => p.id === id ? { ...p, [field]: value } : p) }));
+  // Specialized update for origin/destination to mark manual override & regroup by destination
+  const manualRouteUpdate = (dir, id, field, value) => setData(d => {
+    const updated = d[dir].map(p => p.id===id ? { ...p, [field]: value, [field+"Auto"]: false } : p);
+    // group/sort by destination (case-insensitive), blanks last
+    const sorted = [...updated].sort((a,b)=>{
+      const da=(a.destination||'').toLowerCase();
+      const db=(b.destination||'').toLowerCase();
+      if(!da && db) return 1; if(!db && da) return -1; if(da<db) return -1; if(da>db) return 1; return 0;
+    });
+    return { ...d, [dir]: sorted };
+  });
   const removePassenger = (dir, id) => setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) }));
   const clearAll = () => { if (confirm('Clear all manifest data?')) setData(defaultData); };
   // If navigated from Flights page with selected dates, attempt to pre-fill notes with movement summary once (idempotent)
@@ -119,9 +142,70 @@ export default function FlightManifestTemplate() {
         const totalIn = ins.reduce((s,v)=> s + (parseInt(String(v).split('-')[0],10)||0),0);
         return `${k}: Out +${totalOut||0}${outs.length? ' ['+outs.join(', ')+']':''} | In -${totalIn||0}${ins.length? ' ['+ins.join(', ')+']':''}`;
       });
-      setData(d=> ({ ...d, meta:{ ...d.meta, notes: (d.meta.notes? d.meta.notes+'\n':'') + 'Flight movements selected:\n'+lines.join('\n') } }));
+      // Determine primary manifest date (use last selected date assuming that's target flight).
+      const mainDateKey = sorted[sorted.length-1];
+      // Convert M/D/YYYY -> YYYY-MM-DD
+      const [m,dD,y] = mainDateKey.split('/');
+      const isoDate = y+'-'+String(m).padStart(2,'0')+'-'+String(dD).padStart(2,'0');
+      // Build passenger placeholder lists for main date diffs if manifest sections empty.
+      const outDiffs = flightsOutTmp[mainDateKey]||[];
+      const inDiffs = flightsInTmp[mainDateKey]||[];
+      const buildPassengers = (arr, direction) => {
+        const pax = [];
+        arr.forEach(entry => {
+          const dash = entry.indexOf('-');
+          if(dash===-1) return;
+          const num = parseInt(entry.slice(0,dash),10) || 0;
+            const company = entry.slice(dash+1);
+          for(let i=0;i<num;i++) {
+            pax.push({
+              id: crypto.randomUUID(),
+              name:'',
+              company,
+              bodyWeight:'', bagWeight:'', bagCount:'',
+              comments:`Auto from planner (${direction} ${num > 1 ? '+'+num : '+1'} ${company} ${mainDateKey})`,
+              // origin/destination will be applied in a later effect based on meta; mark auto flags
+              origin:'', destination:'', originAuto:true, destinationAuto:true
+            });
+          }
+        });
+        return pax;
+      };
+      // We will assign origin/destination after building lists using meta values later
+      setData(d=> {
+        const newOutbound = d.outbound && d.outbound.length ? d.outbound : buildPassengers(outDiffs, 'OUT');
+        const newInbound = d.inbound && d.inbound.length ? d.inbound : buildPassengers(inDiffs, 'IN');
+        return {
+          ...d,
+          meta:{
+            ...d.meta,
+            date: d.meta.date && d.meta.date !== new Date().toISOString().slice(0,10) ? d.meta.date : isoDate,
+            notes: (d.meta.notes? d.meta.notes+'\n':'') + 'Flight movements selected:\n'+lines.join('\n')
+          },
+          outbound: newOutbound,
+          inbound: newInbound
+        };
+      });
     } catch {/* ignore */}
   }, []);
+  // Ensure auto origins/destinations reflect template departure/arrival unless manually overridden
+  useEffect(()=>{
+    setData(d=>{
+      let changed=false;
+      const apply=(list,dir)=> list.map(p=>{
+        const desiredOrigin = dir==='outbound'? d.meta.departure : d.meta.arrival;
+        const desiredDest = dir==='outbound'? d.meta.arrival : d.meta.departure;
+        let mod=p;
+        if(p.originAuto!==false && desiredOrigin && p.origin!==desiredOrigin){ mod={...mod, origin:desiredOrigin, originAuto:true}; changed=true; }
+        if(p.destinationAuto!==false && desiredDest && p.destination!==desiredDest){ mod=mod===p? {...mod}:mod; mod.destination=desiredDest; mod.destinationAuto=true; changed=true; }
+        return mod;
+      });
+      const newOutbound=apply(d.outbound,'outbound');
+      const newInbound=apply(d.inbound,'inbound');
+      if(!changed) return d;
+      return { ...d, outbound:newOutbound, inbound:newInbound };
+    });
+  }, [data.meta.departure, data.meta.arrival]);
 
   const safeOutbound = data.outbound || [];
   const safeInbound = data.inbound || [];
@@ -342,7 +426,7 @@ export default function FlightManifestTemplate() {
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Outbound Passengers ({totalOutbound})</div>
-  {passengerTable(theme, 'outbound', safeOutbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id))}
+  {passengerTable(theme, 'outbound', safeOutbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id), (pid,field,val)=> manualRouteUpdate('outbound',pid,field,val))}
         <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
@@ -365,7 +449,7 @@ export default function FlightManifestTemplate() {
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Inbound Passengers ({totalInbound})</div>
-  {passengerTable(theme, 'inbound', safeInbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id))}
+  {passengerTable(theme, 'inbound', safeInbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id), (pid,field,val)=> manualRouteUpdate('inbound',pid,field,val))}
         <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
           <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
@@ -429,7 +513,7 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-function passengerTable(theme, dir, list, onUpdate, onRemove) {
+function passengerTable(theme, dir, list, onUpdate, onRemove, onManualRoute) {
   return (
     <div style={{ overflowX:'auto' }}>
       <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
@@ -462,8 +546,8 @@ function passengerTable(theme, dir, list, onUpdate, onRemove) {
               <Td style={{ width:80 }}><input value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9.]/g,''))} placeholder="Bags" /></Td>
               <Td style={{ width:70 }}><input value={p.bagCount||''} onChange={e=>onUpdate(p.id,'bagCount',e.target.value.replace(/[^0-9]/g,''))} placeholder="#" /></Td>
               <Td style={{ width:80, fontWeight:600 }}>{total ? total.toFixed(1) : ''}</Td>
-              <Td style={{ width:90 }}><input value={dir==='outbound'? (p.origin||''): (p.origin||'')} onChange={e=>onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} /></Td>
-              <Td style={{ width:110 }}><input value={dir==='outbound'? (p.destination||''): (p.destination||'')} onChange={e=>onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} /></Td>
+              <Td style={{ width:90 }}><input value={p.origin||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'origin',e.target.value) : onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} title="Origin (auto-set unless manually changed)" /></Td>
+              <Td style={{ width:110 }}><input value={p.destination||''} onChange={e=> onManualRoute ? onManualRoute(p.id,'destination',e.target.value) : onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} title="Destination (auto-set unless manually changed)" /></Td>
               <Td><input value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
               <Td><button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button></Td>
             </tr>

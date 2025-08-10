@@ -499,7 +499,14 @@ function Field({ label, children, full }) {
 }
 
 const btn = (theme) => ({ background: theme.primary, color: theme.text, border: '1px solid ' + theme.secondary, padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' });
-const select = (theme) => ({ background: theme.background, color: theme.text, border: '1px solid ' + theme.primary, padding: '4px 8px', borderRadius: 4 });
-const input = (theme) => ({ background: theme.background, color: theme.text, border: '1px solid ' + theme.primary, padding: '4px 8px', borderRadius: 4 });
+// Use lighter neutral border in dark mode for better contrast (replaces blue outline in form)
+const select = (theme) => {
+  const borderCol = theme.name === 'Dark' ? '#bfc4ca' : theme.primary;
+  return { background: theme.background, color: theme.text, border: '1px solid ' + borderCol, padding: '4px 8px', borderRadius: 4 };
+};
+const input = (theme) => {
+  const borderCol = theme.name === 'Dark' ? '#bfc4ca' : theme.primary;
+  return { background: theme.background, color: theme.text, border: '1px solid ' + borderCol, padding: '4px 8px', borderRadius: 4 };
+};
 const cell = (theme) => ({ border: '1px solid ' + (theme.name === 'Dark' ? '#bfc4ca40' : '#444'), padding: '4px 6px', fontSize: 12, verticalAlign: 'top' });
 const miniBtn = (theme) => ({ background: theme.secondary, color: theme.text, border: 'none', padding: '2px 6px', borderRadius: 4, cursor: 'pointer', fontSize: 11, marginRight: 4 });

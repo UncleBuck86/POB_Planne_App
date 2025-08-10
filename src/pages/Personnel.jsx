@@ -76,6 +76,8 @@ export default function Personnel() {
   const [rotationOptions, setRotationOptions] = useState(() => loadList('personnelRotationOptions'));
   const [showAdmin, setShowAdmin] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef(null);
+  const gearRef = useRef(null);
   // Raw textarea values so user can insert blank new lines while typing
   const [crewOptionsText, setCrewOptionsText] = useState(() => (crewOptions.join('\n')));
   const [locationOptionsText, setLocationOptionsText] = useState(() => (locationOptions.join('\n')));
@@ -239,17 +241,32 @@ export default function Personnel() {
     window.addEventListener('resize', onResize);
     return () => { window.removeEventListener('resize', onResize); clearTimeout(t); };
   }, []);
+  // Outside click / escape close settings
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handleClick = (e) => {
+      const menu = settingsRef.current; const gear = gearRef.current;
+      if (!menu) return; if (menu.contains(e.target) || gear?.contains(e.target)) return;
+      setSettingsOpen(false);
+    };
+    const handleKey = (e) => { if (e.key === 'Escape') setSettingsOpen(false); };
+    window.addEventListener('mousedown', handleClick);
+    window.addEventListener('touchstart', handleClick);
+    window.addEventListener('keydown', handleKey);
+    return () => { window.removeEventListener('mousedown', handleClick); window.removeEventListener('touchstart', handleClick); window.removeEventListener('keydown', handleKey); };
+  }, [settingsOpen]);
 
   return (
   <div style={{ padding: 24, color: theme.text, background: theme.background, minHeight: '100vh' }}>
       {/* Settings Gear */}
       <button
+        ref={gearRef}
         onClick={() => setSettingsOpen(o => !o)}
         title="Settings"
         style={{ position:'fixed', top:14, right:20, zIndex:300, background:'transparent', border:'none', fontSize:24, cursor:'pointer', color: theme.primary }}
       >⚙️</button>
       {settingsOpen && (
-        <div style={{ position:'fixed', top:50, right:16, zIndex:310, background: theme.surface, color: theme.text, border:`1px solid ${theme.primary}`, borderRadius:10, padding:'14px 16px', minWidth:220, boxShadow:'0 4px 14px rgba(0,0,0,0.35)' }}>
+        <div ref={settingsRef} style={{ position:'fixed', top:50, right:16, zIndex:310, background: theme.surface, color: theme.text, border:`1px solid ${theme.primary}`, borderRadius:10, padding:'14px 16px', minWidth:220, boxShadow:'0 4px 14px rgba(0,0,0,0.35)' }}>
           <div style={{ fontWeight:'bold', marginBottom:8 }}>Settings</div>
           <label style={{ fontSize:12, display:'block', marginBottom:4 }}>Theme:</label>
           <select value={team} onChange={e => { changeTheme(e.target.value); setSettingsOpen(false); }} style={{ ...select(theme), width:'100%', marginBottom:12 }}>

@@ -101,6 +101,8 @@ function ThemeConsumerWrapper(props) {
 function AppContent(props) {
   const { theme, team, changeTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useReactState(false);
+  const settingsRef = useRef(null);
+  const gearRef = useRef(null);
   const [editingCompanies, setEditingCompanies] = useState(false);
   const handleReset = () => {
     setViewStart(defaultStartStr);
@@ -140,14 +142,28 @@ function AppContent(props) {
       }
     }, 300);
   }, [viewStart, viewEnd]);
+  // Outside click / escape close settings
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handleClick = (e) => {
+      const menu = settingsRef.current; const gear = gearRef.current;
+      if (!menu) return; if (menu.contains(e.target) || gear?.contains(e.target)) return;
+      setSettingsOpen(false);
+    };
+    const handleKey = (e) => { if (e.key === 'Escape') setSettingsOpen(false); };
+    window.addEventListener('mousedown', handleClick);
+    window.addEventListener('touchstart', handleClick);
+    window.addEventListener('keydown', handleKey);
+    return () => { window.removeEventListener('mousedown', handleClick); window.removeEventListener('touchstart', handleClick); window.removeEventListener('keydown', handleKey); };
+  }, [settingsOpen]);
 
   return (
-    <div style={{ background: team === 'dark' ? '#22223b' : theme.background, color: theme.text, minHeight: '100vh' }}>
-      <GearButton theme={theme} onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">
+  <div style={{ background: team === 'dark' ? theme.background : theme.background, color: theme.text, minHeight: '100vh' }}>
+      <GearButton ref={gearRef} theme={theme} onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">
         ⚙️
       </GearButton>
       {settingsOpen && (
-        <Dropdown theme={theme}>
+        <Dropdown ref={settingsRef} theme={theme}>
           <div style={{ marginBottom: 8, fontWeight: 'bold' }}>Theme Settings</div>
           <label htmlFor="theme-select" style={{ marginRight: 8 }}>Select Theme:</label>
           <select id="theme-select" value={team} onChange={e => { changeTheme(e.target.value); setSettingsOpen(false); }}>
@@ -221,7 +237,7 @@ function AppContent(props) {
         todayKey={todayKey}
   viewStart={viewStart}
   viewEnd={viewEnd}
-        themeOverride={team === 'dark' ? { background: '#0a174e' } : {}}
+  themeOverride={team === 'dark' ? { background: theme.surface } : {}}
         editing={editingCompanies}
         setEditing={setEditingCompanies}
       />

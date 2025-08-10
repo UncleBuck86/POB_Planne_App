@@ -18,6 +18,8 @@ const Dropdown = styled.div`
 function Dashboard() {
   const { theme, team, changeTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef(null);
+  const gearRef = useRef(null);
   const widgetBorderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
   // Load stored planner data (non-editable view)
   const rowData = useMemo(() => {
@@ -124,14 +126,34 @@ function Dashboard() {
     window.removeEventListener('pointerup', onPointerUp);
   };
   useEffect(() => () => { onPointerUp(); }, []);
+  // Close settings on outside click / escape
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handleClick = (e) => {
+      const menu = settingsRef.current;
+      const gear = gearRef.current;
+      if (!menu) return;
+      if (menu.contains(e.target) || gear?.contains(e.target)) return;
+      setSettingsOpen(false);
+    };
+    const handleKey = (e) => { if (e.key === 'Escape') setSettingsOpen(false); };
+    window.addEventListener('mousedown', handleClick);
+    window.addEventListener('touchstart', handleClick);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('touchstart', handleClick);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [settingsOpen]);
 
   return (
     <StyledThemeProvider theme={theme}>
       <GlobalStyle />
   <div style={{ padding: '24px', color: theme.text, background: theme.background, minHeight: '100vh' }}>
-        <GearButton onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">⚙️</GearButton>
+        <GearButton ref={gearRef} onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">⚙️</GearButton>
         {settingsOpen && (
-          <Dropdown>
+          <Dropdown ref={settingsRef}>
             <div style={{ marginBottom: 8, fontWeight: 'bold' }}>Theme Settings</div>
             <label htmlFor="dash-theme-select" style={{ marginRight: 8 }}>Select Theme:</label>
             <select id="dash-theme-select" value={team} onChange={e => { changeTheme(e.target.value); setSettingsOpen(false); }}>
@@ -140,13 +162,13 @@ function Dashboard() {
             </select>
             <div style={{ marginTop:12, paddingTop:10, borderTop: '1px solid ' + (theme.name==='Dark' ? '#bfc4ca40':'#ccc'), fontSize:12 }}>
               <div style={{ fontWeight:'bold', marginBottom:6 }}>Layout</div>
-              <button onClick={() => setEditLayout(e => !e)} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
+              <button onClick={() => { setEditLayout(e => !e); setSettingsOpen(false); }} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
                 {editLayout ? 'Finish Layout' : 'Edit Layout'}
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
                 {['nav','forecast','onboard'].map(id => (
                   <label key={id} style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <input type="checkbox" checked={visible[id]} onChange={e => setVisible(v => ({ ...v, [id]: e.target.checked }))} />
+                    <input type="checkbox" checked={visible[id]} onChange={e => { setVisible(v => ({ ...v, [id]: e.target.checked })); setSettingsOpen(false); }} />
                     <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : 'POB Onboard'}</span>
                   </label>
                 ))}

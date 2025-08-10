@@ -38,6 +38,9 @@ const blank = () => ({
   crew: '',
   rotation: '',
   coreCrew: false,
+  bodyWeight: '',
+  bagWeight: '',
+  bagCount: '',
   primaryPhone: '',
   secondaryPhone: '',
   address: '',
@@ -137,6 +140,9 @@ export default function Personnel() {
       secondaryPhone: '',
       address: '',
       dob: '',
+  bodyWeight: '',
+  bagWeight: '',
+  bagCount: '',
       ...rec
     }); // ensure new keys exist
   }
@@ -383,6 +389,15 @@ export default function Personnel() {
                 </datalist>
               )}
             </Field>
+            <Field label="Body Weight (lb)">
+              <input value={draft.bodyWeight} onChange={e => setDraft({ ...draft, bodyWeight: e.target.value.replace(/[^0-9.]/g,'') })} style={input(theme)} placeholder="e.g. 185" />
+            </Field>
+            <Field label="Bag Weight (lb)">
+              <input value={draft.bagWeight} onChange={e => setDraft({ ...draft, bagWeight: e.target.value.replace(/[^0-9.]/g,'') })} style={input(theme)} placeholder="e.g. 35" />
+            </Field>
+            <Field label="# Bags">
+              <input value={draft.bagCount} onChange={e => setDraft({ ...draft, bagCount: e.target.value.replace(/[^0-9]/g,'') })} style={input(theme)} placeholder="e.g. 2" />
+            </Field>
             <Field label="Location">
               {locationOptions.length ? (
                 <select value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} style={select(theme)}>
@@ -509,7 +524,7 @@ export default function Personnel() {
           )}
           <thead>
             <tr>
-              {['Actions','First','Last','Company','Position','Location','Crew','Rotation','Core','Arrival','Departure','Status','DOB','Days Onboard','Days Since Departed','Notes'].map(h => (
+              {['Actions','First','Last','Company','Body Wt','Bag Wt','# Bags','Position','Location','Crew','Rotation','Core','Arrival','Departure','Status','DOB','Days Onboard','Days Since Departed','Notes'].map(h => (
                 <th
                   key={h}
                   style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '4px 6px', fontSize: 12, whiteSpace: 'nowrap' }}
@@ -554,6 +569,9 @@ export default function Personnel() {
                 </td>
                 <td style={cell(theme)}>{r.lastName}</td>
                 <td style={cell(theme)}>{r.company}</td>
+                <td style={cell(theme)}>{r.bodyWeight}</td>
+                <td style={cell(theme)}>{r.bagWeight}</td>
+                <td style={cell(theme)}>{r.bagCount}</td>
                 <td style={cell(theme)}>{r.position}</td>
                 <td style={cell(theme)}>{r.location}</td>
                 <td style={cell(theme)}>{r.crew}</td>
@@ -570,7 +588,7 @@ export default function Personnel() {
             );})}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={16} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
+                <td colSpan={19} style={{ ...cell(theme), textAlign: 'center', fontStyle: 'italic' }}>No records</td>
               </tr>
             )}
           </tbody>

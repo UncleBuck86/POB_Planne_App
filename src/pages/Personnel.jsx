@@ -53,6 +53,11 @@ export default function Personnel() {
   const [records, setRecords] = useState(loadRecords);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  // Persistent location filter
+  const initialLocFilter = (() => {
+    try { return localStorage.getItem('personnelLocationFilter') || 'all'; } catch { return 'all'; }
+  })();
+  const [locationFilter, setLocationFilter] = useState(initialLocFilter);
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(blank());
   // Company options sourced automatically from POB planner companies
@@ -84,6 +89,7 @@ export default function Personnel() {
   useEffect(() => { setCrewOptionsText(crewOptions.join('\n')); }, [crewOptions]);
   useEffect(() => { setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
   useEffect(() => { setRotationOptionsText(rotationOptions.join('\n')); }, [rotationOptions]);
+  useEffect(() => { localStorage.setItem('personnelLocationFilter', locationFilter); }, [locationFilter]);
   // Refresh company options when storage changes (other tab) or periodically while on page
   useEffect(() => {
     const load = () => {
@@ -103,13 +109,14 @@ export default function Personnel() {
   const filtered = useMemo(() => {
     return records.filter(r => {
       if (filter !== 'all' && r.status !== filter) return false;
+    if (locationFilter !== 'all' && r.location !== locationFilter) return false;
       if (search) {
         const s = search.toLowerCase();
         if (!(r.firstName + ' ' + r.lastName + ' ' + r.company + ' ' + r.position).toLowerCase().includes(s)) return false;
       }
       return true;
     });
-  }, [records, filter, search]);
+  }, [records, filter, search, locationFilter]);
 
   function startAdd() {
     setEditingId('new');
@@ -260,13 +267,19 @@ export default function Personnel() {
   <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Personnel Database</h2>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <button onClick={startAdd} style={btn(theme)}>Add Person</button>
+        <input placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} style={input(theme)} />
         <select value={filter} onChange={e => setFilter(e.target.value)} style={select(theme)}>
           <option value="all">All Statuses</option>
           <option value="Onboard">Onboard</option>
-            <option value="Pending">Pending</option>
+          <option value="Pending">Pending</option>
           <option value="Departed">Departed</option>
         </select>
-        <input placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} style={input(theme)} />
+        <select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} style={select(theme)} title="Filter by Location">
+          <option value="all">All Locations</option>
+          {Array.from(new Set([...(locationOptions||[]), ...records.map(r => r.location).filter(Boolean)])).sort().map(l => (
+            <option key={l} value={l}>{l}</option>
+          ))}
+        </select>
       </div>
       {showAdmin && (
         <div style={{ marginBottom: 20, padding: 12, border: `1px solid ${borderColor}`, borderRadius: 8, background: theme.surface, display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', position:'relative' }}>
@@ -445,7 +458,10 @@ export default function Personnel() {
               />
             </Field>
             <Field label="Status">
-              <select value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })} style={select(theme)}>
+              <select value={draft.status} onChange={e => {
+                const v = e.target.value;
+                setDraft(d => ({ ...d, status: v, location: v === 'Departed' ? '' : d.location }));
+              }} style={select(theme)}>
                 <option>Onboard</option>
                 <option>Pending</option>
                 <option>Departed</option>

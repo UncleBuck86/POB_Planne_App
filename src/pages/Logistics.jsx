@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTheme } from '../ThemeContext.jsx';
+import FlightsPage from './Flights.jsx';
 
 export default function Logistics() {
   const { theme } = useTheme();
@@ -34,7 +35,10 @@ export default function Logistics() {
       </div>
     </a>
   );
-  if (subPath && ['flights','boats','other'].includes(subPath)) {
+  if (subPath === 'flights') {
+    return <FlightsPage />;
+  }
+  if (subPath && ['boats','other'].includes(subPath)) {
     return (
       <div style={pageStyle}>
         <h2 style={{ marginTop:0 }}>Logistics: {subPath.charAt(0).toUpperCase()+subPath.slice(1)}</h2>

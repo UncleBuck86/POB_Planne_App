@@ -63,6 +63,7 @@ export default function Personnel() {
   const [locationFilter, setLocationFilter] = useState(initialLocFilter);
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState(blank());
+  // Optional Evac Phase panel visibility
   // Company options sourced automatically from POB planner companies
   const [companyOptions, setCompanyOptions] = useState(() => {
     try {

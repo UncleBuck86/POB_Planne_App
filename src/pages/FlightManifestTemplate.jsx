@@ -4,7 +4,7 @@ import { useTheme } from '../ThemeContext.jsx';
 const STORAGE_KEY = 'flightManifestTemplateV1';
 const FIELD_VIS_KEY = 'flightManifestVisibleFields';
 const LOCATIONS_KEY = 'flightManifestLocations';
-const AIRCRAFT_TYPES_KEY = 'flightManifestAircraftTypes';
+const AIRCRAFT_TYPES_KEY = 'flightManifestAircraftTypes'; // stores array of objects: { type, maxPax, maxOutboundWeight, maxInboundWeight }
 const defaultData = {
   meta: {
     flightNumber: '',
@@ -18,7 +18,7 @@ const defaultData = {
     captain: '',
     coPilot: '',
     dispatcher: '',
-    notes: ''
+  notes: ''
   },
   outbound: [], // passengers departing (Flights Out)
   inbound: []   // passengers arriving (Flights In)
@@ -56,11 +56,25 @@ export default function FlightManifestTemplate() {
   useEffect(()=>{ setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
   // Aircraft types (admin managed)
   const [aircraftTypes, setAircraftTypes] = useState(()=>{
-    try { return JSON.parse(localStorage.getItem(AIRCRAFT_TYPES_KEY)) || []; } catch { return []; }
+    try {
+      const raw = JSON.parse(localStorage.getItem(AIRCRAFT_TYPES_KEY)) || [];
+  if (raw.length && typeof raw[0] === 'string') {
+	// Legacy string list -> expand to objects
+	return raw.map(r => ({ type:r, maxPax:'', maxOutboundWeight:'', maxInboundWeight:'' }));
+  }
+  // Migration: discard legacy maxPassengerWt / maxCargoWt fields if present
+  return raw.map(r => ({
+    type: r.type || '',
+    maxPax: r.maxPax ?? '',
+    maxOutboundWeight: r.maxOutboundWeight ?? '',
+    maxInboundWeight: r.maxInboundWeight ?? ''
+  }));
+    } catch { return []; }
   });
-  const [aircraftTypesText, setAircraftTypesText] = useState(()=> aircraftTypes.join('\n'));
   useEffect(()=>{ try { localStorage.setItem(AIRCRAFT_TYPES_KEY, JSON.stringify(aircraftTypes)); } catch {/*ignore*/} }, [aircraftTypes]);
-  useEffect(()=>{ setAircraftTypesText(aircraftTypes.join('\n')); }, [aircraftTypes]);
+  const addAircraftType = () => setAircraftTypes(a => [...a, { type:'', maxPax:'', maxOutboundWeight:'', maxInboundWeight:'' }]);
+  const updateAircraftType = (idx, field, value) => setAircraftTypes(a => a.map((t,i)=> i===idx ? { ...t, [field]: value } : t));
+  const removeAircraftType = (idx) => setAircraftTypes(a => a.filter((_,i)=> i!==idx));
   useEffect(()=>{ try { localStorage.setItem(FIELD_VIS_KEY, JSON.stringify(visibleFields)); } catch {/* ignore */} }, [visibleFields]);
   const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
@@ -95,6 +109,21 @@ export default function FlightManifestTemplate() {
   const grandTotalPax = totalOutbound + totalInbound;
   const grandTotalWeight = totalWeightOutbound + totalWeightInbound;
 
+  // Capacity evaluation for selected aircraft type
+  const selectedAircraft = useMemo(()=> aircraftTypes.find(a=> a.type === data.meta.aircraftType), [aircraftTypes, data.meta.aircraftType]);
+  const capacityStatus = useMemo(()=>{
+    if (!selectedAircraft) return null;
+    const maxPax = parseInt(selectedAircraft.maxPax)||null;
+    const maxOutboundWeight = parseFloat(selectedAircraft.maxOutboundWeight)||null;
+    const maxInboundWeight = parseFloat(selectedAircraft.maxInboundWeight)||null;
+    const totalPax = grandTotalPax;
+    const issues = [];
+    if (maxPax!=null && totalPax > maxPax) issues.push(`PAX ${totalPax}/${maxPax}`);
+    if (maxOutboundWeight!=null && totalWeightOutbound > maxOutboundWeight) issues.push(`OB Wt ${totalWeightOutbound.toFixed(1)}/${maxOutboundWeight}`);
+    if (maxInboundWeight!=null && totalWeightInbound > maxInboundWeight) issues.push(`IB Wt ${totalWeightInbound.toFixed(1)}/${maxInboundWeight}`);
+    return { maxPax, maxOutboundWeight, maxInboundWeight, totalPax, totalWeightOutbound, totalWeightInbound, issues };
+  }, [selectedAircraft, grandTotalPax, totalWeightOutbound, totalWeightInbound]);
+
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}.json`; a.click(); URL.revokeObjectURL(url);
@@ -102,10 +131,24 @@ export default function FlightManifestTemplate() {
   const printView = () => {
     const w = window.open('', '_blank'); if (!w) return;
     const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} h2{margin-top:0;} table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #444;padding:4px 6px;} th{background:#ddd;} .section{margin-bottom:18px;}`;
+    const selectedAircraftPrint = aircraftTypes.find(a=> a.type === data.meta.aircraftType);
+    let capacityLine = '';
+    if (selectedAircraftPrint) {
+      const maxPax = parseInt(selectedAircraftPrint.maxPax)||null;
+      const maxOutboundWeight = parseFloat(selectedAircraftPrint.maxOutboundWeight)||null;
+      const maxInboundWeight = parseFloat(selectedAircraftPrint.maxInboundWeight)||null;
+      capacityLine = `<div class='section'><strong>Capacity:</strong> `+
+        [
+          maxPax!=null?`Pax ${grandTotalPax}/${maxPax}`:null,
+          maxOutboundWeight!=null?`Outbound Wt ${totalWeightOutbound.toFixed(1)}/${maxOutboundWeight}`:null,
+          maxInboundWeight!=null?`Inbound Wt ${totalWeightInbound.toFixed(1)}/${maxInboundWeight}`:null
+        ].filter(Boolean).join(' | ')+`</div>`;
+    }
     const html = `<!DOCTYPE html><html><head><title>Flight Manifest</title><style>${css}</style></head><body>`+
       `<h2>Flight Manifest ${data.meta.flightNumber? ' - '+data.meta.flightNumber:''}</h2>`+
       `<div class='section'><strong>Date:</strong> ${data.meta.date||''} &nbsp; <strong>Route:</strong> ${data.meta.departure||'???'} → ${data.meta.arrival||'???'} &nbsp; <strong>ETD:</strong> ${data.meta.departureTime||''} &nbsp; <strong>ETA:</strong> ${data.meta.arrivalTime||''}</div>`+
       `<div class='section'><strong>Aircraft:</strong> ${data.meta.aircraftType||''} ${data.meta.tailNumber||''} &nbsp; <strong>Captain:</strong> ${data.meta.captain||''} &nbsp; <strong>Co-Pilot:</strong> ${data.meta.coPilot||''} &nbsp; <strong>Dispatcher:</strong> ${data.meta.dispatcher||''}</div>`+
+      capacityLine +
       `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>`+
   `<h3>Outbound (${totalOutbound})</h3>`+
   `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Body Wt</th><th>Bag Wt</th><th># Bags</th><th>Total Wt</th><th>Origin</th><th>Destination</th><th>Comments</th></tr></thead><tbody>`+
@@ -162,19 +205,36 @@ export default function FlightManifestTemplate() {
               <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Admins: one location per line. These populate the Departure / Arrival dropdowns.</div>
             </div>
             <div style={{ marginTop:16 }}>
-              <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>Aircraft Types</div>
-              <textarea
-                value={aircraftTypesText}
-                onChange={e=>setAircraftTypesText(e.target.value)}
-                onBlur={()=>{
-                  const cleaned = Array.from(new Set(aircraftTypesText.split(/\n+/).map(v=>v.trim()).filter(Boolean)));
-                  setAircraftTypes(cleaned);
-                }}
-                rows={3}
-                style={{ width:'100%', background: theme.background, color: theme.text, border:'1px solid '+(theme.primary||'#267'), borderRadius:8, padding:8, fontSize:12, resize:'vertical', fontFamily:'monospace', lineHeight:1.4 }}
-                placeholder={'EXAMPLE:\nB350\nS92\nH145'}
-              />
-              <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Admins: one type per line. Populates Aircraft Type dropdown.</div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>Aircraft Types & Limits</div>
+                <button onClick={addAircraftType} style={smallBtn(theme)}>Add</button>
+              </div>
+              {aircraftTypes.length === 0 && <div style={{ fontSize:11, opacity:.6, marginBottom:4 }}>No aircraft types yet. Add one.</div>}
+              <div style={{ display:'grid', gap:6 }}>
+                {aircraftTypes.map((a,i)=> (
+                  <div key={i} style={{ display:'grid', gap:6, gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))', alignItems:'end', background: theme.name==='Dark'? '#24292f':'#f2f6f9', padding:8, borderRadius:8, position:'relative' }}>
+                        <div>
+                          <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Outbound Wt</label>
+                          <input type="number" value={a.maxOutboundWeight} onChange={e=>updateAircraftType(i,'maxOutboundWeight', e.target.value)} placeholder="lbs" />
+                        </div>
+                        <div>
+                          <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Inbound Wt</label>
+                          <input type="number" value={a.maxInboundWeight} onChange={e=>updateAircraftType(i,'maxInboundWeight', e.target.value)} placeholder="lbs" />
+                        </div>
+                    <div style={{ gridColumn:'span 2' }}>
+                      <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Type</label>
+                      <input value={a.type} onChange={e=>updateAircraftType(i,'type', e.target.value)} placeholder="e.g. S92" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:10, textTransform:'uppercase', letterSpacing:.5, opacity:.75 }}>Max Pax</label>
+                      <input type="number" value={a.maxPax} onChange={e=>updateAircraftType(i,'maxPax', e.target.value)} placeholder="" />
+                    </div>
+                    {/* Removed separate passenger / cargo weight caps */}
+                    <button onClick={()=>removeAircraftType(i)} style={{ position:'absolute', top:4, right:4, background:'transparent', border:'none', color: theme.danger||'#c33', cursor:'pointer', fontSize:14 }} title="Remove">×</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Directional limits now use total (body + bag) weight only.</div>
             </div>
           </div>
         )}
@@ -207,12 +267,40 @@ export default function FlightManifestTemplate() {
               aircraftTypes.length ? (
                 <select value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)}>
                   <option value="">-- Select --</option>
-                  {Array.from(new Set([...(aircraftTypes||[]), data.meta.aircraftType].filter(Boolean))).map(t => <option key={t} value={t}>{t}</option>)}
+                  {aircraftTypes.map(t => t.type).filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
+                  {!aircraftTypes.find(a=>a.type===data.meta.aircraftType) && data.meta.aircraftType && <option value={data.meta.aircraftType}>{data.meta.aircraftType}</option>}
                 </select>
               ) : (
                 <input value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
               )
-            }</Labeled>}
+            }
+            {(() => {
+              const sel = aircraftTypes.find(a=>a.type===data.meta.aircraftType);
+              if(!sel) return null;
+              const items = [];
+              if(sel.maxPax) items.push({ label:'Pax', value: sel.maxPax });
+              if(sel.maxOutboundWeight) items.push({ label:'OB Wt', value: sel.maxOutboundWeight });
+              if(sel.maxInboundWeight) items.push({ label:'IB Wt', value: sel.maxInboundWeight });
+              if(!items.length) return null;
+              return (
+                <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
+                  <span style={{ fontSize:12, fontWeight:600, opacity:.85 }}>Limits:</span>
+                  {items.map((it,i)=> (
+                    <span key={i} style={{
+                      fontSize:12,
+                      background: theme.name==='Dark'? '#39424a':'#dfe9f3',
+                      color: theme.name==='Dark'? '#fff':'#123',
+                      padding:'4px 8px',
+                      borderRadius:20,
+                      lineHeight:1,
+                      fontWeight:500,
+                      boxShadow:'0 1px 2px rgba(0,0,0,0.25)'
+                    }}>{it.label}: {it.value}</span>
+                  ))}
+                </div>
+              );
+            })()}
+            </Labeled>}
             {visibleFields.tailNumber && <Labeled label="Tail #"><input value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>}
             {visibleFields.captain && <Labeled label="Captain"><input value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>}
             {visibleFields.coPilot && <Labeled label="Co-Pilot"><input value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}
@@ -237,6 +325,16 @@ export default function FlightManifestTemplate() {
             <span>Total: {totalWeightOutbound.toFixed(1)}</span>
           </div>
         </div>
+        {(() => {
+      const dirTotalLimit = parseFloat(selectedAircraft?.maxOutboundWeight)||null;
+      const totalRemain = dirTotalLimit!=null ? (dirTotalLimit - totalWeightOutbound) : null;
+      if(totalRemain==null) return null;
+          return (
+            <div style={{ marginTop:8, fontSize:12, display:'flex', gap:18, flexWrap:'wrap' }}>
+        {totalRemain!=null && <span style={{ color: totalRemain < 0 ? (theme.danger||'#c0392b') : undefined }}>Avail Outbound Wt: {totalRemain.toFixed(1)} {totalRemain < 0 ? '(Over)' : ''}</span>}
+            </div>
+          );
+        })()}
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Inbound Passengers ({totalInbound})</div>
@@ -250,16 +348,37 @@ export default function FlightManifestTemplate() {
             <span>Total: {totalWeightInbound.toFixed(1)}</span>
           </div>
         </div>
+        {(() => {
+      const dirTotalLimit = parseFloat(selectedAircraft?.maxInboundWeight)||null;
+      const totalRemain = dirTotalLimit!=null ? (dirTotalLimit - totalWeightInbound) : null;
+      if(totalRemain==null) return null;
+          return (
+            <div style={{ marginTop:8, fontSize:12, display:'flex', gap:18, flexWrap:'wrap' }}>
+        {totalRemain!=null && <span style={{ color: totalRemain < 0 ? (theme.danger||'#c0392b') : undefined }}>Avail Inbound Wt: {totalRemain.toFixed(1)} {totalRemain < 0 ? '(Over)' : ''}</span>}
+            </div>
+          );
+        })()}
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Actions & Totals</div>
-        <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
           <button onClick={clearAll} style={{ ...actionBtn(theme), background:'#aa3333' }}>Clear All</button>
-          <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', alignItems:'center', gap:16 }}>
-            <span>Grand Total Pax: {grandTotalPax}</span>
-            <span>Grand Total Weight: {grandTotalWeight.toFixed(1)}</span>
+          <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
+            <span>Grand Pax: {grandTotalPax}</span>
+            <span>Grand Wt: {grandTotalWeight.toFixed(1)}</span>
+      {capacityStatus && (
+              <span style={{
+                background: capacityStatus.issues.length? (theme.danger||'#c0392b') : (theme.success||'#2d7d46'),
+                color:'#fff', padding:'6px 10px', borderRadius:8, fontWeight:600, display:'flex', gap:10, alignItems:'center', fontSize:13, boxShadow:'0 2px 4px rgba(0,0,0,0.3)'
+              }}>
+  {capacityStatus.maxPax!=null && <span>Pax {capacityStatus.totalPax}/{capacityStatus.maxPax}</span>}
+  {capacityStatus.maxOutboundWeight!=null && <span>OB Wt {capacityStatus.totalWeightOutbound.toFixed(1)}/{capacityStatus.maxOutboundWeight}</span>}
+  {capacityStatus.maxInboundWeight!=null && <span>IB Wt {capacityStatus.totalWeightInbound.toFixed(1)}/{capacityStatus.maxInboundWeight}</span>}
+                {capacityStatus.issues.length>0 && <span style={{ textDecoration:'underline' }}>OVER</span>}
+              </span>
+            )}
           </div>
         </div>
       </section>

@@ -39,7 +39,14 @@ export default function AdminPage() {
         <h3 style={{ margin:'8px 0 4px' }}>Aircraft Types</h3>
         {aircraftTypes.length ? (
           <ul style={{ margin:0, paddingLeft:18, fontSize:12 }}>
-            {aircraftTypes.map(t=> <li key={t}>{t}</li>)}
+            {aircraftTypes.map((t,i)=> {
+              if (typeof t === 'string') return <li key={i}>{t}</li>;
+              const pax = t.maxPax? `Pax ${t.maxPax}`:'';
+              const ob = t.maxOutboundWeight? `OB Wt ${t.maxOutboundWeight}`:'';
+              const ib = t.maxInboundWeight? `IB Wt ${t.maxInboundWeight}`:'';
+              const parts = [pax,ob,ib].filter(Boolean).join(' | ');
+              return <li key={i}>{t.type || '(unnamed)'} {parts && ' - '+parts}</li>;
+            })}
           </ul>
         ) : <div style={{ fontSize:12, opacity:.6 }}>No aircraft types defined yet. Open a manifest, click Customize, and add them.</div>}
       </div>

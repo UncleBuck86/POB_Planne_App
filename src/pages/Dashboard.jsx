@@ -111,6 +111,27 @@ function Dashboard() {
   useEffect(() => { localStorage.setItem(visibilityKey, JSON.stringify(visible)); }, [visible]);
   const dragState = useRef({ id:null, offsetX:0, offsetY:0 });
   const containerRef = useRef(null);
+  // Mini theme colors per widget
+  const colorKey = 'dashboardWidgetColorsV1';
+  const [widgetColors, setWidgetColors] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(colorKey)) || {}; } catch { return {}; }
+  });
+  useEffect(()=>{ localStorage.setItem(colorKey, JSON.stringify(widgetColors)); }, [widgetColors]);
+  const setWidgetColor = (id, val) => setWidgetColors(c => ({ ...c, [id]: val }));
+  const clearWidgetColor = (id) => setWidgetColors(c => { const n={...c}; delete n[id]; return n; });
+  const deriveColors = (hex) => {
+    if (!hex || !/^#?[0-9a-fA-F]{6}$/.test(hex)) return null;
+    const h = hex.startsWith('#')?hex.slice(1):hex;
+    const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+    const toHex=v=>('0'+v.toString(16)).slice(-2);
+    const shade=f=> '#' + toHex(Math.round(r*f)) + toHex(Math.round(g*f)) + toHex(Math.round(b*f));
+    // luminance for contrast
+    const srgb=[r,g,b].map(v=>{v/=255; return v<=0.03928? v/12.92: Math.pow((v+0.055)/1.055,2.4);});
+    const lum=0.2126*srgb[0]+0.7152*srgb[1]+0.0722*srgb[2];
+    const text = lum > 0.55 ? '#000' : '#fff';
+    return { base:'#'+h, header: shade(0.75), border: shade(0.65), text };
+  };
+  const widgetColorTheme = (id) => deriveColors(widgetColors[id]||'') || {};
   const onPointerDown = (e, id) => {
     if (!editLayout) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -173,13 +194,33 @@ function Dashboard() {
                 {editLayout ? 'Finish Layout' : 'Edit Layout'}
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-        {['nav','forecast','flightForecast','onboard'].map(id => (
+                {['nav','forecast','flightForecast','onboard'].map(id => (
                   <label key={id} style={{ display:'flex', alignItems:'center', gap:6 }}>
                     <input type="checkbox" checked={visible[id]} onChange={e => { setVisible(v => ({ ...v, [id]: e.target.checked })); setSettingsOpen(false); }} />
-          <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : 'POB Onboard'}</span>
+                    <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : 'POB Onboard'}</span>
                   </label>
                 ))}
               </div>
+              {editLayout && (
+                <div style={{ marginTop:10 }}>
+                  <div style={{ fontWeight:'bold', marginBottom:4 }}>Widget Colors (mini theme)</div>
+                  {['nav','forecast','flightForecast','onboard'].map(id => {
+                    const c = widgetColors[id] || '';
+                    return (
+                      <div key={id} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                        <span style={{ width:90, fontSize:11 }}>{id==='nav'?'Navigation': id==='forecast'?'POB Forecast': id==='flightForecast'?'Flight Forecast':'POB Onboard'}</span>
+                        <input type="color" value={c || '#ffffff'} onChange={e => setWidgetColor(id, e.target.value)} style={{ width:30, height:24, padding:0, border:'1px solid #888', background:'transparent', cursor:'pointer' }} />
+                        {c && <button onClick={()=>clearWidgetColor(id)} style={{ fontSize:10, padding:'2px 4px', border:'1px solid '+theme.secondary, background:'transparent', color: theme.text, borderRadius:4, cursor:'pointer' }}>Reset</button>}
+                      </div>
+                    );
+                  })}
+                  {Object.keys(widgetColors).length > 0 && (
+                    <div style={{ marginTop:6 }}>
+                      <button onClick={()=>setWidgetColors({})} style={{ fontSize:10, padding:'4px 6px', border:'1px solid '+theme.secondary, background:theme.primary, color:theme.text, borderRadius:4, cursor:'pointer', fontWeight:'bold' }}>Reset All</button>
+                    </div>
+                  )}
+                </div>
+              )}
               {editLayout && <div style={{ marginTop:6, fontSize:10, opacity:0.7 }}>Drag to reposition (grid {GRID}px)</div>}
               {editLayout && <div style={{ marginTop:4, fontSize:10, opacity:0.55 }}>Toggle checkboxes to show / hide widgets.</div>}
             </div>
@@ -191,29 +232,32 @@ function Dashboard() {
       <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px)`, pointerEvents:'none', zIndex:0 }} />
     )}
     {/* Navigation Widget */}
-  {visible.nav && (<div
+  {visible.nav && (() => { const wc = widgetColorTheme('nav'); return (
+    <div
       onPointerDown={e => onPointerDown(e,'nav')}
-      style={{ position:'absolute', left:layout.nav.x, top:layout.nav.y, cursor: editLayout ? 'grab' : 'default', userSelect: editLayout ? 'none':'auto', padding: '12px 16px', background: theme.surface, border: '1px solid #bfc4ca', borderRadius: 8, minWidth:260, boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}
+      style={{ position:'absolute', left:layout.nav.x, top:layout.nav.y, cursor: editLayout ? 'grab' : 'default', userSelect: editLayout ? 'none':'auto', padding: '12px 16px', background: wc.base || theme.surface, border: '1px solid '+(wc.border || '#bfc4ca'), borderRadius: 8, minWidth:260, boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text || theme.text }}
     >
-      <h3 style={{ margin: '0 0 8px', color: team === 'dark' ? theme.text : theme.secondary, fontSize:16 }}>Navigation</h3>
+      <h3 style={{ margin: '0 0 8px', background: wc.header||'transparent', padding: wc.header? '4px 6px':0, borderRadius:4, color: wc.text || (team === 'dark' ? theme.text : theme.secondary), fontSize:16 }}>Navigation</h3>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <li><a href="#planner" style={{ color: theme.text, fontWeight: 'bold', textDecoration: 'none' }}>Go to Planner</a></li>
+        <li><a href="#planner" style={{ color: wc.text || theme.text, fontWeight: 'bold', textDecoration: 'none' }}>Go to Planner</a></li>
       </ul>
-  </div>)}
+    </div>
+  ); })()}
     {/* Forecast Widget */}
-  {visible.forecast && (<section
+  {visible.forecast && (() => { const wc = widgetColorTheme('forecast'); return (
+    <section
       onPointerDown={e => onPointerDown(e,'forecast')}
-      style={{ position:'absolute', left:layout.forecast.x, top:layout.forecast.y, padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
-  <h3 style={{ margin: '0 0 4px', color: theme.text, fontSize: 16 }}>POB Forecast</h3>
+      style={{ position:'absolute', left:layout.forecast.x, top:layout.forecast.y, padding: '6px 8px', background: wc.base || theme.surface, border: '1px solid '+(wc.border||widgetBorderColor), borderRadius: 8, display:'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text || theme.text }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 16, background: wc.header||'transparent', padding: wc.header?'4px 6px':0, borderRadius:4, color: wc.text || theme.text }}>POB Forecast</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ borderCollapse: 'collapse', width: 'auto', tableLayout: 'auto' }}>
             <thead>
               <tr>
-                <th style={thStyle(theme, hasComments)}>Company</th>
+                <th style={thStyle(theme, hasComments, wc)}>Company</th>
                 {next7.map(d => {
                   const header = `${d.dow} ${d.label}`; // single-line compact
                   return (
-                    <th key={d.key} style={thStyle(theme, hasComments)} title={d.key}>{header}</th>
+                    <th key={d.key} style={thStyle(theme, hasComments, wc)} title={d.key}>{header}</th>
                   );
                 })}
               </tr>
@@ -221,108 +265,113 @@ function Dashboard() {
             <tbody>
               {visibleCompanies.map(c => (
                 <tr key={c.id || c.company}>
-                  <td style={tdLeft(theme)}>{c.company}</td>
+                  <td style={tdLeft(theme, wc)}>{c.company}</td>
                   {next7.map(d => (
-                    <td key={d.key} style={tdStyle(theme)}>{c[d.key] || ''}</td>
+                    <td key={d.key} style={tdStyle(theme, wc)}>{c[d.key] || ''}</td>
                   ))}
                 </tr>
               ))}
               <tr style={{ background: theme.background }}>
-                <td style={{ ...tdLeft(theme), fontWeight: 'bold', fontSize: 13 }}>Totals</td>
+                <td style={{ ...tdLeft(theme, wc), fontWeight: 'bold', fontSize: 13 }}>Totals</td>
                 {next7.map(d => (
-                  <td key={d.key} style={{ ...tdStyle(theme), fontWeight: 'bold', fontSize: 11 }}>{totalsPerDay[d.key] || ''}</td>
+                  <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight: 'bold', fontSize: 11 }}>{totalsPerDay[d.key] || ''}</td>
                 ))}
               </tr>
               <tr>
-                <td style={{ ...tdLeft(theme), fontStyle: 'italic', fontSize: 13 }}>Comments</td>
+                <td style={{ ...tdLeft(theme, wc), fontStyle: 'italic', fontSize: 13 }}>Comments</td>
                 {next7.map(d => (
-                  <td key={d.key} style={{ ...tdStyle(theme), fontStyle: 'italic', whiteSpace: 'pre-wrap', fontSize: 10 }}>{comments[d.key] || ''}</td>
+                  <td key={d.key} style={{ ...tdStyle(theme, wc), fontStyle: 'italic', whiteSpace: 'pre-wrap', fontSize: 10 }}>{comments[d.key] || ''}</td>
                 ))}
               </tr>
             </tbody>
           </table>
         </div>
   <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Read-only snapshot.</div>
-  </section>)}
+    </section>
+  ); })()}
       {/* Flight Forecast Widget (horizontal like POB Forecast) */}
-  {visible.flightForecast && (<section
+  {visible.flightForecast && (() => { const wc = widgetColorTheme('flightForecast'); return (
+    <section
       onPointerDown={e => onPointerDown(e,'flightForecast')}
-      style={{ position:'absolute', left:(layout.flightForecast?.x||340), top:(layout.flightForecast?.y||160), padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
-    <h3 style={{ margin: '0 0 4px', color: theme.text, fontSize: 16 }}>Flight Forecast</h3>
+      style={{ position:'absolute', left:(layout.flightForecast?.x||340), top:(layout.flightForecast?.y||160), padding: '6px 8px', background: wc.base||theme.surface, border: '1px solid '+(wc.border||widgetBorderColor), borderRadius: 8, display:'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text||theme.text }}>
+    <h3 style={{ margin: '0 0 4px', fontSize: 16, background: wc.header||'transparent', padding: wc.header?'4px 6px':0, borderRadius:4, color: wc.text||theme.text }}>Flight Forecast</h3>
     <div style={{ overflowX:'auto' }}>
       <table style={{ borderCollapse:'collapse', width:'auto', tableLayout:'auto', fontSize:11 }}>
         <thead>
           <tr>
-            <th style={thStyle(theme)}></th>
+            <th style={thStyle(theme, undefined, wc)}></th>
             {next7.map(d => (
-              <th key={d.key} style={thStyle(theme)} title={d.key}>{d.dow} {d.label}</th>
+              <th key={d.key} style={thStyle(theme, undefined, wc)} title={d.key}>{d.dow} {d.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style={{ ...tdLeft(theme), fontWeight:'bold' }}>Flights Out (+)</td>
+            <td style={{ ...tdLeft(theme, wc), fontWeight:'bold' }}>Flights Out (+)</td>
             {next7.map(d => {
               const arr = flightDeltas.out[d.key] || [];
               const total = arr.reduce((sum, s) => {
                 const n = parseInt(String(s).split('-')[0], 10); return sum + (isNaN(n)?0:n);
               }, 0);
-              return <td key={d.key} style={tdStyle(theme)} title={arr.join(', ')}>{total || ''}</td>;
+              return <td key={d.key} style={tdStyle(theme, wc)} title={arr.join(', ')}>{total || ''}</td>;
             })}
           </tr>
           <tr>
-            <td style={{ ...tdLeft(theme), fontWeight:'bold' }}>Flights In (-)</td>
+            <td style={{ ...tdLeft(theme, wc), fontWeight:'bold' }}>Flights In (-)</td>
             {next7.map(d => {
               const arr = flightDeltas.in[d.key] || [];
               const total = arr.reduce((sum, s) => {
                 const n = parseInt(String(s).split('-')[0], 10); return sum + (isNaN(n)?0:n);
               }, 0);
-              return <td key={d.key} style={tdStyle(theme)} title={arr.join(', ')}>{total || ''}</td>;
+              return <td key={d.key} style={tdStyle(theme, wc)} title={arr.join(', ')}>{total || ''}</td>;
             })}
           </tr>
         </tbody>
       </table>
     </div>
     <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Derived from POB deltas (company count changes).</div>
-  </section>)}
+    </section>
+  ); })()}
       {/* POB Onboard Widget */}
-  {visible.onboard && (<section
+  {visible.onboard && (() => { const wc = widgetColorTheme('onboard'); return (
+    <section
         onPointerDown={e => onPointerDown(e,'onboard')}
-        style={{ position:'absolute', left:layout.onboard.x, top:layout.onboard.y, padding: '12px 14px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab':'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
+        style={{ position:'absolute', left:layout.onboard.x, top:layout.onboard.y, padding: '12px 14px', background: wc.base||theme.surface, border: '1px solid '+(wc.border||widgetBorderColor), borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab':'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text||theme.text }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-          <h3 style={{ margin:0, fontSize:16 }}>POB Onboard</h3>
-          <button onClick={refreshPersonnel} style={{ background: theme.primary, color: theme.text, border: '1px solid '+theme.secondary, padding: '4px 8px', borderRadius:4, cursor:'pointer', fontSize:11 }}>Refresh</button>
+          <h3 style={{ margin:0, fontSize:16, background: wc.header||'transparent', padding: wc.header?'4px 6px':0, borderRadius:4 }}>POB Onboard</h3>
+          <button onClick={refreshPersonnel} style={{ background: wc.header||theme.primary, color: wc.text||theme.text, border: '1px solid '+(wc.border||theme.secondary), padding: '4px 8px', borderRadius:4, cursor:'pointer', fontSize:11 }}>Refresh</button>
         </div>
         <div style={{ overflowX:'auto' }}>
           <table style={{ borderCollapse:'collapse', width:'auto', tableLayout:'auto', fontSize:11 }}>
             <thead>
               <tr>
                 {['Core','Name','Company','Crew','Rotation','Arrival','Days On-Board','Notes'].map(h => (
-                  <th key={h} style={{ padding:'4px 6px', border:`1px solid ${widgetBorderColor}`, background: theme.primary, color: theme.text, whiteSpace:'nowrap' }}>{h}</th>
+                  <th key={h} style={{ padding:'4px 6px', border:'1px solid '+(wc.border||widgetBorderColor), background: wc.header||theme.primary, color: wc.text||theme.text, whiteSpace:'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {withComputed.map(p => (
                 <tr key={p.id}>
-                  <td style={onCell(theme)}>{p.coreCrew ? 'Yes' : ''}</td>
-                  <td style={onCell(theme)} title={`${p.firstName||''} ${p.lastName||''}`}>{(p.firstName||'') + ' ' + (p.lastName||'')}</td>
-                  <td style={onCell(theme)} title={p.company}>{p.company}</td>
-                  <td style={onCell(theme)} title={p.crew}>{p.crew}</td>
-                  <td style={onCell(theme)} title={p.rotation}>{p.rotation}</td>
-                  <td style={onCell(theme)}>{fmtDate(p.arrivalDate)}</td>
-                  <td style={onCell(theme)}>{p.daysOnboardDisplay}</td>
-                  <td style={{ ...onCell(theme), maxWidth:240, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={p.notes}>{p.notes}</td>
+                  <td style={onCell(theme, wc)}>{p.coreCrew ? 'Yes' : ''}</td>
+                  <td style={onCell(theme, wc)} title={`${p.firstName||''} ${p.lastName||''}`}>{(p.firstName||'') + ' ' + (p.lastName||'')}</td>
+                  <td style={onCell(theme, wc)} title={p.company}>{p.company}</td>
+                  <td style={onCell(theme, wc)} title={p.crew}>{p.crew}</td>
+                  <td style={onCell(theme, wc)} title={p.rotation}>{p.rotation}</td>
+                  <td style={onCell(theme, wc)}>{fmtDate(p.arrivalDate)}</td>
+                  <td style={onCell(theme, wc)}>{p.daysOnboardDisplay}</td>
+                  <td style={{ ...onCell(theme, wc), maxWidth:240, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={p.notes}>{p.notes}</td>
                 </tr>
               ))}
               {withComputed.length === 0 && (
-                <tr><td colSpan={8} style={{ ...onCell(theme), fontStyle:'italic', textAlign:'center' }}>No onboard personnel</td></tr>
+                <tr><td colSpan={8} style={{ ...onCell(theme, wc), fontStyle:'italic', textAlign:'center' }}>No onboard personnel</td></tr>
               )}
             </tbody>
           </table>
         </div>
         <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Snapshot of personnelRecords (Onboard only).</div>
-  </section>)}
+    </section>
+  ); })()}
   </div>
       </div>
     </StyledThemeProvider>
@@ -332,30 +381,32 @@ function Dashboard() {
 export default Dashboard;
 
 // Styling helpers
-const thStyle = (theme, hasComments) => {
-  const borderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
+const thStyle = (theme, hasComments, wc) => {
+  const borderColor = wc?.border || (theme.name === 'Dark' ? '#bfc4ca' : '#444');
   return {
     padding: '3px 4px',
     border: `1px solid ${borderColor}`,
-    background: theme.primary,
-    color: theme.text,
+    background: wc?.header || theme.primary,
+    color: wc?.text || theme.text,
     fontSize: 10,
     textAlign: 'center',
     whiteSpace: 'nowrap',
     width: 'auto'
   };
 };
-const tdStyle = (theme) => {
-  const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
+const tdStyle = (theme, wc) => {
+  const borderColor = (wc?.border && wc.base) ? wc.border : (theme.name === 'Dark' ? '#bfc4ca40' : '#444');
   return {
     padding: '2px 4px',
     border: `1px solid ${borderColor}`,
     fontSize: 10,
-    textAlign: 'center'
+    textAlign: 'center',
+    color: wc?.text || theme.text,
+    background: wc?.base ? wc.base : 'transparent'
   };
 };
-const tdLeft = (theme) => ({
-  ...tdStyle(theme),
+const tdLeft = (theme, wc) => ({
+  ...tdStyle(theme, wc),
   textAlign: 'left',
   fontWeight: 500,
   maxWidth: 120,
@@ -365,11 +416,13 @@ const tdLeft = (theme) => ({
 });
 
 // Cell style for onboard widget
-const onCell = (theme) => ({
+const onCell = (theme, wc) => ({
   padding: '3px 6px',
-  border: '1px solid ' + (theme.name === 'Dark' ? '#bfc4ca40' : '#444'),
+  border: '1px solid ' + (wc?.border || (theme.name === 'Dark' ? '#bfc4ca40' : '#444')),
   fontSize: 11,
   whiteSpace: 'nowrap',
   textAlign: 'left',
-  verticalAlign: 'top'
+  verticalAlign: 'top',
+  color: wc?.text || theme.text,
+  background: wc?.base || 'transparent'
 });

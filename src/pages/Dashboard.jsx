@@ -8,10 +8,7 @@ const GlobalStyle = createGlobalStyle`
   body { background: ${({ theme }) => theme.background}; color: ${({ theme }) => theme.text}; transition: background 0.3s, color 0.3s; }
   * { font-family: 'Segoe UI', Arial, sans-serif; }
 `;
-const GearButton = styled.button`
-  position: fixed; top: 12px; right: 16px; background: transparent; border: none; cursor: pointer; z-index: 200; font-size: 24px; color: ${({ theme }) => theme.primary || '#fff'}; line-height: 1; padding: 0; transition: color 0.2s, transform 0.2s;
-  &:hover { color: ${({ theme }) => theme.secondary || '#ccc'}; transform: rotate(20deg); }
-`;
+// Removed local GearButton (now using global navigation gear)
 const Dropdown = styled.div`
   position: fixed; top: 54px; right: 16px; background: ${({ theme }) => theme.background || '#fff'}; color: ${({ theme }) => theme.text || '#222'}; border: 1px solid ${({ theme }) => theme.primary}; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); min-width: 200px; padding: 14px 16px 16px; z-index: 210;
 `;
@@ -20,7 +17,12 @@ function Dashboard() {
   const { theme, team, changeTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
-  const gearRef = useRef(null);
+  // Listen for global event to open dashboard settings
+  useEffect(()=>{
+    const openEvt = () => setSettingsOpen(o=> !o);
+    window.addEventListener('openDashboardSettings', openEvt);
+    return () => window.removeEventListener('openDashboardSettings', openEvt);
+  },[]);
   const widgetBorderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
   // User location setting (persist per user in localStorage)
   const userLocKey = 'pobUserLocation';
@@ -180,10 +182,9 @@ function Dashboard() {
   useEffect(() => {
     if (!settingsOpen) return;
     const handleClick = (e) => {
-      const menu = settingsRef.current;
-      const gear = gearRef.current;
-      if (!menu) return;
-      if (menu.contains(e.target) || gear?.contains(e.target)) return;
+  const menu = settingsRef.current;
+  if (!menu) return;
+  if (menu.contains(e.target)) return;
       // Only auto-close on outside click when not editing layout
       if (!editLayout) setSettingsOpen(false);
     };
@@ -202,7 +203,6 @@ function Dashboard() {
     <StyledThemeProvider theme={theme}>
       <GlobalStyle />
   <div style={{ padding: '24px', color: theme.text, background: theme.background, minHeight: '100vh' }}>
-        <GearButton ref={gearRef} onClick={() => setSettingsOpen(o => !o)} title="Settings / Theme">⚙️</GearButton>
         {settingsOpen && (
           <Dropdown ref={settingsRef}>
             <div style={{ marginBottom: 8, fontWeight: 'bold' }}>Theme Settings</div>

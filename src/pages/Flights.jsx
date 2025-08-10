@@ -61,9 +61,35 @@ export default function FlightsPage() {
   const plannerRows = rowData; // existing rowData from planner
   // Track selected personnel from movement widgets to send to manifest
   const [selectedPeople, setSelectedPeople] = useState({}); // key -> person payload
+  // Current working manifest passengers (for green highlight if already present)
+  const manifestPassengersSet = useMemo(()=>{
+    try {
+      const raw = JSON.parse(localStorage.getItem('flightManifestTemplateV1'));
+      if(!raw) return new Set();
+      const collect = [];
+      ['outbound','inbound'].forEach(dir=>{
+        (raw[dir]||[]).forEach(p=>{
+          if(!p) return;
+          const full = (p.name||'').trim().toLowerCase();
+          const company = (p.company||'').trim().toLowerCase();
+            if(full) collect.push(full+'|'+company);
+        });
+      });
+      return new Set(collect);
+    } catch { return new Set(); }
+  }, []);
+  const personInManifest = (person) => {
+    const full = ((person.firstName||'').trim()+' '+(person.lastName||'').trim()).trim().toLowerCase();
+    const company = (person.company||'').trim().toLowerCase();
+    return full && manifestPassengersSet.has(full+'|'+company);
+  };
   const toggleSelectPerson = (person, source, dateKey) => {
     // source: 'arrivals'|'departures'|'onBoard'
-    const dir = source==='arrivals' ? 'inbound' : (source==='departures' ? 'outbound' : 'outbound');
+    // Domain meaning: Inbound = headed to land (departing facility); Outbound = headed to facility.
+    // Arrivals (arrivalDate today) are coming OUT to facility -> outbound.
+    // Departures (departureDate today) are leaving facility inbound to land -> inbound.
+    // OnBoard default assumption: if selecting for an inbound flight (bringing people to land) -> inbound.
+    const dir = source==='arrivals' ? 'outbound' : (source==='departures' ? 'inbound' : 'inbound');
     const key = dateKey+':'+person.id+':'+dir;
     setSelectedPeople(prev => {
       const next = { ...prev };
@@ -90,11 +116,27 @@ export default function FlightsPage() {
       const payload = Object.values(selectedPeople);
       localStorage.setItem('manifestSelectedPersonnel', JSON.stringify(payload));
     } catch {/* ignore */}
-    if(selectedDates.length){
-      openManifestTemplate();
-    } else {
-      window.location.hash = '#manifest';
-    }
+    // Check catalog for existing manifest on target date (use last selected date or today fallback)
+    try {
+      const targetDateMdy = selectedDates.length ? keyForDate(selectedDates.sort((a,b)=>a-b)[selectedDates.length-1]) : null;
+      let targetIso = null;
+      if(targetDateMdy){
+        const [m,d,y] = targetDateMdy.split('/');
+        targetIso = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      }
+      if(targetIso){
+        const existing = catalog.find(c=> c.meta && c.meta.date === targetIso);
+        if(existing){
+          const load = window.confirm('A saved manifest already exists for '+targetIso+' (Flight # '+(existing.meta.flightNumber||'N/A')+').\nLoad it before adding selected personnel?');
+          if(load){
+            try {
+              localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound }));
+            } catch {/* ignore */}
+          }
+        }
+      }
+    } catch {/* ignore */}
+    if(selectedDates.length) openManifestTemplate(); else window.location.hash = '#manifest';
   };
   const movementForSelected = useMemo(()=>{
     if(!selectedDates.length) return [];
@@ -164,7 +206,7 @@ export default function FlightsPage() {
             <div key={mv.date} style={{ background: theme.surface, padding:16, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:12, boxShadow:'0 4px 10px rgba(0,0,0,0.25)', width:'min(980px,100%)' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                 <div style={{ fontSize:16, fontWeight:700 }}>Personnel Movement - {mv.date}</div>
-                <div style={{ fontSize:11, opacity:.7 }}>Click names to select (Arrivals→Inbound, Departures→Outbound)</div>
+                <div style={{ fontSize:11, opacity:.7 }}>Click names to select (Arrivals→Outbound, Departures→Inbound)</div>
               </div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:24 }}>
                 <div style={{ minWidth:220 }}>
@@ -172,10 +214,11 @@ export default function FlightsPage() {
                   {mv.arrivals.length? (
                     <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12, listStyle:'disc' }}>
                       {mv.arrivals.map(p=> {
-                        const key = mv.date+':'+p.id+':inbound';
+                        const key = mv.date+':'+p.id+':outbound';
                         const sel = !!selectedPeople[key];
+                        const inMan = personInManifest(p);
                         return (
-                          <li key={p.id} onClick={()=>toggleSelectPerson(p,'arrivals', mv.date)} style={{ cursor:'pointer', userSelect:'none', background: sel? (theme.primary): 'transparent', color: sel? theme.text: undefined, borderRadius:4, padding: sel? '2px 4px':'2px 4px', margin:'2px 0' }}>
+                          <li key={p.id} onClick={()=>toggleSelectPerson(p,'arrivals', mv.date)} style={{ cursor:'pointer', userSelect:'none', background: sel? (theme.primary): (inMan? '#1d7f3a':'transparent'), color: sel? theme.text: (inMan? '#fff': undefined), borderRadius:4, padding:'2px 4px', margin:'2px 0', boxShadow: inMan && !sel ? '0 0 0 1px #1d7f3a inset' : undefined }} title={inMan? 'Already on manifest':''}>
                             {p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span>
                           </li>
                         );
@@ -188,10 +231,11 @@ export default function FlightsPage() {
                   {mv.departures.length? (
                     <ul style={{ margin:0, padding:'0 0 0 16px', fontSize:12 }}>
                       {mv.departures.map(p=> {
-                        const key = mv.date+':'+p.id+':outbound';
+                        const key = mv.date+':'+p.id+':inbound';
                         const sel = !!selectedPeople[key];
+                        const inMan = personInManifest(p);
                         return (
-                          <li key={p.id} onClick={()=>toggleSelectPerson(p,'departures', mv.date)} style={{ cursor:'pointer', userSelect:'none', background: sel? (theme.primary): 'transparent', color: sel? theme.text: undefined, borderRadius:4, padding: sel? '2px 4px':'2px 4px', margin:'2px 0' }}>
+                          <li key={p.id} onClick={()=>toggleSelectPerson(p,'departures', mv.date)} style={{ cursor:'pointer', userSelect:'none', background: sel? (theme.primary): (inMan? '#1d7f3a':'transparent'), color: sel? theme.text: (inMan? '#fff': undefined), borderRadius:4, padding:'2px 4px', margin:'2px 0', boxShadow: inMan && !sel ? '0 0 0 1px #1d7f3a inset' : undefined }} title={inMan? 'Already on manifest':''}>
                             {p.firstName} {p.lastName} <span style={{ opacity:.6 }}>({p.company||'No Co'})</span>
                           </li>
                         );
@@ -208,10 +252,11 @@ export default function FlightsPage() {
                   <div style={{ fontSize:12, marginBottom:6 }}>Total: {mv.onBoard.length}</div>
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:4, maxHeight:180, overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#444':'#bbb'), padding:6, borderRadius:6 }}>
                     {mv.onBoard.map(p=> {
-                      const key = mv.date+':'+p.id+':outbound';
+                      const key = mv.date+':'+p.id+':inbound';
                       const sel = !!selectedPeople[key];
+                      const inMan = personInManifest(p);
                       return (
-                        <div key={p.id} onClick={()=>toggleSelectPerson(p,'onBoard', mv.date)} style={{ fontSize:11, background: sel? (theme.primary): (theme.name==='Dark'? '#2e3439':'#eef3f7'), padding:'4px 5px', borderRadius:6, cursor:'pointer', userSelect:'none', color: sel? theme.text: undefined }}>
+                        <div key={p.id} onClick={()=>toggleSelectPerson(p,'onBoard', mv.date)} style={{ fontSize:11, background: sel? (theme.primary): (inMan? '#1d7f3a': (theme.name==='Dark'? '#2e3439':'#eef3f7')), padding:'4px 5px', borderRadius:6, cursor:'pointer', userSelect:'none', color: sel? theme.text: (inMan? '#fff': undefined), boxShadow: inMan && !sel ? '0 0 0 1px #1d7f3a inset' : undefined }} title={inMan? 'Already on manifest':''}>
                           {p.firstName} {p.lastName}<br/><span style={{ opacity:.6 }}>{p.company||''}</span>
                         </div>
                       );
@@ -227,7 +272,7 @@ export default function FlightsPage() {
                 <span style={{ fontSize:12 }}>Selected Personnel: <strong>{selectedCount}</strong></span>
                 <button onClick={()=> setSelectedPeople({})} style={{ background: theme.name==='Dark'? '#444':'#d3dde5', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#666':'#999'), padding:'4px 8px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 }}>Clear</button>
                 <button onClick={sendSelectedToManifest} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>Send To Manifest</button>
-                <span style={{ fontSize:11, opacity:.65 }}>Departures→Outbound, Arrivals→Inbound (On Board defaults Outbound)</span>
+                <span style={{ fontSize:11, opacity:.65 }}>Arrivals→Outbound, Departures→Inbound (On Board defaults Inbound). Green = already on manifest.</span>
               </div>
             </div>
           )}

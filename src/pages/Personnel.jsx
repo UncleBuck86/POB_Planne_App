@@ -34,6 +34,7 @@ const blank = () => ({
   lastName: '',
   company: '',
   position: '',
+  location: '',
   crew: '',
   rotation: '',
   coreCrew: false,
@@ -66,18 +67,22 @@ export default function Personnel() {
     try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
   };
   const [crewOptions, setCrewOptions] = useState(() => loadList('personnelCrewOptions'));
+  const [locationOptions, setLocationOptions] = useState(() => loadList('personnelLocationOptions'));
   const [rotationOptions, setRotationOptions] = useState(() => loadList('personnelRotationOptions'));
   const [showAdmin, setShowAdmin] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Raw textarea values so user can insert blank new lines while typing
   const [crewOptionsText, setCrewOptionsText] = useState(() => (crewOptions.join('\n')));
+  const [locationOptionsText, setLocationOptionsText] = useState(() => (locationOptions.join('\n')));
   const [rotationOptionsText, setRotationOptionsText] = useState(() => (rotationOptions.join('\n')));
 
   useEffect(() => { saveRecords(records); }, [records]);
   useEffect(() => { localStorage.setItem('personnelCrewOptions', JSON.stringify(crewOptions)); }, [crewOptions]);
+  useEffect(() => { localStorage.setItem('personnelLocationOptions', JSON.stringify(locationOptions)); }, [locationOptions]);
   useEffect(() => { localStorage.setItem('personnelRotationOptions', JSON.stringify(rotationOptions)); }, [rotationOptions]);
   // Keep textareas in sync if lists change externally
   useEffect(() => { setCrewOptionsText(crewOptions.join('\n')); }, [crewOptions]);
+  useEffect(() => { setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
   useEffect(() => { setRotationOptionsText(rotationOptions.join('\n')); }, [rotationOptions]);
   // Refresh company options when storage changes (other tab) or periodically while on page
   useEffect(() => {
@@ -117,6 +122,7 @@ export default function Personnel() {
     setDraft({
       crew: '',
   rotation: '',
+  location: '',
       coreCrew: false,
       primaryPhone: '',
       secondaryPhone: '',
@@ -228,6 +234,18 @@ export default function Personnel() {
             <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Appears in Crew dropdown.</div>
           </div>
           <div>
+            <h4 style={{ margin: '0 0 6px' }}>Location Options</h4>
+            <textarea
+              rows={6}
+              value={locationOptionsText}
+              onChange={e => setLocationOptionsText(e.target.value)}
+              onBlur={() => setLocationOptions(locationOptionsText.split(/\n/).map(v => v.trim()).filter(Boolean))}
+              style={{ width: '100%', ...input(theme), resize: 'vertical', whiteSpace: 'pre', fontFamily: 'monospace' }}
+              placeholder="e.g. Platform A\nPlatform B\nRig 12"
+            />
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Appears in Location dropdown.</div>
+          </div>
+          <div>
             <h4 style={{ margin: '0 0 6px' }}>Rotation Options</h4>
             <textarea
               rows={6}
@@ -279,6 +297,16 @@ export default function Personnel() {
                 <datalist id="companyOptionsList">
                   {companyOptions.map(c => <option key={c} value={c} />)}
                 </datalist>
+              )}
+            </Field>
+            <Field label="Location">
+              {locationOptions.length ? (
+                <select value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} style={select(theme)}>
+                  <option value="">-- Select Location --</option>
+                  {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              ) : (
+                <input value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} style={input(theme)} placeholder="Define locations in Manage Lists" />
               )}
             </Field>
             <Field label="Position">
@@ -389,7 +417,7 @@ export default function Personnel() {
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
           <thead>
             <tr>
-              {['Actions','First','Last','Company','Position','Crew','Rotation','Core','Arrival','Departure','Status','DOB','Days Onboard','Days Since Departed','Notes'].map(h => (
+              {['Actions','First','Last','Company','Position','Location','Crew','Rotation','Core','Arrival','Departure','Status','DOB','Days Onboard','Days Since Departed','Notes'].map(h => (
                 <th
                   key={h}
                   style={{ border: `1px solid ${borderColor}`, background: theme.primary, color: theme.text, padding: '6px 8px', fontSize: 12 }}
@@ -435,6 +463,7 @@ export default function Personnel() {
                 <td style={cell(theme)}>{r.lastName}</td>
                 <td style={cell(theme)}>{r.company}</td>
                 <td style={cell(theme)}>{r.position}</td>
+                <td style={cell(theme)}>{r.location}</td>
                 <td style={cell(theme)}>{r.crew}</td>
                 <td style={cell(theme)}>{r.rotation}</td>
                 <td style={cell(theme)}>{r.coreCrew ? 'Yes' : ''}</td>

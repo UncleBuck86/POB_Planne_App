@@ -157,8 +157,8 @@ function AppContent(props) {
           </button>
         </Dropdown>
       )}
-      <div style={{ position: 'fixed', top: 10, left: 60, color: theme.secondary, fontWeight: 'bold', fontSize: '14px', letterSpacing: '1px' }}>
-        v1.0.0
+      <div style={{ position: 'fixed', top: 10, left: 60, color: 'yellow', fontWeight: 'bold', fontSize: '14px', letterSpacing: '1px', textShadow: '0 0 4px rgba(0,0,0,0.6)' }}>
+        v2.0
       </div>
       <h1 style={{ 
         color: team === 'light' ? '#bfc4ca' : team === 'dark' ? '#bfc4ca' : theme.primary,

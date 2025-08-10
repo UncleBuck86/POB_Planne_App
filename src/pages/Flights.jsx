@@ -66,7 +66,9 @@ export default function FlightsPage() {
     let aircraftTypes=[]; try { aircraftTypes = JSON.parse(localStorage.getItem('flightManifestAircraftTypes'))||[]; } catch { aircraftTypes=[]; }
     allDatesForMonth.forEach(d=>{
       const k=keyForDate(d); const iso=isoFromKey(k);
-      const plannerCount = parseEntries(flightsOut[k]||[]) + parseEntries(flightsIn[k]||[]);
+      const plannerOutboundCount = parseEntries(flightsOut[k]||[]);
+      const plannerInboundCount = parseEntries(flightsIn[k]||[]);
+      const plannerCount = plannerOutboundCount + plannerInboundCount;
       let manifestEntry = null;
       if(iso) manifestEntry = catalog.find(c=> (c.meta && c.meta.date===iso) || c.date===iso);
       let manifestCount = 0; let capacityError=false; const reasons=[];
@@ -74,7 +76,11 @@ export default function FlightsPage() {
         const outbound = manifestEntry.outbound||[];
         const inbound = manifestEntry.inbound||[];
         const allPax = [...outbound, ...inbound];
-        manifestCount = allPax.filter(p=>{ const full=((p.name||'')+' '+(p.company||'')).toLowerCase(); return !ignoreKeywords.some(w=> full.includes(w)); }).length;
+        const outboundFiltered = outbound.filter(p=>{ const full=((p.name||'')+' '+(p.company||'')).toLowerCase(); return !ignoreKeywords.some(w=> full.includes(w)); });
+        const inboundFiltered = inbound.filter(p=>{ const full=((p.name||'')+' '+(p.company||'')).toLowerCase(); return !ignoreKeywords.some(w=> full.includes(w)); });
+        const manifestOutboundCount = outboundFiltered.length;
+        const manifestInboundCount = inboundFiltered.length;
+        manifestCount = manifestOutboundCount + manifestInboundCount;
         const type = aircraftTypes.find(a=> a.type === (manifestEntry.meta?.aircraftType));
         if(type){
           const maxPax = parseInt(type.maxPax)||null;
@@ -88,12 +94,20 @@ export default function FlightsPage() {
           if(maxOutboundWeight!=null && outboundWt>maxOutboundWeight){ capacityError=true; reasons.push(`Outbound Wt ${outboundWt.toFixed(1)}/${maxOutboundWeight} OVER`); }
           if(maxInboundWeight!=null && inboundWt>maxInboundWeight){ capacityError=true; reasons.push(`Inbound Wt ${inboundWt.toFixed(1)}/${maxInboundWeight} OVER`); }
         }
+        // If any mismatch or capacity error we'll append detailed counts line
+        const countsLine = `Counts: Planner OB ${plannerOutboundCount} / IB ${plannerInboundCount} | Manifest OB ${manifestEntry.outbound?.length||0} (${manifestCount? outboundFiltered.length:''}) / IB ${manifestEntry.inbound?.length||0} (${manifestCount? inboundFiltered.length:''})`;
+        // We'll append counts line later if mismatch or error
+        manifestEntry.__countsLine = countsLine; // temp attach (not persisted)
+        manifestEntry.__plannerOutboundCount = plannerOutboundCount;
+        manifestEntry.__plannerInboundCount = plannerInboundCount;
+        manifestEntry.__manifestOutboundCount = outboundFiltered.length;
+        manifestEntry.__manifestInboundCount = inboundFiltered.length;
       }
       let color=null;
       if(plannerCount>0 && !manifestEntry) color='yellow';
       else if(manifestEntry){
-        if(capacityError){ color='red'; if(!reasons.length) reasons.push('Capacity limit exceeded'); }
-        else if(plannerCount>0 && manifestCount !== plannerCount){ color='red'; reasons.push(`Planner PAX ${plannerCount} vs Manifest ${manifestCount}`); }
+        if(capacityError){ color='red'; if(!reasons.length) reasons.push('Capacity limit exceeded'); if(manifestEntry.__countsLine) reasons.push(manifestEntry.__countsLine); }
+        else if(plannerCount>0 && manifestCount !== plannerCount){ color='red'; reasons.push(`Planner PAX ${plannerCount} vs Manifest ${manifestCount}`); if(manifestEntry.__countsLine) reasons.push(manifestEntry.__countsLine); }
         else if(plannerCount>0 && manifestCount === plannerCount) color='green';
       }
       if(color) map[k] = { color, plannerCount, manifestCount, reasons };

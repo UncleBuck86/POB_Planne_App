@@ -62,6 +62,10 @@ export default function FlightManifestTemplate() {
   const totalWeightOutbound = useMemo(()=> safeOutbound.reduce((s,p)=> {
     const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; return s + bw + gw; },0), [safeOutbound]);
   const totalWeightInbound = useMemo(()=> safeInbound.reduce((s,p)=> { const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; return s + bw + gw; },0), [safeInbound]);
+  const totalBodyOutbound = useMemo(()=> safeOutbound.reduce((s,p)=> s + (parseFloat(p.bodyWeight)||0),0), [safeOutbound]);
+  const totalBagOutbound = useMemo(()=> safeOutbound.reduce((s,p)=> s + (parseFloat(p.bagWeight)||0),0), [safeOutbound]);
+  const totalBodyInbound = useMemo(()=> safeInbound.reduce((s,p)=> s + (parseFloat(p.bodyWeight)||0),0), [safeInbound]);
+  const totalBagInbound = useMemo(()=> safeInbound.reduce((s,p)=> s + (parseFloat(p.bagWeight)||0),0), [safeInbound]);
   const grandTotalPax = totalOutbound + totalInbound;
   const grandTotalWeight = totalWeightOutbound + totalWeightInbound;
 
@@ -119,17 +123,27 @@ export default function FlightManifestTemplate() {
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Outbound Passengers ({totalOutbound})</div>
   {passengerTable(theme, 'outbound', safeOutbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id))}
-        <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
-          <div style={{ marginLeft:'auto', fontSize:12, opacity:.7, display:'flex', alignItems:'center' }}>Outbound Weight: {totalWeightOutbound.toFixed(1)}</div>
+          <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
+            <span>Pax: {totalOutbound}</span>
+            <span>Body Wt: {totalBodyOutbound.toFixed(1)}</span>
+            <span>Bag Wt: {totalBagOutbound.toFixed(1)}</span>
+            <span>Total: {totalWeightOutbound.toFixed(1)}</span>
+          </div>
         </div>
       </section>
       <section style={card(theme)}>
         <div style={sectionHeader(theme)}>Inbound Passengers ({totalInbound})</div>
   {passengerTable(theme, 'inbound', safeInbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id))}
-        <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
-          <div style={{ marginLeft:'auto', fontSize:12, opacity:.7, display:'flex', alignItems:'center' }}>Inbound Weight: {totalWeightInbound.toFixed(1)}</div>
+          <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
+            <span>Pax: {totalInbound}</span>
+            <span>Body Wt: {totalBodyInbound.toFixed(1)}</span>
+            <span>Bag Wt: {totalBagInbound.toFixed(1)}</span>
+            <span>Total: {totalWeightInbound.toFixed(1)}</span>
+          </div>
         </div>
       </section>
       <section style={card(theme)}>

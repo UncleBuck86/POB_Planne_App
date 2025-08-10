@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
 
@@ -75,6 +75,47 @@ function Dashboard() {
     acc[d.key] = visibleCompanies.reduce((sum, c) => sum + (parseInt(c[d.key], 10) || 0), 0);
     return acc;
   }, {});
+  // --- Movable widgets layout ---
+  const GRID = 20; // px grid size
+  const layoutKey = 'dashboardWidgetLayoutV1';
+  const defaultLayout = {
+    nav: { x: 20, y: 20 },
+    forecast: { x: 20, y: 160 },
+    onboard: { x: 20, y: 360 }
+  };
+  const [layout, setLayout] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(layoutKey));
+      return stored ? { ...defaultLayout, ...stored } : defaultLayout;
+    } catch { return defaultLayout; }
+  });
+  useEffect(() => { localStorage.setItem(layoutKey, JSON.stringify(layout)); }, [layout]);
+  const [editLayout, setEditLayout] = useState(false);
+  const dragState = useRef({ id:null, offsetX:0, offsetY:0 });
+  const containerRef = useRef(null);
+  const onPointerDown = (e, id) => {
+    if (!editLayout) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    dragState.current = { id, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
+  const onPointerMove = (e) => {
+    const { id, offsetX, offsetY } = dragState.current;
+    if (!id) return;
+    const contRect = containerRef.current?.getBoundingClientRect();
+    const baseX = e.clientX - (contRect?.left || 0) - offsetX;
+    const baseY = e.clientY - (contRect?.top || 0) - offsetY;
+    const snap = (v) => Math.max(0, Math.round(v / GRID) * GRID);
+    setLayout(l => ({ ...l, [id]: { x: snap(baseX), y: snap(baseY) } }));
+  };
+  const onPointerUp = () => {
+    dragState.current.id = null;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+  };
+  useEffect(() => () => { onPointerUp(); }, []);
+
   return (
     <StyledThemeProvider theme={theme}>
       <GlobalStyle />
@@ -91,17 +132,27 @@ function Dashboard() {
           </Dropdown>
         )}
   <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Dashboard</h2>
-  <section style={{ margin: '16px 0 24px', padding: '12px 16px', background: theme.surface, border: '1px solid #bfc4ca', borderRadius: 8 }}>
-  <h3 style={{ margin: '0 0 8px', color: team === 'dark' ? theme.text : theme.secondary }}>Navigation</h3>
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <li><a href="#planner" style={{ color: theme.text, fontWeight: 'bold', textDecoration: 'none' }}>Go to Planner</a></li>
-        </ul>
-      </section>
-      <p style={{ maxWidth: 640, lineHeight: 1.5 }}>
-        This is the new dashboard page. Add summary widgets (e.g., total POB, upcoming flights,
-        company highlights) here. Let me know what metrics or charts you want to surface first.
-      </p>
-  <section style={{ marginTop: 16, padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block' }}>
+  <div style={{ marginBottom: 12, display:'flex', gap:8, flexWrap:'wrap' }}>
+    <button onClick={() => setEditLayout(e => !e)} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'6px 10px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:12 }}>
+      {editLayout ? 'Finish Layout' : 'Edit Layout'}
+    </button>
+    <span style={{ fontSize:11, opacity:0.7 }}>Drag widgets when in layout mode (snaps to {GRID}px grid).</span>
+  </div>
+  <div ref={containerRef} style={{ position:'relative', minHeight:600 }}>
+    {/* Navigation Widget */}
+    <div
+      onPointerDown={e => onPointerDown(e,'nav')}
+      style={{ position:'absolute', left:layout.nav.x, top:layout.nav.y, cursor: editLayout ? 'grab' : 'default', userSelect: editLayout ? 'none':'auto', padding: '12px 16px', background: theme.surface, border: '1px solid #bfc4ca', borderRadius: 8, minWidth:260, boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}
+    >
+      <h3 style={{ margin: '0 0 8px', color: team === 'dark' ? theme.text : theme.secondary, fontSize:16 }}>Navigation</h3>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <li><a href="#planner" style={{ color: theme.text, fontWeight: 'bold', textDecoration: 'none' }}>Go to Planner</a></li>
+      </ul>
+    </div>
+    {/* Forecast Widget */}
+    <section
+      onPointerDown={e => onPointerDown(e,'forecast')}
+      style={{ position:'absolute', left:layout.forecast.x, top:layout.forecast.y, padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
   <h3 style={{ margin: '0 0 4px', color: theme.text, fontSize: 16 }}>POB Forecast</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ borderCollapse: 'collapse', width: 'auto', tableLayout: 'auto' }}>
@@ -143,7 +194,9 @@ function Dashboard() {
   <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Read-only snapshot.</div>
       </section>
       {/* POB Onboard Widget */}
-  <section style={{ marginTop: 24, padding: '12px 14px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block' }}>
+      <section
+        onPointerDown={e => onPointerDown(e,'onboard')}
+        style={{ position:'absolute', left:layout.onboard.x, top:layout.onboard.y, padding: '12px 14px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab':'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
           <h3 style={{ margin:0, fontSize:16 }}>POB Onboard</h3>
           <button onClick={refreshPersonnel} style={{ background: theme.primary, color: theme.text, border: '1px solid '+theme.secondary, padding: '4px 8px', borderRadius:4, cursor:'pointer', fontSize:11 }}>Refresh</button>
@@ -178,6 +231,7 @@ function Dashboard() {
         </div>
         <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Snapshot of personnelRecords (Onboard only).</div>
       </section>
+  </div>
       </div>
     </StyledThemeProvider>
   );

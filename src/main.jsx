@@ -19,10 +19,43 @@ function RootRouter() {
 	return (
 		<ThemeProvider>
 			<div style={{ minHeight: '100vh' }}>
-				<nav style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', borderBottom: '1px solid #444', background: '#111', position: 'sticky', top: 0, zIndex: 50 }}>
-					<a href="#dashboard" style={{ color: page === 'dashboard' ? 'yellow' : '#fff', fontWeight: 'bold', textDecoration: 'none' }}>Dashboard</a>
-					<a href="#planner" style={{ color: page === 'planner' ? 'yellow' : '#fff', fontWeight: 'bold', textDecoration: 'none' }}>Planner</a>
-					<a href="#personnel" style={{ color: page === 'personnel' ? 'yellow' : '#fff', fontWeight: 'bold', textDecoration: 'none' }}>Personnel</a>
+				<nav style={{ display: 'flex', alignItems: 'flex-end', gap: 8, padding: '10px 18px 4px', borderBottom: '3px solid #222', background: '#111', position: 'sticky', top: 0, zIndex: 50 }}>
+					{[
+						{ key: 'dashboard', label: 'Dashboard', color: '#2d6cdf' },
+						{ key: 'planner', label: 'Planner', color: '#7a3cc2' },
+						{ key: 'personnel', label: 'Personnel', color: '#c2571d' }
+					].map(tab => {
+						const active = page === tab.key;
+						return (
+							<a
+								key={tab.key}
+								href={'#' + tab.key}
+								style={{
+									display: 'inline-block',
+									padding: '10px 18px 8px',
+									fontWeight: 600,
+									fontSize: 15,
+									letterSpacing: '.5px',
+									textDecoration: 'none',
+									color: '#fff',
+									background: tab.color,
+									borderTopLeftRadius: 8,
+									borderTopRightRadius: 8,
+									boxShadow: active ? '0 0 0 1px #000, 0 2px 4px rgba(0,0,0,.4)' : '0 0 0 1px #000',
+									position: 'relative',
+									transform: active ? 'translateY(0)' : 'translateY(4px)',
+									transition: 'transform .2s, box-shadow .2s, filter .2s',
+									filter: active ? 'brightness(1)' : 'brightness(.85)',
+									border: '1px solid #000',
+									borderBottom: active ? '3px solid #111' : '1px solid #000'
+								}}
+								onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1)'}
+								onMouseLeave={e => e.currentTarget.style.filter = active ? 'brightness(1)' : 'brightness(.85)'}
+							>
+								{tab.label}
+							</a>
+						);
+					})}
 				</nav>
 				{content}
 			</div>

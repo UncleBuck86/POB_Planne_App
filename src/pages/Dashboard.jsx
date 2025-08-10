@@ -393,6 +393,14 @@ function Dashboard() {
       const comp = p.company || 'Unassigned';
       if (p.coreCrew) coreCounts[comp] = (coreCounts[comp] || 0) + 1; else nonCoreCounts[comp] = (nonCoreCounts[comp] || 0) + 1;
     });
+    // Planned counts from planner for today (if available)
+    const todayKey = next7[0]?.key;
+    const plannedCounts = {};
+    visibleCompanies.forEach(r => {
+      if (!todayKey) return;
+      const val = parseInt(r[todayKey], 10);
+      if (!isNaN(val)) plannedCounts[r.company] = val;
+    });
     const sortedCore = Object.entries(coreCounts).sort((a,b)=> a[0].localeCompare(b[0]));
     const sortedNon = Object.entries(nonCoreCounts).sort((a,b)=> a[0].localeCompare(b[0]));
     const totalOnboard = onboard.length;
@@ -408,23 +416,31 @@ function Dashboard() {
         <div style={{ fontSize:12, fontWeight:'bold', marginBottom:4, borderBottom:'1px solid '+(wc.border||widgetBorderColor), paddingBottom:2 }}>Core Crew</div>
         {sortedCore.length>0 ? (
           <ul style={{ listStyle:'none', margin:0, padding:0, fontSize:11, marginBottom:8 }}>
-            {sortedCore.map(([comp,count]) => (
-              <li key={comp} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dashed '+(wc.border||'#999'), gap:6 }}>
-                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:nameMaxWidth }}>{comp}</span>
-                <span style={{ fontWeight:600 }}>{count}</span>
-              </li>
-            ))}
+            {sortedCore.map(([comp,count]) => {
+              const planned = plannedCounts[comp];
+              const mismatch = planned !== undefined && planned !== count;
+              return (
+                <li key={comp} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dashed '+(wc.border||'#999'), gap:6, background: mismatch ? 'rgba(255,80,80,0.25)': 'transparent' }} title={planned !== undefined ? `Onboard: ${count} | Planned: ${planned}` : `Onboard: ${count} | Planned: N/A`}>
+                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:nameMaxWidth }}>{comp}</span>
+                  <span style={{ fontWeight:600 }}>{count}</span>
+                </li>
+              );
+            })}
           </ul>
         ) : <div style={{ fontSize:10, fontStyle:'italic', opacity:0.6, marginBottom:6 }}>None</div>}
         <div style={{ fontSize:12, fontWeight:'bold', marginBottom:4, borderBottom:'1px solid '+(wc.border||widgetBorderColor), paddingBottom:2 }}>Non-Core</div>
         {sortedNon.length>0 ? (
           <ul style={{ listStyle:'none', margin:0, padding:0, fontSize:11 }}>
-            {sortedNon.map(([comp,count]) => (
-              <li key={comp} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dashed '+(wc.border||'#999'), gap:6 }}>
-                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:nameMaxWidth }}>{comp}</span>
-                <span style={{ fontWeight:600 }}>{count}</span>
-              </li>
-            ))}
+            {sortedNon.map(([comp,count]) => {
+              const planned = plannedCounts[comp];
+              const mismatch = planned !== undefined && planned !== count;
+              return (
+                <li key={comp} style={{ display:'flex', justifyContent:'space-between', padding:'2px 0', borderBottom:'1px dashed '+(wc.border||'#999'), gap:6, background: mismatch ? 'rgba(255,80,80,0.25)': 'transparent' }} title={planned !== undefined ? `Onboard: ${count} | Planned: ${planned}` : `Onboard: ${count} | Planned: N/A`}>
+                  <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:nameMaxWidth }}>{comp}</span>
+                  <span style={{ fontWeight:600 }}>{count}</span>
+                </li>
+              );
+            })}
           </ul>
         ) : <div style={{ fontSize:10, fontStyle:'italic', opacity:0.6 }}>None</div>}
         <div style={{ marginTop:6, fontSize:9, opacity:0.55 }}>Grouped by company (onboard only).</div>

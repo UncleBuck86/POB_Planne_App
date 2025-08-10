@@ -5,6 +5,7 @@ import { useTheme } from '../../ThemeContext.jsx';
 
 export default function CommentsRow({ dates, comments, lastSavedComments, manualHighlights, setComments, pushUndo }) {
   const { theme } = useTheme();
+  const isDark = theme.name === 'Dark' || (theme.background || '').toLowerCase() === '#22223b';
   return (
     <tr style={{ background: theme.surface, color: theme.text, fontStyle: 'italic', height: 'auto' }}>
       <td style={{ verticalAlign: 'top', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: '2px solid #000' }}>Comments</td>
@@ -16,9 +17,10 @@ export default function CommentsRow({ dates, comments, lastSavedComments, manual
               width: '100%',
               minHeight: '48px',
               fontStyle: 'italic',
-              background:
-                manualHighlights[`comment-${d.date}`]
-                  ? '#b3e5fc'
+              background: manualHighlights[`comment-${d.date}`]
+                ? '#b3e5fc'
+                : isDark
+                  ? theme.surface // keep same as chart regardless of unsaved change
                   : comments[d.date] !== (lastSavedComments[d.date] || '')
                     ? '#fffbe6'
                     : theme.surface,

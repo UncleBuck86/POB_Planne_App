@@ -76,14 +76,14 @@ export default function FlightManifestTemplate() {
       `<div class='section'><strong>Date:</strong> ${data.meta.date||''} &nbsp; <strong>Route:</strong> ${data.meta.departure||'???'} → ${data.meta.arrival||'???'} &nbsp; <strong>ETD:</strong> ${data.meta.departureTime||''} &nbsp; <strong>ETA:</strong> ${data.meta.arrivalTime||''}</div>`+
       `<div class='section'><strong>Aircraft:</strong> ${data.meta.aircraftType||''} ${data.meta.tailNumber||''} &nbsp; <strong>Captain:</strong> ${data.meta.captain||''} &nbsp; <strong>Co-Pilot:</strong> ${data.meta.coPilot||''} &nbsp; <strong>Dispatcher:</strong> ${data.meta.dispatcher||''}</div>`+
       `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>`+
-      `<h3>Outbound (${totalOutbound})</h3>`+
-      `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
-      data.outbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
+  `<h3>Outbound (${totalOutbound})</h3>`+
+  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Origin</th><th>Destination</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
+  data.outbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
       `</tbody></table>`+
       `<div style='margin:6px 0 18px'><strong>Outbound Weight Total:</strong> ${totalWeightOutbound.toFixed(1)}</div>`+
-      `<h3>Inbound (${totalInbound})</h3>`+
-      `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
-      data.inbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
+  `<h3>Inbound (${totalInbound})</h3>`+
+  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Origin</th><th>Destination</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
+  data.inbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
       `</tbody></table>`+
       `<div style='margin-top:6px'><strong>Inbound Weight Total:</strong> ${totalWeightInbound.toFixed(1)}</div>`+
       `<div style='margin-top:14px'><strong>Grand Total Pax:</strong> ${grandTotalPax} &nbsp; <strong>Grand Total Weight:</strong> ${grandTotalWeight.toFixed(1)}</div>`+
@@ -173,24 +173,31 @@ function passengerTable(theme, dir, list, onUpdate, onRemove) {
             <Th theme={theme}>Name</Th>
             <Th theme={theme}>Company</Th>
             <Th theme={theme}>Role</Th>
+            <Th theme={theme}>Origin</Th>
+            <Th theme={theme}>Destination</Th>
             <Th theme={theme}>Weight</Th>
             <Th theme={theme}>Comments</Th>
             <Th theme={theme}>Action</Th>
           </tr>
         </thead>
         <tbody>
-          {list.map((p,i)=>(
+          {list.map((p,i)=>{
+            const origin = dir === 'outbound' ? (p.origin || p.metaOrigin) : (p.origin || p.metaOrigin);
+            const destination = dir === 'outbound' ? (p.destination || p.metaDestination) : (p.destination || p.metaDestination);
+            return (
             <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
               <Td>{i+1}</Td>
               <Td><input value={p.name} onChange={e=>onUpdate(p.id,'name',e.target.value)} placeholder="Full Name" /></Td>
               <Td><input value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
               <Td><input value={p.role} onChange={e=>onUpdate(p.id,'role',e.target.value)} placeholder="Role" /></Td>
+              <Td style={{ width:90 }}><input value={dir==='outbound'? (p.origin||''): (p.origin||'')} onChange={e=>onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} /></Td>
+              <Td style={{ width:110 }}><input value={dir==='outbound'? (p.destination||''): (p.destination||'')} onChange={e=>onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} /></Td>
               <Td style={{ width:80 }}><input value={p.weight} onChange={e=>onUpdate(p.id,'weight',e.target.value)} placeholder="lb" style={{ width:'100%' }} /></Td>
               <Td><input value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
               <Td><button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button></Td>
             </tr>
-          ))}
-          {list.length===0 && <tr><Td colSpan={7} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}
+          )})}
+          {list.length===0 && <tr><Td colSpan={9} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}
         </tbody>
       </table>
     </div>

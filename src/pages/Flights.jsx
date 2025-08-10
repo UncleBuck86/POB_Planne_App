@@ -316,8 +316,8 @@ export default function FlightsPage() {
               </label>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', fontSize:11 }}>
                 <span style={legendBadge(theme,'yellow')}>Missing Manifest</span>
-                <span style={legendBadge(theme,'green')}>Counts Match</span>
-                <span style={legendBadge(theme,'red')}>Issue</span>
+                <span style={legendBadge(theme,'green')}>Manifest Correct</span>
+                <span style={legendBadge(theme,'red')}>Manifest Error</span>
               </div>
             </div>
           {selectedDates.length>0 && <button onClick={openManifestTemplate} style={{ marginTop:8, ...navBtnStyle(theme), padding:'6px 10px' }}>Open Manifest Template</button>}

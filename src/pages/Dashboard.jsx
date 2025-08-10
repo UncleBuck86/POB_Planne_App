@@ -78,11 +78,13 @@ function Dashboard() {
   // --- Movable widgets layout ---
   const GRID = 20; // px grid size
   const layoutKey = 'dashboardWidgetLayoutV1';
+  const visibilityKey = 'dashboardWidgetVisibilityV1';
   const defaultLayout = {
     nav: { x: 20, y: 20 },
     forecast: { x: 20, y: 160 },
     onboard: { x: 20, y: 360 }
   };
+  const defaultVisibility = { nav: true, forecast: true, onboard: true };
   const [layout, setLayout] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(layoutKey));
@@ -91,6 +93,13 @@ function Dashboard() {
   });
   useEffect(() => { localStorage.setItem(layoutKey, JSON.stringify(layout)); }, [layout]);
   const [editLayout, setEditLayout] = useState(false);
+  const [visible, setVisible] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(visibilityKey));
+      return stored ? { ...defaultVisibility, ...stored } : defaultVisibility;
+    } catch { return defaultVisibility; }
+  });
+  useEffect(() => { localStorage.setItem(visibilityKey, JSON.stringify(visible)); }, [visible]);
   const dragState = useRef({ id:null, offsetX:0, offsetY:0 });
   const containerRef = useRef(null);
   const onPointerDown = (e, id) => {
@@ -129,18 +138,31 @@ function Dashboard() {
               <option value="light">Light</option>
               <option value="dark">Dark</option>
             </select>
+            <div style={{ marginTop:12, paddingTop:10, borderTop: '1px solid ' + (theme.name==='Dark' ? '#bfc4ca40':'#ccc'), fontSize:12 }}>
+              <div style={{ fontWeight:'bold', marginBottom:6 }}>Layout</div>
+              <button onClick={() => setEditLayout(e => !e)} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
+                {editLayout ? 'Finish Layout' : 'Edit Layout'}
+              </button>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                {['nav','forecast','onboard'].map(id => (
+                  <label key={id} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <input type="checkbox" checked={visible[id]} onChange={e => setVisible(v => ({ ...v, [id]: e.target.checked }))} />
+                    <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : 'POB Onboard'}</span>
+                  </label>
+                ))}
+              </div>
+              {editLayout && <div style={{ marginTop:6, fontSize:10, opacity:0.7 }}>Drag to reposition (grid {GRID}px)</div>}
+              {editLayout && <div style={{ marginTop:4, fontSize:10, opacity:0.55 }}>Toggle checkboxes to show / hide widgets.</div>}
+            </div>
           </Dropdown>
         )}
   <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Dashboard</h2>
-  <div style={{ marginBottom: 12, display:'flex', gap:8, flexWrap:'wrap' }}>
-    <button onClick={() => setEditLayout(e => !e)} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'6px 10px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:12 }}>
-      {editLayout ? 'Finish Layout' : 'Edit Layout'}
-    </button>
-    <span style={{ fontSize:11, opacity:0.7 }}>Drag widgets when in layout mode (snaps to {GRID}px grid).</span>
-  </div>
   <div ref={containerRef} style={{ position:'relative', minHeight:600 }}>
+    {editLayout && (
+      <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px)`, pointerEvents:'none', zIndex:0 }} />
+    )}
     {/* Navigation Widget */}
-    <div
+  {visible.nav && (<div
       onPointerDown={e => onPointerDown(e,'nav')}
       style={{ position:'absolute', left:layout.nav.x, top:layout.nav.y, cursor: editLayout ? 'grab' : 'default', userSelect: editLayout ? 'none':'auto', padding: '12px 16px', background: theme.surface, border: '1px solid #bfc4ca', borderRadius: 8, minWidth:260, boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}
     >
@@ -148,9 +170,9 @@ function Dashboard() {
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
         <li><a href="#planner" style={{ color: theme.text, fontWeight: 'bold', textDecoration: 'none' }}>Go to Planner</a></li>
       </ul>
-    </div>
+  </div>)}
     {/* Forecast Widget */}
-    <section
+  {visible.forecast && (<section
       onPointerDown={e => onPointerDown(e,'forecast')}
       style={{ position:'absolute', left:layout.forecast.x, top:layout.forecast.y, padding: '6px 8px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
   <h3 style={{ margin: '0 0 4px', color: theme.text, fontSize: 16 }}>POB Forecast</h3>
@@ -192,9 +214,9 @@ function Dashboard() {
           </table>
         </div>
   <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Read-only snapshot.</div>
-      </section>
+  </section>)}
       {/* POB Onboard Widget */}
-      <section
+  {visible.onboard && (<section
         onPointerDown={e => onPointerDown(e,'onboard')}
         style={{ position:'absolute', left:layout.onboard.x, top:layout.onboard.y, padding: '12px 14px', background: theme.surface, border: `1px solid ${widgetBorderColor}`, borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab':'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
@@ -230,7 +252,7 @@ function Dashboard() {
           </table>
         </div>
         <div style={{ marginTop:4, fontSize:10, opacity:0.6 }}>Snapshot of personnelRecords (Onboard only).</div>
-      </section>
+  </section>)}
   </div>
       </div>
     </StyledThemeProvider>

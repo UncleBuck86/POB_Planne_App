@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 
 const STORAGE_KEY = 'flightManifestTemplateV1';
+const FIELD_VIS_KEY = 'flightManifestVisibleFields';
 const defaultData = {
   meta: {
     flightNumber: '',
@@ -37,6 +38,15 @@ export default function FlightManifestTemplate() {
       return { ...defaultData };
     }
   });
+  const isAdmin = () => { try { return localStorage.getItem('pobIsAdmin') === 'true'; } catch { return false; } };
+  const allFieldKeys = ['flightNumber','date','departure','departureTime','arrival','arrivalTime','aircraftType','tailNumber','captain','coPilot','dispatcher','notes'];
+  const [visibleFields, setVisibleFields] = useState(()=>{
+    try { const stored = JSON.parse(localStorage.getItem(FIELD_VIS_KEY)); if (stored && typeof stored === 'object') return { ...allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}), ...stored }; } catch{/*ignore*/}
+    return allFieldKeys.reduce((a,k)=> (a[k]=true,a),{});
+  });
+  const [configOpen, setConfigOpen] = useState(false);
+  useEffect(()=>{ try { localStorage.setItem(FIELD_VIS_KEY, JSON.stringify(visibleFields)); } catch {/* ignore */} }, [visibleFields]);
+  const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
   const saveTimer = useRef();
 
@@ -101,23 +111,39 @@ export default function FlightManifestTemplate() {
       <h2 style={{ marginTop:0 }}>Flight Manifest Template</h2>
       <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
-        <div style={sectionHeader(theme)}>Flight Details</div>
-        <div style={gridForm}>
-          <Labeled label="Flight #"><input value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>
-          <Labeled label="Date"><input type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>
-          <Labeled label="Departure"><input value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" /></Labeled>
-          <Labeled label="Departure Time"><input value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Labeled>
-          <Labeled label="Arrival"><input value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" /></Labeled>
-          <Labeled label="Arrival Time"><input value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Labeled>
-          <Labeled label="Aircraft Type"><input value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" /></Labeled>
-          <Labeled label="Tail #"><input value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>
-          <Labeled label="Captain"><input value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>
-          <Labeled label="Co-Pilot"><input value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>
-          <Labeled label="Dispatcher"><input value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Labeled>
+        <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center' }}>
+          <span style={{ flex:1 }}>Flight Details</span>
+          {isAdmin() && (
+            <button onClick={()=>setConfigOpen(o=>!o)} style={{ ...smallBtn(theme), background: configOpen? '#555': theme.primary }}>{configOpen? 'Done':'Customize'}</button>
+          )}
         </div>
-        <Labeled label="Notes" full>
-          <textarea rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
-        </Labeled>
+        {configOpen && isAdmin() && (
+          <div style={{ marginBottom:14, display:'flex', flexWrap:'wrap', gap:12 }}>
+            {allFieldKeys.map(k=> (
+              <label key={k} style={{ fontSize:12, display:'flex', alignItems:'center', gap:4, background: visibleFields[k]? (theme.name==='Dark'? '#2e3237':'#eef3f7'):'#00000011', padding:'4px 8px', borderRadius:6 }}>
+                <input type="checkbox" checked={!!visibleFields[k]} onChange={()=>toggleField(k)} /> {k}
+              </label>
+            ))}
+          </div>
+        )}
+        <div style={gridForm}>
+          {visibleFields.flightNumber && <Labeled label="Flight #"><input value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>}
+          {visibleFields.date && <Labeled label="Date"><input type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>}
+          {visibleFields.departure && <Labeled label="Departure"><input value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" /></Labeled>}
+          {visibleFields.departureTime && <Labeled label="Departure Time"><input value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Labeled>}
+          {visibleFields.arrival && <Labeled label="Arrival"><input value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" /></Labeled>}
+            {visibleFields.arrivalTime && <Labeled label="Arrival Time"><input value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Labeled>}
+            {visibleFields.aircraftType && <Labeled label="Aircraft Type"><input value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" /></Labeled>}
+            {visibleFields.tailNumber && <Labeled label="Tail #"><input value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>}
+            {visibleFields.captain && <Labeled label="Captain"><input value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>}
+            {visibleFields.coPilot && <Labeled label="Co-Pilot"><input value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}
+            {visibleFields.dispatcher && <Labeled label="Dispatcher"><input value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Labeled>}
+        </div>
+        {visibleFields.notes && (
+          <Labeled label="Notes" full>
+            <textarea rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
+          </Labeled>
+        )}
         <div style={{ fontSize:11, opacity:.6, marginTop:6 }}>{autoSaveState}</div>
       </section>
       <section style={card(theme)}>

@@ -265,29 +265,6 @@ export default function Personnel() {
 
   return (
   <div style={{ padding: 24, color: theme.text, background: theme.background, minHeight: '100vh' }}>
-      {/* Settings Gear */}
-      <button
-        ref={gearRef}
-        onClick={() => setSettingsOpen(o => !o)}
-        title="Settings"
-        style={{ position:'fixed', top:14, right:20, zIndex:300, background:'transparent', border:'none', fontSize:24, cursor:'pointer', color: theme.primary }}
-      >⚙️</button>
-      {settingsOpen && (
-        <div ref={settingsRef} style={{ position:'fixed', top:50, right:16, zIndex:310, background: theme.surface, color: theme.text, border:`1px solid ${theme.primary}`, borderRadius:10, padding:'14px 16px', minWidth:220, boxShadow:'0 4px 14px rgba(0,0,0,0.35)' }}>
-          <div style={{ fontWeight:'bold', marginBottom:8 }}>Settings</div>
-          <label style={{ fontSize:12, display:'block', marginBottom:4 }}>Theme:</label>
-          <select value={team} onChange={e => { changeTheme(e.target.value); setSettingsOpen(false); }} style={{ ...select(theme), width:'100%', marginBottom:12 }}>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-          <button onClick={() => { setShowAdmin(s => !s); setSettingsOpen(false); }} style={{ ...btn(theme), width:'100%', fontSize:12, background: showAdmin ? theme.secondary : theme.primary }}>
-            {showAdmin ? 'Hide Manage Lists' : 'Manage Lists'}
-          </button>
-          <div style={{ marginTop:10 }}>
-            <button onClick={() => setSettingsOpen(false)} style={{ ...btn(theme), width:'100%', fontSize:12 }}>Close</button>
-          </div>
-        </div>
-      )}
   <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Personnel Database</h2>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <button onClick={startAdd} style={btn(theme)}>Add Person</button>

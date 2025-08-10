@@ -49,7 +49,7 @@ export default function FlightManifestTemplate() {
   }, [data]);
 
   const updateMeta = (field, value) => setData(d => ({ ...d, meta: { ...d.meta, [field]: value } }));
-  const newPax = () => ({ id: crypto.randomUUID(), name:'', company:'', role:'', weight:'', comments:'' });
+  const newPax = () => ({ id: crypto.randomUUID(), name:'', company:'', bodyWeight:'', bagWeight:'', bagCount:'', comments:'' });
   const addPassenger = (dir) => setData(d => ({ ...d, [dir]: [...d[dir], newPax()] }));
   const updatePassenger = (dir, id, field, value) => setData(d => ({ ...d, [dir]: d[dir].map(p => p.id === id ? { ...p, [field]: value } : p) }));
   const removePassenger = (dir, id) => setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) }));
@@ -59,8 +59,9 @@ export default function FlightManifestTemplate() {
   const safeInbound = data.inbound || [];
   const totalOutbound = safeOutbound.length;
   const totalInbound = safeInbound.length;
-  const totalWeightOutbound = useMemo(()=> safeOutbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [safeOutbound]);
-  const totalWeightInbound = useMemo(()=> safeInbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [safeInbound]);
+  const totalWeightOutbound = useMemo(()=> safeOutbound.reduce((s,p)=> {
+    const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; return s + bw + gw; },0), [safeOutbound]);
+  const totalWeightInbound = useMemo(()=> safeInbound.reduce((s,p)=> { const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; return s + bw + gw; },0), [safeInbound]);
   const grandTotalPax = totalOutbound + totalInbound;
   const grandTotalWeight = totalWeightOutbound + totalWeightInbound;
 
@@ -77,13 +78,13 @@ export default function FlightManifestTemplate() {
       `<div class='section'><strong>Aircraft:</strong> ${data.meta.aircraftType||''} ${data.meta.tailNumber||''} &nbsp; <strong>Captain:</strong> ${data.meta.captain||''} &nbsp; <strong>Co-Pilot:</strong> ${data.meta.coPilot||''} &nbsp; <strong>Dispatcher:</strong> ${data.meta.dispatcher||''}</div>`+
       `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>`+
   `<h3>Outbound (${totalOutbound})</h3>`+
-  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Origin</th><th>Destination</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
-  data.outbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
+  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Body Wt</th><th>Bag Wt</th><th># Bags</th><th>Total Wt</th><th>Origin</th><th>Destination</th><th>Comments</th></tr></thead><tbody>`+
+  data.outbound.map((p,i)=>{ const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw; return `<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${p.bodyWeight||''}</td><td>${p.bagWeight||''}</td><td>${p.bagCount||''}</td><td>${tot?tot:''}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(p.comments)}</td></tr>`; }).join('')+
       `</tbody></table>`+
       `<div style='margin:6px 0 18px'><strong>Outbound Weight Total:</strong> ${totalWeightOutbound.toFixed(1)}</div>`+
   `<h3>Inbound (${totalInbound})</h3>`+
-  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Origin</th><th>Destination</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
-  data.inbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
+  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Body Wt</th><th>Bag Wt</th><th># Bags</th><th>Total Wt</th><th>Origin</th><th>Destination</th><th>Comments</th></tr></thead><tbody>`+
+  data.inbound.map((p,i)=>{ const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw; return `<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${p.bodyWeight||''}</td><td>${p.bagWeight||''}</td><td>${p.bagCount||''}</td><td>${tot?tot:''}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(p.comments)}</td></tr>`; }).join('')+
       `</tbody></table>`+
       `<div style='margin-top:6px'><strong>Inbound Weight Total:</strong> ${totalWeightInbound.toFixed(1)}</div>`+
       `<div style='margin-top:14px'><strong>Grand Total Pax:</strong> ${grandTotalPax} &nbsp; <strong>Grand Total Weight:</strong> ${grandTotalWeight.toFixed(1)}</div>`+
@@ -172,10 +173,12 @@ function passengerTable(theme, dir, list, onUpdate, onRemove) {
             <Th theme={theme}>#</Th>
             <Th theme={theme}>Name</Th>
             <Th theme={theme}>Company</Th>
-            <Th theme={theme}>Role</Th>
+            <Th theme={theme}>Body Wt</Th>
+            <Th theme={theme}>Bag Wt</Th>
+            <Th theme={theme}># Bags</Th>
+            <Th theme={theme}>Total Wt</Th>
             <Th theme={theme}>Origin</Th>
             <Th theme={theme}>Destination</Th>
-            <Th theme={theme}>Weight</Th>
             <Th theme={theme}>Comments</Th>
             <Th theme={theme}>Action</Th>
           </tr>
@@ -184,20 +187,23 @@ function passengerTable(theme, dir, list, onUpdate, onRemove) {
           {list.map((p,i)=>{
             const origin = dir === 'outbound' ? (p.origin || p.metaOrigin) : (p.origin || p.metaOrigin);
             const destination = dir === 'outbound' ? (p.destination || p.metaDestination) : (p.destination || p.metaDestination);
+            const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; const total = bw + gw;
             return (
             <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
               <Td>{i+1}</Td>
               <Td><input value={p.name} onChange={e=>onUpdate(p.id,'name',e.target.value)} placeholder="Full Name" /></Td>
               <Td><input value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
-              <Td><input value={p.role} onChange={e=>onUpdate(p.id,'role',e.target.value)} placeholder="Role" /></Td>
+              <Td style={{ width:80 }}><input value={p.bodyWeight||''} onChange={e=>onUpdate(p.id,'bodyWeight',e.target.value.replace(/[^0-9.]/g,''))} placeholder="Body" /></Td>
+              <Td style={{ width:80 }}><input value={p.bagWeight||''} onChange={e=>onUpdate(p.id,'bagWeight',e.target.value.replace(/[^0-9.]/g,''))} placeholder="Bags" /></Td>
+              <Td style={{ width:70 }}><input value={p.bagCount||''} onChange={e=>onUpdate(p.id,'bagCount',e.target.value.replace(/[^0-9]/g,''))} placeholder="#" /></Td>
+              <Td style={{ width:80, fontWeight:600 }}>{total ? total.toFixed(1) : ''}</Td>
               <Td style={{ width:90 }}><input value={dir==='outbound'? (p.origin||''): (p.origin||'')} onChange={e=>onUpdate(p.id,'origin',e.target.value)} placeholder={dir==='outbound'? 'Dep':'Arr'} /></Td>
               <Td style={{ width:110 }}><input value={dir==='outbound'? (p.destination||''): (p.destination||'')} onChange={e=>onUpdate(p.id,'destination',e.target.value)} placeholder={dir==='outbound'? 'Arr':'Dep'} /></Td>
-              <Td style={{ width:80 }}><input value={p.weight} onChange={e=>onUpdate(p.id,'weight',e.target.value)} placeholder="lb" style={{ width:'100%' }} /></Td>
               <Td><input value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
               <Td><button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button></Td>
             </tr>
           )})}
-          {list.length===0 && <tr><Td colSpan={9} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}
+          {list.length===0 && <tr><Td colSpan={11} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}
         </tbody>
       </table>
     </div>

@@ -17,7 +17,8 @@ const defaultData = {
     dispatcher: '',
     notes: ''
   },
-  passengers: []
+  outbound: [], // passengers departing (Flights Out)
+  inbound: []   // passengers arriving (Flights In)
 };
 
 export default function FlightManifestTemplate() {
@@ -35,13 +36,18 @@ export default function FlightManifestTemplate() {
   }, [data]);
 
   const updateMeta = (field, value) => setData(d => ({ ...d, meta: { ...d.meta, [field]: value } }));
-  const addPassenger = () => setData(d => ({ ...d, passengers: [...d.passengers, { id: crypto.randomUUID(), name:'', company:'', role:'', weight:'', comments:'' }] }));
-  const updatePassenger = (id, field, value) => setData(d => ({ ...d, passengers: d.passengers.map(p => p.id === id ? { ...p, [field]: value } : p) }));
-  const removePassenger = (id) => setData(d => ({ ...d, passengers: d.passengers.filter(p => p.id !== id) }));
+  const newPax = () => ({ id: crypto.randomUUID(), name:'', company:'', role:'', weight:'', comments:'' });
+  const addPassenger = (dir) => setData(d => ({ ...d, [dir]: [...d[dir], newPax()] }));
+  const updatePassenger = (dir, id, field, value) => setData(d => ({ ...d, [dir]: d[dir].map(p => p.id === id ? { ...p, [field]: value } : p) }));
+  const removePassenger = (dir, id) => setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) }));
   const clearAll = () => { if (confirm('Clear all manifest data?')) setData(defaultData); };
 
-  const totalPassengers = data.passengers.length;
-  const totalWeight = useMemo(() => data.passengers.reduce((sum,p)=> sum + (parseFloat(p.weight)||0),0), [data.passengers]);
+  const totalOutbound = data.outbound.length;
+  const totalInbound = data.inbound.length;
+  const totalWeightOutbound = useMemo(()=> data.outbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [data.outbound]);
+  const totalWeightInbound = useMemo(()=> data.inbound.reduce((s,p)=> s + (parseFloat(p.weight)||0),0), [data.inbound]);
+  const grandTotalPax = totalOutbound + totalInbound;
+  const grandTotalWeight = totalWeightOutbound + totalWeightInbound;
 
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
@@ -55,10 +61,17 @@ export default function FlightManifestTemplate() {
       `<div class='section'><strong>Date:</strong> ${data.meta.date||''} &nbsp; <strong>Route:</strong> ${data.meta.departure||'???'} → ${data.meta.arrival||'???'} &nbsp; <strong>ETD:</strong> ${data.meta.departureTime||''} &nbsp; <strong>ETA:</strong> ${data.meta.arrivalTime||''}</div>`+
       `<div class='section'><strong>Aircraft:</strong> ${data.meta.aircraftType||''} ${data.meta.tailNumber||''} &nbsp; <strong>Captain:</strong> ${data.meta.captain||''} &nbsp; <strong>Co-Pilot:</strong> ${data.meta.coPilot||''} &nbsp; <strong>Dispatcher:</strong> ${data.meta.dispatcher||''}</div>`+
       `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>`+
+      `<h3>Outbound (${totalOutbound})</h3>`+
       `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
-      data.passengers.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
+      data.outbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
       `</tbody></table>`+
-      `<div style='margin-top:12px'><strong>Total Pax:</strong> ${totalPassengers} &nbsp; <strong>Total Weight:</strong> ${totalWeight.toFixed(1)}</div>`+
+      `<div style='margin:6px 0 18px'><strong>Outbound Weight Total:</strong> ${totalWeightOutbound.toFixed(1)}</div>`+
+      `<h3>Inbound (${totalInbound})</h3>`+
+      `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>Weight</th><th>Comments</th></tr></thead><tbody>`+
+      data.inbound.map((p,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${escapeHtml(p.role)}</td><td>${p.weight||''}</td><td>${escapeHtml(p.comments)}</td></tr>`).join('')+
+      `</tbody></table>`+
+      `<div style='margin-top:6px'><strong>Inbound Weight Total:</strong> ${totalWeightInbound.toFixed(1)}</div>`+
+      `<div style='margin-top:14px'><strong>Grand Total Pax:</strong> ${grandTotalPax} &nbsp; <strong>Grand Total Weight:</strong> ${grandTotalWeight.toFixed(1)}</div>`+
       `</body></html>`;
     w.document.write(html); w.document.close(); w.print();
   };
@@ -88,44 +101,31 @@ export default function FlightManifestTemplate() {
         <div style={{ fontSize:11, opacity:.6, marginTop:6 }}>{autoSaveState}</div>
       </section>
       <section style={card(theme)}>
-        <div style={sectionHeader(theme)}>Passengers ({totalPassengers})</div>
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
-            <thead>
-              <tr>
-                <Th theme={theme}>#</Th>
-                <Th theme={theme}>Name</Th>
-                <Th theme={theme}>Company</Th>
-                <Th theme={theme}>Role</Th>
-                <Th theme={theme}>Weight</Th>
-                <Th theme={theme}>Comments</Th>
-                <Th theme={theme}>Action</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.passengers.map((p,i)=>(
-                <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
-                  <Td>{i+1}</Td>
-                  <Td><input value={p.name} onChange={e=>updatePassenger(p.id,'name',e.target.value)} placeholder="Full Name" /></Td>
-                  <Td><input value={p.company} onChange={e=>updatePassenger(p.id,'company',e.target.value)} placeholder="Company" /></Td>
-                  <Td><input value={p.role} onChange={e=>updatePassenger(p.id,'role',e.target.value)} placeholder="Role" /></Td>
-                  <Td style={{ width:80 }}><input value={p.weight} onChange={e=>updatePassenger(p.id,'weight',e.target.value)} placeholder="lb" style={{ width:'100%' }} /></Td>
-                  <Td><input value={p.comments} onChange={e=>updatePassenger(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
-                  <Td><button onClick={()=>removePassenger(p.id)} style={smallBtn(theme)}>✕</button></Td>
-                </tr>
-              ))}
-              {data.passengers.length===0 && (
-                <tr><Td colSpan={7} style={{ fontStyle:'italic', opacity:.6 }}>No passengers added.</Td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <div style={sectionHeader(theme)}>Outbound Passengers ({totalOutbound})</div>
+        {passengerTable(theme, 'outbound', data.outbound, (id,f,v)=>updatePassenger('outbound',id,f,v), (id)=>removePassenger('outbound',id))}
         <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap' }}>
-          <button onClick={addPassenger} style={actionBtn(theme)}>Add Passenger</button>
+          <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>
+          <div style={{ marginLeft:'auto', fontSize:12, opacity:.7, display:'flex', alignItems:'center' }}>Outbound Weight: {totalWeightOutbound.toFixed(1)}</div>
+        </div>
+      </section>
+      <section style={card(theme)}>
+        <div style={sectionHeader(theme)}>Inbound Passengers ({totalInbound})</div>
+        {passengerTable(theme, 'inbound', data.inbound, (id,f,v)=>updatePassenger('inbound',id,f,v), (id)=>removePassenger('inbound',id))}
+        <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap' }}>
+          <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>
+          <div style={{ marginLeft:'auto', fontSize:12, opacity:.7, display:'flex', alignItems:'center' }}>Inbound Weight: {totalWeightInbound.toFixed(1)}</div>
+        </div>
+      </section>
+      <section style={card(theme)}>
+        <div style={sectionHeader(theme)}>Actions & Totals</div>
+        <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
           <button onClick={clearAll} style={{ ...actionBtn(theme), background:'#aa3333' }}>Clear All</button>
-          <div style={{ marginLeft:'auto', fontSize:12, opacity:.7, display:'flex', alignItems:'center' }}>Total Weight: {totalWeight.toFixed(1)}</div>
+          <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', alignItems:'center', gap:16 }}>
+            <span>Grand Total Pax: {grandTotalPax}</span>
+            <span>Grand Total Weight: {grandTotalWeight.toFixed(1)}</span>
+          </div>
         </div>
       </section>
       <div style={{ fontSize:10, opacity:.5, marginTop:30 }}>Future: auto-populate from planner deltas; attach saved templates to flights; CSV export.</div>
@@ -148,3 +148,36 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+function passengerTable(theme, dir, list, onUpdate, onRemove) {
+  return (
+    <div style={{ overflowX:'auto' }}>
+      <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
+        <thead>
+          <tr>
+            <Th theme={theme}>#</Th>
+            <Th theme={theme}>Name</Th>
+            <Th theme={theme}>Company</Th>
+            <Th theme={theme}>Role</Th>
+            <Th theme={theme}>Weight</Th>
+            <Th theme={theme}>Comments</Th>
+            <Th theme={theme}>Action</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((p,i)=>(
+            <tr key={p.id} style={{ background: i%2? (theme.name==='Dark'? '#3d4146':'#f7f7f7'):'transparent' }}>
+              <Td>{i+1}</Td>
+              <Td><input value={p.name} onChange={e=>onUpdate(p.id,'name',e.target.value)} placeholder="Full Name" /></Td>
+              <Td><input value={p.company} onChange={e=>onUpdate(p.id,'company',e.target.value)} placeholder="Company" /></Td>
+              <Td><input value={p.role} onChange={e=>onUpdate(p.id,'role',e.target.value)} placeholder="Role" /></Td>
+              <Td style={{ width:80 }}><input value={p.weight} onChange={e=>onUpdate(p.id,'weight',e.target.value)} placeholder="lb" style={{ width:'100%' }} /></Td>
+              <Td><input value={p.comments} onChange={e=>onUpdate(p.id,'comments',e.target.value)} placeholder="Notes" /></Td>
+              <Td><button onClick={()=>onRemove(p.id)} style={smallBtn(theme)}>✕</button></Td>
+            </tr>
+          ))}
+          {list.length===0 && <tr><Td colSpan={7} style={{ fontStyle:'italic', opacity:.6 }}>None</Td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}

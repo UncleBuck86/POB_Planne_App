@@ -107,37 +107,31 @@ export default function FlightManifestTemplate() {
   };
 
   return (
-    <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
-      {isAdmin() && (
-        <button
-          onClick={()=>setConfigOpen(o=>!o)}
-          title="Admin Settings"
-          style={{ position:'fixed', top:14, right:20, zIndex:500, background:'transparent', border:'none', cursor:'pointer', fontSize:24, color: theme.primary }}
-        >⚙️</button>
-      )}
-      {configOpen && isAdmin() && (
-        <div style={{ position:'fixed', top:54, right:16, zIndex:520, background: theme.surface, border:'1px solid '+(theme.primary||'#267'), borderRadius:12, padding:'14px 16px 18px', width:300, boxShadow:'0 6px 18px rgba(0,0,0,0.4)', maxHeight:'70vh', overflowY:'auto' }}>
-          <div style={{ fontWeight:700, marginBottom:10, fontSize:14 }}>Manifest Admin Settings</div>
-          <div style={{ fontSize:11, opacity:.7, marginBottom:10 }}>Toggle which flight detail fields appear. These preferences persist locally.</div>
-          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-            <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}))} style={smallBtn(theme)}>All</button>
-            <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=false,a),{}))} style={smallBtn(theme)}>None</button>
-            <button onClick={()=>setConfigOpen(false)} style={{ ...smallBtn(theme), marginLeft:'auto' }}>Close</button>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            {allFieldKeys.map(k=> (
-              <label key={k} style={{ fontSize:12, display:'flex', alignItems:'center', gap:6, background: visibleFields[k]? (theme.name==='Dark'? '#2e3237':'#eef3f7'):'#00000011', padding:'4px 8px', borderRadius:6 }}>
-                <input type="checkbox" checked={!!visibleFields[k]} onChange={()=>toggleField(k)} />
-                <span style={{ textTransform:'capitalize' }}>{k.replace(/([A-Z])/g,' $1')}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
+  <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
       <h2 style={{ marginTop:0 }}>Flight Manifest Template</h2>
       <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
-        <div style={sectionHeader(theme)}>Flight Details</div>
+        <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center', gap:12 }}>
+          <span style={{ flex:1 }}>Flight Details</span>
+          {isAdmin() && (
+            <button onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
+          )}
+        </div>
+        {configOpen && isAdmin() && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+              <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}))} style={smallBtn(theme)}>All</button>
+              <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=false,a),{}))} style={smallBtn(theme)}>None</button>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))', gap:8 }}>
+              {allFieldKeys.map(k=> (
+                <label key={k} style={{ fontSize:11, display:'flex', alignItems:'center', gap:4, background: visibleFields[k]? (theme.name==='Dark'? '#2e3237':'#eef3f7'):'#00000011', padding:'4px 6px', borderRadius:6 }}>
+                  <input type="checkbox" checked={!!visibleFields[k]} onChange={()=>toggleField(k)} /> {k.replace(/([A-Z])/g,' $1')}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={gridForm}>
           {visibleFields.flightNumber && <Labeled label="Flight #"><input value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>}
           {visibleFields.date && <Labeled label="Date"><input type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>}

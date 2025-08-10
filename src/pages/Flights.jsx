@@ -29,6 +29,11 @@ export default function FlightsPage() {
     const dateObjs = [base, ...allDatesForMonth].map(d => ({ date: keyForDate(d) }));
     return generateFlightComments(rowData, dateObjs);
   }, [allDatesForMonth, rowData]);
+  const movementCounts = useMemo(()=> {
+    const map = {};
+    allDatesForMonth.forEach(d => { const k = keyForDate(d); map[k] = (flightsOut[k]?.length||0) + (flightsIn[k]?.length||0); });
+    return map;
+  }, [allDatesForMonth, flightsOut, flightsIn]);
   const sortedSelectedKeys = selectedDates.map(d => keyForDate(d)).sort((a,b)=> new Date(a)-new Date(b));
   const clearSelection = () => { setSelectedDates([]); setManifestOpen(false); };
 
@@ -47,7 +52,19 @@ export default function FlightsPage() {
             showOutsideDays
             weekStartsOn={0}
             modifiers={{}}
-            components={{}}
+            components={{
+              DayContent: (props) => {
+                const day = props.date;
+                const k = keyForDate(day);
+                const movement = movementCounts[k] || 0;
+                return (
+                  <div style={{ position:'relative', width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }} title={movement? `${movement} flight movement change(s)`: undefined}>
+                    <span>{day.getDate()}</span>
+                    {movement>0 && <span style={{ position:'absolute', bottom:2, right:2, fontSize:9, padding:'1px 3px', borderRadius:6, background: theme.secondary, color: theme.text }}>{movement}</span>}
+                  </div>
+                );
+              }
+            }}
             styles={{
               caption:{ color: theme.text },
               head_cell:{ background: theme.primary, color: theme.text, fontWeight:600, fontSize:12 },

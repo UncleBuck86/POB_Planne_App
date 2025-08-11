@@ -26,14 +26,14 @@ export default function FlightsPage() {
       const key = keyForDate(d);
       localStorage.setItem('manifestGenerateDates', JSON.stringify([key]));
     } catch {/* ignore */}
-    window.location.hash = '#manifest-view/'+entry.id;
+  window.location.hash = '#logistics/manifest-view/'+entry.id;
   };
   const openManifestTemplate = () => {
     try {
       const keys = selectedDates.map(d=> keyForDate(d));
       localStorage.setItem('manifestGenerateDates', JSON.stringify(keys));
     } catch {}
-    window.location.hash = '#manifest';
+  window.location.hash = '#logistics/manifest';
   };
 
   const allDatesForMonth = useMemo(() => {
@@ -208,7 +208,7 @@ export default function FlightsPage() {
         }
       }
     } catch {/* ignore */}
-    if(selectedDates.length) openManifestTemplate(); else window.location.hash = '#manifest';
+  if(selectedDates.length) openManifestTemplate(); else window.location.hash = '#logistics/manifest';
   };
   const movementForSelected = useMemo(()=>{
     if(!selectedDates.length) return [];
@@ -236,7 +236,7 @@ export default function FlightsPage() {
       const iso = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const existing = catalog.find(c=> c.meta && c.meta.date === iso);
       if(existing){
-        window.location.hash = '#manifest-view/'+existing.id;
+  window.location.hash = '#logistics/manifest-view/'+existing.id;
         return;
       } else {
         try {
@@ -246,13 +246,27 @@ export default function FlightsPage() {
         } catch {/* ignore */}
       }
     } catch {/* ignore */}
-    window.location.hash = '#manifest';
+  window.location.hash = '#logistics/manifest';
   };
 
   return (
     <div style={{ color: theme.text, background: theme.background, minHeight:'100vh', padding:'24px' }}>
       <a href="#logistics" style={{ textDecoration:'none', color: theme.primary, fontSize:12, fontWeight:600 }}>← Back</a>
       <h2 style={{ margin:'8px 0 12px' }}>Flights</h2>
+      {/* Inline manifest access cards (moved from Logistics) */}
+      <div style={{ display:'flex', gap:18, flexWrap:'wrap', margin:'4px 0 22px' }}>
+        <a href="#logistics/flights/manifest" style={{ textDecoration:'none' }}>
+          <div style={manifestCardStyle(theme,'#d94f90')}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Manifest Template</div>
+            <div style={{ fontSize:11, lineHeight:1.35, opacity:.85 }}>Create / edit current flight manifest, manage passengers & flight details.</div>
+          </div>
+        </a>
+        <div onClick={()=> setCatalogOpen(true)} style={manifestCardStyle(theme,'#6c8bff', true)} role="button" tabIndex={0}
+             onKeyDown={e=> { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); setCatalogOpen(true); } }}>
+          <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Saved Manifests</div>
+          <div style={{ fontSize:11, lineHeight:1.35, opacity:.85 }}>Browse & load saved manifests ({catalog.length}).</div>
+        </div>
+      </div>
       <div style={{ display:'flex', gap:40, alignItems:'flex-start', flexWrap:'wrap' }}>
         <div style={{ background: theme.surface, padding:20, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:16, boxShadow:'0 4px 12px rgba(0,0,0,0.3)', display:'flex', flexDirection:'column', alignItems:'stretch' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
@@ -451,5 +465,18 @@ const legendBadge = (theme,color)=>{
   if(color==='red'){ bg= theme.name==='Dark'? '#632727':'#ffb3b3'; border= theme.name==='Dark'? '#c33':'#c62828'; }
   return { background:bg, border:'1px solid '+border, padding:'4px 8px', borderRadius:20, fontWeight:600 };
 };
+const manifestCardStyle = (theme,color,clickable)=> ({
+  width:220,
+  padding:'14px 14px 16px',
+  background: theme.name==='Dark'? '#3b4045':'#f4f7fa',
+  border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'),
+  borderRadius:12,
+  cursor: clickable? 'pointer':'pointer',
+  position:'relative',
+  boxShadow:'0 3px 8px rgba(0,0,0,0.25)',
+  transition:'transform .2s, box-shadow .2s',
+  color: theme.text,
+  outline:'none'
+});
 const overlayStyle = { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'flex-start', justifyContent:'center', overflowY:'auto', padding:'60px 20px', zIndex:400 };
 const modalStyle = (theme) => ({ background: theme.background, color: theme.text, width:'min(820px,100%)', maxHeight:'80vh', overflowY:'auto', border:'1px solid '+(theme.name==='Dark'?'#777':'#444'), borderRadius:12, padding:'14px 16px', boxShadow:'0 8px 24px rgba(0,0,0,0.35)' });

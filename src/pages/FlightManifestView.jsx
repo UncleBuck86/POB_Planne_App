@@ -5,8 +5,10 @@ const CATALOG_KEY = 'flightManifestCatalogV1';
 
 export default function FlightManifestView() {
   const { theme } = useTheme();
-  const hash = window.location.hash; // #manifest-view/<id>
-  const id = hash.split('/')[1] || ''; // after manifest-view/
+  const hash = window.location.hash; // #logistics/manifest-view/<id> OR legacy #manifest-view/<id>
+  const parts = hash.replace('#','').split('/');
+  // legacy pattern: ['manifest-view','<id>'] new: ['logistics','manifest-view','<id>']
+  const id = parts[0]==='logistics' ? (parts[2]||'') : (parts[1]||'');
   const [catalog, setCatalog] = useState(()=> { try { return JSON.parse(localStorage.getItem(CATALOG_KEY))||[]; } catch { return []; } });
   useEffect(()=>{ try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch {/* ignore */} }, [catalog]);
   const entry = catalog.find(e=> e.id === id);
@@ -57,7 +59,7 @@ export default function FlightManifestView() {
     try {
       localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }));
     } catch {/* ignore */}
-    window.location.hash = '#manifest';
+  window.location.hash = '#logistics/manifest';
   };
   const exportJSON = () => {
     try {
@@ -87,7 +89,7 @@ export default function FlightManifestView() {
   };
   const duplicateManifest = () => {
     if(!entry) return; const copy={ ...entry, id: crypto.randomUUID(), savedAt:new Date().toISOString() };
-    delete copy.updatedAt; setCatalog(list=> [copy, ...list]); window.location.hash = '#manifest-view/'+copy.id;
+  delete copy.updatedAt; setCatalog(list=> [copy, ...list]); window.location.hash = '#logistics/manifest-view/'+copy.id;
   };
   const deleteManifest = () => {
     if(!entry) return; if(!window.confirm('Delete this saved manifest?')) return; setCatalog(list=> list.filter(e=> e.id!==entry.id)); window.location.hash = '#logistics/flights';

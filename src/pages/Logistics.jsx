@@ -5,7 +5,7 @@ import FlightsPage from './Flights.jsx';
 export default function Logistics() {
   const { theme } = useTheme();
   const cards = [
-  { key: 'flights', label: 'Flights', color: '#4fa8ff', hash: '#logistics/flights', desc: 'Manage flight movements, manifests, and passenger deltas.' },
+  { key: 'flights', label: 'Flights', color: '#4fa8ff', hash: '#logistics/flights', desc: 'Flight movements & planner integration (includes manifests).' },
   { key: 'boats', label: 'Boats', color: '#ff9a42', hash: '#logistics/boats', desc: 'Track vessel schedules, departures, and arrivals.' },
   { key: 'other', label: 'Other', color: '#35c27a', hash: '#logistics/other', desc: 'Other logistics (ground, medevac, special transport).' }
   ];
@@ -35,9 +35,7 @@ export default function Logistics() {
       </div>
     </a>
   );
-  if (subPath === 'flights') {
-    return <FlightsPage />;
-  }
+  if (subPath === 'flights') return <FlightsPage />;
   if (subPath && ['boats','other'].includes(subPath)) {
     return (
       <div style={pageStyle}>

@@ -22,11 +22,16 @@ import { useTheme } from '../ThemeContext.jsx';
 */
 
 const STORAGE_KEY = 'personnelRecords';
+const CONTACTS_KEY = 'personnelContactOnlyRecords';
 
 function loadRecords() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
 }
 function saveRecords(recs) { localStorage.setItem(STORAGE_KEY, JSON.stringify(recs)); }
+function loadContactOnly() {
+  try { return JSON.parse(localStorage.getItem(CONTACTS_KEY)) || []; } catch { return []; }
+}
+function saveContactOnly(recs) { localStorage.setItem(CONTACTS_KEY, JSON.stringify(recs)); }
 
 const blank = () => ({
   id: 'p_' + Math.random().toString(36).slice(2,9),
@@ -54,6 +59,8 @@ const blank = () => ({
 export default function Personnel() {
   const { theme, team, changeTheme } = useTheme();
   const [records, setRecords] = useState(loadRecords);
+  const [contactOnlyRecords, setContactOnlyRecords] = useState(loadContactOnly);
+  const [activeView, setActiveView] = useState('database'); // 'database' | 'contacts' | 'crews'
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   // Persistent location filter
@@ -88,6 +95,7 @@ export default function Personnel() {
   const [rotationOptionsText, setRotationOptionsText] = useState(() => (rotationOptions.join('\n')));
 
   useEffect(() => { saveRecords(records); }, [records]);
+  useEffect(() => { saveContactOnly(contactOnlyRecords); }, [contactOnlyRecords]);
   useEffect(() => { localStorage.setItem('personnelCrewOptions', JSON.stringify(crewOptions)); }, [crewOptions]);
   useEffect(() => { localStorage.setItem('personnelLocationOptions', JSON.stringify(locationOptions)); }, [locationOptions]);
   useEffect(() => { localStorage.setItem('personnelRotationOptions', JSON.stringify(rotationOptions)); }, [rotationOptions]);
@@ -263,9 +271,313 @@ export default function Personnel() {
     return () => { window.removeEventListener('mousedown', handleClick); window.removeEventListener('touchstart', handleClick); window.removeEventListener('keydown', handleKey); };
   }, [settingsOpen]);
 
+  // Derived datasets for auxiliary views
+  const onboardCount = records.filter(r=> r.status==='Onboard').length;
+  const contactRecords = useMemo(()=> {
+    const base = records.filter(r=> r.coreCrew || r.primaryPhone || r.secondaryPhone);
+    const all = [...base, ...contactOnlyRecords];
+    return all.sort((a,b)=> (a.lastName+a.firstName).localeCompare(b.lastName+b.firstName));
+  }, [records, contactOnlyRecords]);
+  const crewGroups = useMemo(()=> {
+    const map={};
+    // Initialize from crewOptions so they appear even if empty
+    crewOptions.forEach(c=> { if(c) map[c]=map[c]||[]; });
+    // Add any crews present in records (even if not in options)
+    records.filter(r=> r.crew).forEach(r=> { map[r.crew]=map[r.crew]||[]; map[r.crew].push(r); });
+    // Sort member lists
+    Object.values(map).forEach(list=> list.sort((a,b)=> (a.lastName+a.firstName).localeCompare(b.lastName+b.firstName)));
+    // Build entries and ensure stable sort; empty string crews last
+    return Object.entries(map)
+      .sort((a,b)=> {
+        if(!a[0]) return 1; if(!b[0]) return -1; return a[0].localeCompare(b[0]);
+      });
+  }, [records, crewOptions]);
+  const [crewViewMode, setCrewViewMode] = useState('cards'); // 'cards' | 'table'
+  const [contactViewMode, setContactViewMode] = useState(() => { // 'cards' | 'table'
+    try { return localStorage.getItem('personnelContactViewMode') || 'cards'; } catch { return 'cards'; }
+  });
+  useEffect(()=> { try { localStorage.setItem('personnelContactViewMode', contactViewMode); } catch {} }, [contactViewMode]);
+  // --- Crew Drag & Drop State ---
+  const [dragCrewPersonId, setDragCrewPersonId] = useState(null);
+  const [dragOverCrew, setDragOverCrew] = useState(null);
+  function handleCrewDragStart(e,id){
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', id); } catch {}
+    setDragCrewPersonId(id);
+  }
+  function handleCrewDragEnd(){
+    setDragCrewPersonId(null);
+    setDragOverCrew(null);
+  }
+  function assignPersonToCrew(personId, newCrew){
+    if(!newCrew) return; // basic guard
+    setRecords(rs => rs.map(r => r.id===personId? { ...r, crew: newCrew }: r));
+    // Also update contact-only records if ever needed
+    setContactOnlyRecords(rs => rs.map(r => r.id===personId? { ...r, crew: newCrew }: r));
+  }
+  function handleCrewDrop(e, crew){
+    e.preventDefault();
+    const id = (()=>{ try { return e.dataTransfer.getData('text/plain'); } catch { return dragCrewPersonId; } })();
+    if(id) assignPersonToCrew(id, crew);
+    setDragOverCrew(null);
+  }
+  // Contact-only quick add/edit state
+  const blankContact = () => ({ id: 'c_'+Math.random().toString(36).slice(2,9), firstName:'', lastName:'', company:'', position:'', primaryPhone:'', secondaryPhone:'', crew:'', rotation:'', status:'Onboard', location:'', notes:'' });
+  const [contactDraft, setContactDraft] = useState(blankContact());
+  const [contactEditingId, setContactEditingId] = useState(null); // null | id
+  function startAddContact(){ setContactEditingId('new'); setContactDraft(blankContact()); }
+  function startEditContact(id){ const rec = contactOnlyRecords.find(c=> c.id===id); if(!rec) return; setContactEditingId(id); setContactDraft({...rec}); }
+  function cancelContactEdit(){ setContactEditingId(null); setContactDraft(blankContact()); }
+  function saveContact(){
+    if(!contactDraft.firstName.trim() || !contactDraft.lastName.trim()) { alert('Name required'); return; }
+    if(contactEditingId==='new') setContactOnlyRecords(rs=> [...rs, {...contactDraft, id: 'c_'+Math.random().toString(36).slice(2,9)}]);
+    else setContactOnlyRecords(rs=> rs.map(r=> r.id===contactEditingId? {...contactDraft}: r));
+    cancelContactEdit();
+  }
+  function removeContact(id){ if(!window.confirm('Delete this contact?')) return; setContactOnlyRecords(rs=> rs.filter(r=> r.id!==id)); if(contactEditingId===id) cancelContactEdit(); }
+
   return (
   <div style={{ padding: 24, color: theme.text, background: theme.background, minHeight: '100vh' }}>
-  <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Personnel Database</h2>
+  <h2 style={{ marginTop: 0, color: team === 'dark' ? theme.text : theme.primary }}>Personnel</h2>
+  <div style={{ display:'flex', flexWrap:'wrap', gap:16, margin:'4px 0 26px' }}>
+    {[
+      { key:'database', title:'Personnel Database', desc:'Full record management', stat: records.length+' rec • '+onboardCount+' onboard' },
+      { key:'contacts', title:'Contact List', desc:'Phones & core crew', stat: contactRecords.length+' contacts' },
+      { key:'crews', title:'Crew List', desc:'Grouped by crew', stat: crewGroups.length+' crews' }
+    ].map(card => {
+      const active = activeView===card.key; const baseBg = theme.surface; const activeBg = theme.name==='Dark'? '#2f353a':'#eef3f7';
+      return (
+        <button key={card.key} onClick={()=> setActiveView(card.key)} style={{
+          textAlign:'left', flex:'1 1 220px', minWidth:220, cursor:'pointer', padding:'14px 16px 16px', border:'2px solid '+(active? (theme.primary||'#267') : (theme.name==='Dark'? '#555':'#bbb')),
+          borderRadius:14, background: active? activeBg : baseBg, color: theme.text, boxShadow: active? '0 4px 12px rgba(0,0,0,0.35)' : '0 2px 6px rgba(0,0,0,0.25)',
+          transition:'box-shadow .2s, transform .15s, background .2s'
+        }}>
+          <div style={{ fontSize:15, fontWeight:800, marginBottom:4 }}>{card.title}</div>
+          <div style={{ fontSize:11, opacity:.75, lineHeight:1.3, marginBottom:8 }}>{card.desc}</div>
+          <div style={{ fontSize:11, fontWeight:700, letterSpacing:.5, opacity:.85 }}>{card.stat}</div>
+        </button>
+      );
+    })}
+  </div>
+  {/* Removed duplicate control bar */}
+  {activeView==='contacts' && (
+    <div style={{ marginBottom:24 }}>
+      <h3 style={{ margin:'0 0 12px', fontSize:18 }}>Contact List</h3>
+      <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:12 }}>
+        <div style={{ fontSize:11, opacity:.7 }}>Core crew, phone-bearing personnel, plus contact-only entries. Click to copy name + primary phone.</div>
+        <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+          <button onClick={startAddContact} style={{ ...toggleBtn(theme, contactEditingId==='new') }}>Add Contact</button>
+          <button onClick={()=> setContactViewMode('cards')} style={{ ...toggleBtn(theme, contactViewMode==='cards') }}>Cards</button>
+          <button onClick={()=> setContactViewMode('table')} style={{ ...toggleBtn(theme, contactViewMode==='table') }}>Table</button>
+        </div>
+      </div>
+      {contactEditingId && (
+        <div style={{ marginBottom:18, padding:12, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, background: theme.surface, display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))' }}>
+          <div style={{ gridColumn:'1 / -1', fontSize:13, fontWeight:700 }}>{contactEditingId==='new'? 'Add Contact (contact-only, not in Personnel Database)': 'Edit Contact'}</div>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>First Name</span>
+            <input value={contactDraft.firstName} onChange={e=> setContactDraft(d=> ({...d, firstName:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Last Name</span>
+            <input value={contactDraft.lastName} onChange={e=> setContactDraft(d=> ({...d, lastName:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Company</span>
+            <input value={contactDraft.company} onChange={e=> setContactDraft(d=> ({...d, company:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Position</span>
+            <input value={contactDraft.position} onChange={e=> setContactDraft(d=> ({...d, position:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Primary Phone</span>
+            <input value={contactDraft.primaryPhone} onChange={e=> setContactDraft(d=> ({...d, primaryPhone:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Secondary Phone</span>
+            <input value={contactDraft.secondaryPhone} onChange={e=> setContactDraft(d=> ({...d, secondaryPhone:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Notes</span>
+            <textarea rows={2} value={contactDraft.notes} onChange={e=> setContactDraft(d=> ({...d, notes:e.target.value}))} style={{ ...input(theme), resize:'vertical' }} />
+          </label>
+          <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, marginTop:4 }}>
+            <button onClick={saveContact} style={btn(theme)}>Save</button>
+            <button onClick={cancelContactEdit} style={btn(theme)}>Cancel</button>
+            {contactEditingId!=='new' && <button onClick={()=> removeContact(contactEditingId)} style={{ ...btn(theme), background:'#922', borderColor:'#b55' }}>Delete</button>}
+          </div>
+        </div>
+      )}
+      {contactViewMode==='cards' && (
+        <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fill,minmax(200px,240px))', justifyContent:'start' }}>
+          {contactRecords.map(p=> (
+            <div key={p.id} onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }}
+              style={{ background: theme.surface, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, padding:'10px 12px', fontSize:12, cursor:'copy', display:'flex', flexDirection:'column', gap:4, boxShadow:'0 2px 6px rgba(0,0,0,0.25)' }} title="Click to copy name & primary phone">
+              <div style={{ fontWeight:700, display:'flex', alignItems:'center', flexWrap:'wrap', gap:6 }}>
+                <span>{p.firstName} {p.lastName}</span>
+                {p.coreCrew && <span style={{ fontSize:10, background: theme.primary, color: theme.text, padding:'2px 6px', borderRadius:12 }}>CORE</span>}
+                {p.id.startsWith('c_') && <span style={{ fontSize:10, background: theme.name==='Dark'? '#444':'#ccc', color: theme.text, padding:'2px 6px', borderRadius:12 }}>CONTACT</span>}
+                {p.id.startsWith('c_') && <button onClick={(e)=> { e.stopPropagation(); startEditContact(p.id); }} style={{ ...miniBtn(theme), fontSize:10 }}>Edit</button>}
+              </div>
+              <div style={{ opacity:.8 }}>{p.company || <span style={{ opacity:.4 }}>No Company</span>}</div>
+              {(p.position) && <div style={{ fontSize:11, opacity:.75 }}>{p.position}</div>}
+              {(p.primaryPhone || p.secondaryPhone) && <div style={{ fontSize:11, display:'flex', flexDirection:'column', gap:2 }}>
+                {p.primaryPhone && <span>📞 {p.primaryPhone}</span>}
+                {p.secondaryPhone && <span style={{ opacity:.8 }}>📞 {p.secondaryPhone}</span>}
+              </div>}
+              {p.address && p.coreCrew && <div style={{ fontSize:10, opacity:.6 }}>{p.address}</div>}
+            </div>
+          ))}
+          {contactRecords.length===0 && <div style={{ fontSize:12, opacity:.6 }}>No contacts found.</div>}
+        </div>
+      )}
+      {contactViewMode==='table' && (
+        <div style={{ overflowX:'auto', border:'1px solid '+(theme.name==='Dark'? '#555':'#aaa'), borderRadius:10 }}>
+          <table style={{ borderCollapse:'collapse', width:'100%', minWidth:820, fontSize:12 }}>
+            <thead>
+              <tr style={{ background: theme.primary, color: theme.text }}>
+                {['First','Last','Company','Position','Primary Phone','Secondary Phone','Crew','Rotation','Status','Location','Notes','Type','Actions'].map(h=> (
+                  <th key={h} style={{ padding:'6px 8px', borderBottom:'1px solid '+(theme.name==='Dark'? '#666':'#333'), textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {contactRecords.map((p,i)=> (
+                <tr key={p.id} onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }} style={{ background: i%2? (theme.name==='Dark'? '#2a3035':'#f5f8fa'):'transparent', cursor:'copy' }} title="Click to copy name & primary phone">
+                  <td style={crewTd(theme)}>{p.firstName}</td>
+                  <td style={crewTd(theme)}>{p.lastName}</td>
+                  <td style={crewTd(theme)}>{p.company}</td>
+                  <td style={crewTd(theme)}>{p.position}</td>
+                  <td style={crewTd(theme)}>{p.primaryPhone}</td>
+                  <td style={crewTd(theme)}>{p.secondaryPhone}</td>
+                  <td style={crewTd(theme)}>{p.crew}</td>
+                  <td style={crewTd(theme)}>{p.rotation}</td>
+                  <td style={crewTd(theme)}>{p.status}</td>
+                  <td style={crewTd(theme)}>{p.location}</td>
+                  <td style={{ ...crewTd(theme), maxWidth:200, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={p.notes}>{p.notes}</td>
+                  <td style={crewTd(theme)}>{p.id.startsWith('c_')? 'Contact-Only': (p.coreCrew? 'Core':'Personnel')}</td>
+                  <td style={crewTd(theme)} onClick={(e)=> e.stopPropagation()}>
+                    {p.id.startsWith('c_') && <>
+                      <button onClick={()=> startEditContact(p.id)} style={{ ...miniBtn(theme), marginRight:4 }}>Edit</button>
+                      <button onClick={()=> removeContact(p.id)} style={{ ...miniBtn(theme), background:'#922' }}>Del</button>
+                    </>}
+                  </td>
+                </tr>
+              ))}
+              {contactRecords.length===0 && (
+                <tr><td colSpan={13} style={{ padding:'10px 8px', textAlign:'center', fontStyle:'italic', opacity:.6 }}>No contacts found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )}
+  {activeView==='crews' && (
+    <div style={{ marginBottom:24 }}>
+      <h3 style={{ margin:'0 0 12px', fontSize:18 }}>Crew List</h3>
+      <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:12 }}>
+        <div style={{ fontSize:11, opacity:.7 }}>Grouped by crew identifier. Counts include all statuses.</div>
+        <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+          <button onClick={()=> setCrewViewMode('cards')} style={{ ...toggleBtn(theme, crewViewMode==='cards') }}>Cards</button>
+          <button onClick={()=> setCrewViewMode('table')} style={{ ...toggleBtn(theme, crewViewMode==='table') }}>Table</button>
+        </div>
+      </div>
+      {crewViewMode==='cards' && (
+        <div style={{ display:'grid', gap:8, width:'100%', gridTemplateColumns:'repeat(4,minmax(220px,1fr))', alignItems:'stretch', overflow:'hidden' }}>
+          {crewGroups.map(([crew, members])=> {
+            const onboardMembers = members.filter(m=> m.status==='Onboard');
+            const isOver = dragOverCrew===crew;
+            return (
+              <div
+                key={crew}
+                onDragOver={(e)=> { e.preventDefault(); if(dragCrewPersonId) setDragOverCrew(crew); }}
+                onDragLeave={(e)=> { if(e.currentTarget===e.target) setDragOverCrew(null); }}
+                onDrop={(e)=> handleCrewDrop(e, crew)}
+                style={{ width:'100%', background: theme.surface, border:'2px dashed '+(isOver? (theme.primary): (theme.name==='Dark'? '#555':'#bbb')), borderRadius:12, padding:'10px 12px 8px', boxShadow:'0 2px 6px rgba(0,0,0,0.25)', display:'flex', flexDirection:'column', gap:8, transition:'border-color .15s, background .15s', minHeight:200, maxHeight:300, overflow:'hidden', boxSizing:'border-box' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div style={{ fontWeight:800, fontSize:14 }}>Crew {crew}</div>
+                  <div style={{ fontSize:11, fontWeight:600 }}>{members.length} total • {onboardMembers.length} onboard</div>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:4, overflowY:'auto', scrollbarWidth:'thin', paddingRight:2, overscrollBehavior:'contain' }}>
+                  {members.length===0 && <div style={{ fontSize:11, opacity:.55, fontStyle:'italic' }}>Drop here to assign</div>}
+                  {members.map(m=> {
+                    const dragging = dragCrewPersonId===m.id;
+                    return (
+                      <div key={m.id} draggable onDragStart={(e)=> handleCrewDragStart(e,m.id)} onDragEnd={handleCrewDragEnd}
+                        title={'Drag to move: '+m.firstName+' '+m.lastName + (m.position? ' • '+m.position:'')}
+                        style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:6, fontSize:11, background: dragging? (theme.secondary): (m.status==='Onboard'? (theme.primary): (theme.name==='Dark'? '#444':'#ddd')), color: theme.text, padding:'3px 6px', borderRadius:6, cursor:'grab', opacity: dragging? .45:1, lineHeight:1.2, wordBreak:'break-word' }}>
+                        <span style={{ fontWeight:600, minWidth:0 }}>{m.firstName} {m.lastName}</span>
+                        {m.position && <span style={{ fontSize:10, opacity:.75, whiteSpace:'nowrap' }}>{m.position}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {crewGroups.length===0 && <div style={{ fontSize:12, opacity:.6 }}>No crew assignments recorded.</div>}
+        </div>
+      )}
+      {crewViewMode==='table' && (
+        <div style={{ overflowX:'auto', border:'1px solid '+(theme.name==='Dark'? '#555':'#aaa'), borderRadius:10 }}>
+          <table style={{ borderCollapse:'collapse', width:'100%', minWidth:760, fontSize:12 }}>
+            <thead>
+              <tr style={{ background: theme.primary, color: theme.text }}>
+                {['Crew','First','Last','Company','Position','Status','Primary Phone','Secondary Phone','Location','Rotation'].map(h=> (
+                  <th key={h} style={{ padding:'6px 8px', borderBottom:'1px solid '+(theme.name==='Dark'? '#666':'#333'), textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {crewGroups.map(([crew, members])=> {
+                const isOver = dragOverCrew===crew;
+                return (
+                  <React.Fragment key={crew}>
+                    {members.length===0 && (
+                      <tr
+                        onDragOver={(e)=> { e.preventDefault(); if(dragCrewPersonId) setDragOverCrew(crew); }}
+                        onDrop={(e)=> handleCrewDrop(e, crew)}
+                        onDragLeave={(e)=> { if(e.currentTarget===e.target) setDragOverCrew(null); }}
+                        style={{ background: isOver? (theme.name==='Dark'? '#243842':'#d8eef7') : 'transparent' }}>
+                        <td style={crewCell(theme, 0)}><div style={{ fontWeight:700 }}>{crew||'(Unassigned)'}</div></td>
+                        <td colSpan={9} style={{ ...crewTd(theme), fontStyle:'italic', opacity:.6 }}>No members • drag a name here to assign</td>
+                      </tr>
+                    )}
+                    {members.map((m,i)=> (
+                      <tr key={m.id}
+                        onDragOver={(e)=> { e.preventDefault(); if(dragCrewPersonId) setDragOverCrew(crew); }}
+                        onDrop={(e)=> handleCrewDrop(e, crew)}
+                        onDragLeave={(e)=> { /* only clear when leaving group altogether */ if(e.currentTarget===e.target) setDragOverCrew(null); }}
+                        style={{ background: isOver? (theme.name==='Dark'? '#243842':'#d8eef7') : (i%2? (theme.name==='Dark'? '#2a3035':'#f5f8fa'):'transparent') }}>
+                        <td style={crewCell(theme, i===0 ? members.length : 0)}>{i===0 && <div style={{ fontWeight:700 }}>{crew}</div>}{i===0 && members.length>1 && <div style={{ fontSize:10, opacity:.6 }}>{members.length} members</div>}</td>
+                        <td style={crewTd(theme)} draggable onDragStart={(e)=> handleCrewDragStart(e,m.id)} onDragEnd={handleCrewDragEnd} title="Drag to move" >{m.firstName}</td>
+                        <td style={crewTd(theme)}>{m.lastName}</td>
+                        <td style={crewTd(theme)}>{m.company}</td>
+                        <td style={crewTd(theme)}>{m.position}</td>
+                        <td style={{ ...crewTd(theme), color: m.status==='Onboard'? '#2d7d46': (m.status==='Pending'? '#b58a1d':'#999'), fontWeight: m.status==='Onboard'? 600:500 }}>{m.status}</td>
+                        <td style={crewTd(theme)}>{m.primaryPhone}</td>
+                        <td style={crewTd(theme)}>{m.secondaryPhone}</td>
+                        <td style={crewTd(theme)}>{m.location}</td>
+                        <td style={crewTd(theme)}>{m.rotation}</td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+              {crewGroups.length===0 && (
+                <tr><td colSpan={10} style={{ padding:'10px 8px', textAlign:'center', fontStyle:'italic', opacity:.6 }}>No crew assignments recorded.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )}
+  {/* Database editing & table only when database view active */}
+  {activeView==='database' && (
+    <>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <button onClick={startAdd} style={btn(theme)}>Add Person</button>
         <input placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} style={input(theme)} />
@@ -327,7 +639,7 @@ export default function Personnel() {
           </div>
         </div>
       )}
-      {editingId && (
+  {editingId && (
         <div style={{ marginBottom: 20, padding: 12, border: `1px solid ${borderColor}`, borderRadius: 8, background: theme.surface }}>
           <h3 style={{ margin: '0 0 8px' }}>{editingId === 'new' ? 'Add Personnel' : 'Edit Personnel'}</h3>
           {duplicateList.length > 0 && (
@@ -493,7 +805,7 @@ export default function Personnel() {
           </div>
         </div>
       )}
-      <div style={{ overflowX: 'auto' }}>
+  <div style={{ overflowX: 'auto' }}>
         <table ref={tableRef} style={{ borderCollapse: 'collapse', width: 'auto', minWidth: 720, tableLayout: 'auto' }}>
           {colWidths.length > 0 && (
             <colgroup>
@@ -573,6 +885,8 @@ export default function Personnel() {
         </table>
       </div>
       <div style={{ marginTop: 12, fontSize: 11, opacity: 0.6 }}>Stored locally. Future integration: link planner company rosters, flight manifests.</div>
+    </>
+  )}
     </div>
   );
 }
@@ -598,3 +912,6 @@ const input = (theme) => {
 };
 const cell = (theme) => ({ border: '1px solid ' + (theme.name === 'Dark' ? '#bfc4ca40' : '#444'), padding: '4px 6px', fontSize: 12, verticalAlign: 'top', whiteSpace: 'nowrap' });
 const miniBtn = (theme) => ({ background: theme.secondary, color: theme.text, border: 'none', padding: '2px 6px', borderRadius: 4, cursor: 'pointer', fontSize: 11, marginRight: 4 });
+const toggleBtn = (theme, active) => ({ background: active? (theme.primary): (theme.name==='Dark'? '#2d3237':'#e6ebef'), color: theme.text, border:'1px solid '+(active? (theme.secondary||'#222') : (theme.name==='Dark'? '#555':'#aaa')), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:11, fontWeight:700 });
+const crewTd = (theme) => ({ padding:'4px 6px', borderBottom:'1px solid '+(theme.name==='Dark'? '#444':'#ddd'), whiteSpace:'nowrap' });
+const crewCell = (theme, span) => ({ ...crewTd(theme), verticalAlign:'top', position:'relative' });

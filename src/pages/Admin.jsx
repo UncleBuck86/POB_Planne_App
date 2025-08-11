@@ -59,7 +59,7 @@ export default function AdminPage() {
   useEffect(()=> { localStorage.setItem('flightManifestLocations', JSON.stringify(locations)); }, [locations]);
   let aircraftTypes = [];
   try { aircraftTypes = JSON.parse(localStorage.getItem('flightManifestAircraftTypes')) || []; } catch {}
-  const [activeSection, setActiveSection] = useState(null); // 'flight' | 'personnel' | 'utilities'
+  const [activeSection, setActiveSection] = useState(null); // 'flight' | 'personnel' | 'utilities' | 'pob'
   const toggleSection = (key) => setActiveSection(prev => prev === key ? null : key);
   // Triple verification reset handler
   const handleResetPlanner = () => {
@@ -79,7 +79,8 @@ export default function AdminPage() {
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginBottom:24 }}>
         <button onClick={()=> { toggleSection('flight'); if(activeSection!=='flight') setTimeout(()=> document.getElementById('admin-flight')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#2d6cdf', activeSection==='flight')}>{activeSection==='flight' ? '✕ Flight & Planner' : 'Flight & Planner'}</button>
         <button onClick={()=> { toggleSection('personnel'); if(activeSection!=='personnel') setTimeout(()=> document.getElementById('admin-personnel')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#c2571d', activeSection==='personnel')}>{activeSection==='personnel' ? '✕ Personnel Lists' : 'Personnel Lists'}</button>
-        <button onClick={()=> { toggleSection('utilities'); if(activeSection!=='utilities') setTimeout(()=> document.getElementById('admin-utilities')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#198a5a', activeSection==='utilities')}>{activeSection==='utilities' ? '✕ Utilities & Access' : 'Utilities & Access'}</button>
+  <button onClick={()=> { toggleSection('utilities'); if(activeSection!=='utilities') setTimeout(()=> document.getElementById('admin-utilities')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#198a5a', activeSection==='utilities')}>{activeSection==='utilities' ? '✕ Utilities & Access' : 'Utilities & Access'}</button>
+  <button onClick={()=> { toggleSection('pob'); if(activeSection!=='pob') setTimeout(()=> document.getElementById('admin-pob')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#d94f90', activeSection==='pob')}>{activeSection==='pob' ? '✕ POB / Bunks' : 'POB / Bunks'}</button>
       </div>
       {/* Flight / Planner Configuration */}
       {activeSection==='flight' && (
@@ -116,7 +117,7 @@ export default function AdminPage() {
             <button onClick={addLocation} style={{ padding:'8px 14px', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, cursor:'pointer', fontWeight:600, fontSize:12 }}>Add</button>
           </div>
         </div>
-        <a href="#manifest" style={btn(theme)}>Open Manifest Template</a>
+  <a href="#logistics/flights/manifest" style={btn(theme)}>Open Manifest Template</a>
         <div style={{ marginTop:18 }}>
           <strong style={{ fontSize:12 }}>Aircraft Types (Read Only)</strong>
           <div style={{ fontSize:11, opacity:.65, margin:'4px 0 6px' }}>Edit inside a manifest (Customize ▶ Aircraft). Shown here for reference.</div>
@@ -174,6 +175,8 @@ export default function AdminPage() {
         <p style={{ marginTop:0, fontSize:11, opacity:.7 }}>To revoke admin mode run in console:<br/><code>localStorage.removeItem('pobIsAdmin'); location.reload();</code></p>
   </section>
   )}
+    {/* POB / Bunk Designer */}
+  {activeSection==='pob' && <BunkDesigner theme={theme} />}
     </div>
   );
 }
@@ -199,3 +202,200 @@ const navBtn = (theme, color, active) => ({
   textShadow:'0 1px 2px rgba(0,0,0,0.4)',
   transform: active ? 'translateY(-2px)' : 'translateY(0)'
 });
+
+// --- Bunk Designer Component ---
+function BunkDesigner({ theme }) {
+  const [bunks, setBunks] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobBunkConfig'))||[]; } catch { return []; } });
+  const [assignments] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobBunkAssignments'))||{}; } catch { return {}; } });
+  const [filter, setFilter] = useState('');
+  const [newFloor, setNewFloor] = useState('1');
+  const [newSection, setNewSection] = useState('A');
+  const [newCount, setNewCount] = useState(1);
+  const [showAddHelp, setShowAddHelp] = useState(false);
+  // Migration: ensure each bunk has floor & force capacity=1
+  useEffect(()=>{
+    let changed = false;
+    const next = bunks.map(b=>{
+      let updated = { ...b };
+      if(!('floor' in updated)) { updated.floor = '1'; changed = true; }
+      if(updated.capacity !== 1) { updated.capacity = 1; changed = true; }
+      return updated;
+    });
+    if(changed) {
+      setBunks(next);
+      try { localStorage.setItem('pobBunkConfig', JSON.stringify(next)); } catch{}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const persist = (next) => { setBunks(next); try { localStorage.setItem('pobBunkConfig', JSON.stringify(next)); } catch{} };
+  const [newPattern, setNewPattern] = useState('hyphen-num'); // 'num' | 'hyphen-num' | 'hyphen-alpha'
+  const alphaSeq = (n) => { // 1 -> A, 27 -> AA
+    let s='';
+    while(n>0){ const rem=(n-1)%26; s=String.fromCharCode(65+rem)+s; n=Math.floor((n-1)/26); }
+    return s;
+  };
+  const addBlock = () => {
+    const section = newSection.trim().toUpperCase()||'A';
+    const floor = (newFloor.trim()||'1');
+    const relevant = bunks.filter(b=> b.section===section && (b.floor||'1')===floor);
+    // derive base index depending on pattern
+    let baseIndex = 0;
+    if(newPattern==='hyphen-alpha'){
+      relevant.forEach(b=> {
+        let part = '';
+        if(b.id.includes('-')) part = b.id.split('-').pop(); else if(b.id.startsWith(section)) { const tail = b.id.slice(section.length); if(/^[A-Z]+$/.test(tail)) part=tail; }
+        if(/^[A-Z]+$/.test(part)){
+          // convert letters to number
+          let val=0; for(const ch of part){ val = val*26 + (ch.charCodeAt(0)-64); }
+          if(val>baseIndex) baseIndex=val;
+        }
+      });
+    } else { // numeric patterns
+      relevant.forEach(b=> {
+        let part='';
+        if(b.id.includes('-')) part = b.id.split('-').pop(); else if(b.id.startsWith(section)) part = b.id.slice(section.length);
+        const num=parseInt(part,10);
+        if(!isNaN(num) && num>baseIndex) baseIndex=num;
+      });
+    }
+    const created=[];
+    for(let i=1;i<=newCount;i++){
+      let id;
+      if(newPattern==='num') id = section + (baseIndex+i);
+      else if(newPattern==='hyphen-num') id = section + '-' + (baseIndex+i);
+      else if(newPattern==='hyphen-alpha') id = section + '-' + alphaSeq(baseIndex+i);
+      else id = section + (baseIndex+i);
+      created.push({ id, floor, section, capacity:1 });
+    }
+    persist([...bunks, ...created]);
+  };
+  const updateBunk = (id, field, value) => {
+    persist(bunks.map(b=> b.id===id? { ...b, [field]: value }: b));
+  };
+  const deleteBunk = (id) => { if(!window.confirm('Delete bunk '+id+'?')) return; persist(bunks.filter(b=> b.id!==id)); };
+  const clearAll = () => { if(!window.confirm('Remove ALL bunks?')) return; persist([]); };
+  const filtered = filter? bunks.filter(b=> (b.id+b.section+(b.floor||'')).toLowerCase().includes(filter.toLowerCase())): bunks;
+  // Group by floor then section
+  const byFloor = {};
+  filtered.forEach(b=> { const f = b.floor||'1'; byFloor[f] = byFloor[f]||{}; const sec = b.section; byFloor[f][sec] = byFloor[f][sec]||[]; byFloor[f][sec].push(b); });
+  Object.values(byFloor).forEach(secMap=> Object.values(secMap).forEach(list=> list.sort((a,b)=> a.id.localeCompare(b.id))));
+  const floors = Object.keys(byFloor).sort((a,b)=> a.localeCompare(b, undefined, { numeric:true }));
+  return (
+    <section id="admin-pob" style={card(theme)}>
+      <div style={sectionHeader(theme)}>POB / Bunk Layout Designer</div>
+      <p style={{ marginTop:0, fontSize:12, lineHeight:1.45 }}>Define floors, rooms (sections), and beds (auto capacity = 1). These feed the POB page for assignment visibility. Future: drag/drop, per-bed notes.</p>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginBottom:14 }}>
+        <div style={box(theme)}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+            <div style={label}>Add Block</div>
+            <button onClick={()=> setShowAddHelp(s=>!s)} title={showAddHelp? 'Hide help':'Show help'} style={{ background:'transparent', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#666':'#777'), width:22, height:22, borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:700, lineHeight:'18px', display:'flex', alignItems:'center', justifyContent:'center', padding:0 }}>?
+            </button>
+          </div>
+          {showAddHelp && (
+            <div style={{ fontSize:10, lineHeight:1.4, opacity:.8, margin:'6px 0 8px', background: theme.name==='Dark'? '#1f2428':'#fff', border:'1px solid '+(theme.name==='Dark'? '#555':'#aaa'), borderRadius:6, padding:'6px 8px', position:'relative' }}>
+              <div style={{ fontWeight:700, marginBottom:4, fontSize:10, letterSpacing:.5 }}>HOW IT WORKS</div>
+              <ul style={{ margin:0, padding:'0 0 0 14px', display:'flex', flexDirection:'column', gap:4 }}>
+                <li>Floor: Logical level (e.g. 1, 2, Mezz).</li>
+                <li>Section / Room: Room or cabin identifier (e.g. 22, A, BUNK-WEST).</li>
+                <li># New Beds: How many beds to create in sequence.</li>
+                <li>Pattern:
+                  <ul style={{ margin:'4px 0 0 14px', padding:0, listStyle:'disc' }}>
+                    <li>A1 A2 → Section + number (22 → 221, 222)</li>
+                    <li>A-1 A-2 → Section-number (22 → 22-1, 22-2)</li>
+                    <li>A-A A-B → Section-letter (22 → 22-A, 22-B)</li>
+                  </ul>
+                </li>
+                <li>Edit any bed ID after creation for custom labels.</li>
+              </ul>
+              <div style={{ marginTop:6, fontSize:9, opacity:.65 }}>Tip: Create one room at a time for clean grouping.</div>
+            </div>
+          )}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+              <div style={miniLabel}>Floor</div>
+              <input value={newFloor} onChange={e=>setNewFloor(e.target.value)} placeholder="1" style={inp(theme,{width:56, textAlign:'center', fontWeight:600})} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+              <div style={miniLabel}>Section / Room</div>
+              <input value={newSection} onChange={e=>setNewSection(e.target.value)} placeholder="A" style={inp(theme,{width:72, textAlign:'center', fontWeight:600})} />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+              <div style={miniLabel}># New Beds</div>
+              <input type='number' min={1} value={newCount} onChange={e=>setNewCount(parseInt(e.target.value)||1)} style={inp(theme,{width:80, textAlign:'center'})} title="How many beds to generate" />
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+              <div style={miniLabel}>Pattern</div>
+              <select value={newPattern} onChange={e=>setNewPattern(e.target.value)} style={inp(theme,{width:120, padding:'4px 4px'})}>
+                <option value='num'>A1 A2</option>
+                <option value='hyphen-num'>A-1 A-2</option>
+                <option value='hyphen-alpha'>A-A A-B</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+              <div style={{ visibility:'hidden', fontSize:10 }}>Add</div>
+              <button onClick={addBlock} style={smallBtn(theme)}>Add</button>
+            </div>
+          </div>
+        </div>
+        <div style={box(theme)}>
+          <div style={label}>Filter</div>
+          <input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Search" style={inp(theme,{minWidth:160})} />
+        </div>
+        <div style={box(theme)}>
+          <div style={label}>Totals</div>
+          <div style={{ fontSize:12 }}>
+            <strong>{bunks.length}</strong> beds • Capacity <strong>{bunks.length}</strong>
+          </div>
+        </div>
+        {bunks.length>0 && <div style={box(theme)}>
+          <div style={label}>Danger</div>
+          <button onClick={clearAll} style={{ ...smallBtn(theme), background:'#922' }}>Clear All</button>
+        </div>}
+      </div>
+      {floors.length===0 && <div style={{ fontSize:12, opacity:.6 }}>No beds defined yet. Add a block above.</div>}
+      <div style={{ display:'flex', flexDirection:'column', gap:28 }}>
+        {floors.map(floor=> (
+          <div key={floor}>
+            <div style={{ fontSize:14, fontWeight:800, margin:'2px 0 10px', letterSpacing:.5 }}>Floor {floor}</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:22 }}>
+              {Object.keys(byFloor[floor]).sort().map(sec=> (
+                <div key={sec} style={{ minWidth:220, flex:'1 1 220px' }}>
+                  <div style={{ fontSize:13, fontWeight:700, margin:'4px 0 6px' }}>Room {sec}</div>
+                  <div style={{ display:'grid', gap:8 }}>
+                    {byFloor[floor][sec].map(b=>{
+                      const occupied = assignments[b.id];
+                      return (
+                        <div key={b.id} style={{ background: theme.name==='Dark'? '#2f353a':'#f2f7fa', border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:8, padding:'6px 8px', display:'flex', flexDirection:'column', gap:6 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <input value={b.id} onChange={e=> updateBunk(b.id,'id', e.target.value.trim().toUpperCase())} style={inp(theme,{width:70, fontWeight:600})} />
+                            <input value={b.floor||'1'} onChange={e=> updateBunk(b.id,'floor', e.target.value.trim())} style={inp(theme,{width:46})} />
+                            <input value={b.section} onChange={e=> updateBunk(b.id,'section', e.target.value.trim().toUpperCase())} style={inp(theme,{width:56})} />
+                            <button onClick={()=> deleteBunk(b.id)} style={delBtn(theme)}>✕</button>
+                          </div>
+                          <div style={{ fontSize:10, opacity:.65 }}>
+                            {occupied? 'Occupied' : 'Empty'} • Cap 1
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop:16, fontSize:11, opacity:.65 }}>
+        Roadmap ideas: drag & drop assignment, per-bed notes, export layout JSON, occupancy validation vs onboard roster, heatmap, historical snapshots.
+      </div>
+    </section>
+  );
+}
+
+// small UI helpers
+const box = (theme) => ({ background: theme.name==='Dark'? '#2d3237':'#eef3f7', border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, padding:'8px 10px', display:'flex', flexDirection:'column', gap:6, minWidth:140 });
+const label = { fontSize:10, fontWeight:700, letterSpacing:'.5px', opacity:.7, textTransform:'uppercase' };
+const miniLabel = { fontSize:10, fontWeight:600, letterSpacing:'.5px', opacity:.65 };
+const inp = (theme, extra={}) => ({ background: theme.name==='Dark'? '#1f2428':'#fff', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), borderRadius:6, padding:'4px 6px', fontSize:11, ...extra });
+const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 10px', borderRadius:8, cursor:'pointer', fontSize:11, fontWeight:600 });
+const delBtn = (theme) => ({ background:'#922', color:'#fff', border:'1px solid #b55', padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });

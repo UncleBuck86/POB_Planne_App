@@ -9,7 +9,7 @@ import POBPage from './pages/POB.jsx';
 import AdminPage from './pages/Admin.jsx';
 import { isAdmin as checkAdmin } from './pages/Admin.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
-import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug } from './ai/passiveAI.js';
+import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug, setPassiveInterval, triggerPassiveNow, setPassiveSystemPrompt, setPassiveRedaction } from './ai/passiveAI.js';
 import { ToastProvider } from './alerts/ToastProvider.jsx';
 
 function RootRouter() {
@@ -44,6 +44,9 @@ function NavShell({ page, content }) {
 	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
 	const [passiveAI, setPassiveAI] = useState(()=> { try { return localStorage.getItem('buckPassiveAI') !== 'false'; } catch { return true; } });
 	const [passiveDebug, setPassiveDebug] = useState(()=> { try { return localStorage.getItem('buckPassiveDebug') === 'true'; } catch { return false; } });
+	const [passiveInterval, setPassiveIntervalState] = useState(()=> { try { return parseInt(localStorage.getItem('buckPassiveInterval'),10)||60000; } catch { return 60000; } });
+	const [systemPrompt, setSystemPrompt] = useState(()=> { try { return localStorage.getItem('buckPassiveSystemPrompt')||''; } catch { return ''; } });
+	const [redaction, setRedaction] = useState(()=> { try { return localStorage.getItem('buckPassiveRedaction')==='true'; } catch { return false; } });
 	const TOAST_PREF_KEY = 'pobToastDisabled';
 	const [toastDisabled, setToastDisabled] = useState(() => { try { return localStorage.getItem(TOAST_PREF_KEY)==='true'; } catch { return false; } });
 	const toggleToastPref = () => {
@@ -85,6 +88,10 @@ function NavShell({ page, content }) {
 		initPassiveAI();
 		registerContextProvider('page', ()=> ({ page, hash: window.location.hash }));
 		registerContextProvider('window', ()=> ({ w: window.innerWidth, h: window.innerHeight }));
+		registerContextProvider('personnel', ()=> { try { return window.__buckPersonnelCtx? window.__buckPersonnelCtx(): null; } catch { return null; } });
+		registerContextProvider('flights', ()=> { try { return window.__buckFlightsCtx? window.__buckFlightsCtx(): null; } catch { return null; } });
+		registerContextProvider('pob', ()=> { try { return window.__buckPobCtx? window.__buckPobCtx(): null; } catch { return null; } });
+		registerContextProvider('admin', ()=> { try { return window.__buckAdminCtx? window.__buckAdminCtx(): null; } catch { return null; } });
 		const onResize = () => { /* force snapshot by emitting synthetic event */ window.dispatchEvent(new CustomEvent('passiveWindowResize')); };
 		window.addEventListener('resize', onResize);
 		setPassiveAIEnabled(passiveAI);
@@ -94,6 +101,9 @@ function NavShell({ page, content }) {
 	},[]);
 	useEffect(()=>{ try { localStorage.setItem('buckPassiveAI', passiveAI? 'true':'false'); } catch {} setPassiveAIEnabled(passiveAI); }, [passiveAI]);
 	useEffect(()=>{ try { localStorage.setItem('buckPassiveDebug', passiveDebug? 'true':'false'); } catch {} setPassiveDebug(passiveDebug); }, [passiveDebug]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveInterval', String(passiveInterval)); } catch {} setPassiveInterval(passiveInterval); }, [passiveInterval]);
+	useEffect(()=>{ if(systemPrompt.trim()){ try { localStorage.setItem('buckPassiveSystemPrompt', systemPrompt); } catch {} setPassiveSystemPrompt(systemPrompt); } }, [systemPrompt]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveRedaction', redaction? 'true':'false'); } catch {} setPassiveRedaction(redaction); }, [redaction]);
 	// Listen for global AI events
 	useEffect(()=>{
 		const openEvt = () => setAISidebarOpen(true);
@@ -254,6 +264,19 @@ function NavShell({ page, content }) {
 								<input id="toggle-passive-debug" type="checkbox" checked={passiveDebug} onChange={e=> setPassiveDebug(e.target.checked)} />
 								<label htmlFor="toggle-passive-debug" style={{ fontSize:11 }}>Passive Debug Mode</label>
 							</div>
+							<div style={{ display:'flex', flexDirection:'column', gap:4, margin:'4px 0 6px' }}>
+								<label style={{ fontSize:11, opacity:.7 }}>Passive Interval (sec): {Math.round(passiveInterval/1000)}</label>
+								<input type="range" min={15} max={300} value={Math.round(passiveInterval/1000)} onChange={e=> setPassiveIntervalState(parseInt(e.target.value,10)*1000)} />
+							</div>
+							<div style={{ margin:'4px 0 6px' }}>
+								<label style={{ fontSize:11, opacity:.7, display:'block', marginBottom:4 }}>Passive System Prompt (optional)</label>
+								<textarea rows={3} value={systemPrompt} onChange={e=> setSystemPrompt(e.target.value)} placeholder="Custom system prompt for Buck" style={{ width:'100%', resize:'vertical', fontSize:11 }} />
+							</div>
+							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 6px' }}>
+								<input id="toggle-redaction" type="checkbox" checked={redaction} onChange={e=> setRedaction(e.target.checked)} />
+								<label htmlFor="toggle-redaction" style={{ fontSize:11 }}>Redact Names</label>
+							</div>
+							<button onClick={()=> { triggerPassiveNow(); setOpen(false); }} style={{ display:'block', width:'100%', textAlign:'center', background:'#375a9e', color:'#fff', border:'1px solid #1e3a8a', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, margin:'2px 0 8px' }}>Refresh Suggestions Now</button>
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>Admin</div>
 							{!adminEnabled && (

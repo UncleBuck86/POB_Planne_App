@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 
 /* Personnel record shape (persisted in localStorage under 'personnelRecords')
@@ -169,15 +170,20 @@ export default function Personnel() {
       if (!proceed) return;
     }
     if (editingId === 'new') {
-      setRecords(rs => [...rs, { ...draft, id: 'p_' + Math.random().toString(36).slice(2,9) }]);
+      const rec = { ...draft, id: 'p_' + Math.random().toString(36).slice(2,9) };
+      setRecords(rs => [...rs, rec]);
+      emitDomain('PERSON_ADDED', { id: rec.id, company: rec.company, crew: rec.crew, location: rec.location, rotation: rec.rotation }, `Added person ${rec.firstName||''} ${rec.lastName||''}`);
     } else {
       setRecords(rs => rs.map(r => r.id === editingId ? { ...draft } : r));
+      emitDomain('PERSON_UPDATED', { id: editingId, company: draft.company, crew: draft.crew, location: draft.location, rotation: draft.rotation }, `Updated person ${draft.firstName||''} ${draft.lastName||''}`);
     }
     cancelEdit();
   }
   function remove(id) {
     if (!window.confirm('Delete this record?')) return;
+    const rec = records.find(r=> r.id===id);
     setRecords(rs => rs.filter(r => r.id !== id));
+    if(rec) emitDomain('PERSON_REMOVED', { id: rec.id, company: rec.company, crew: rec.crew, location: rec.location, rotation: rec.rotation }, `Removed person ${rec.firstName||''} ${rec.lastName||''}`);
   }
 
   const borderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
@@ -273,6 +279,13 @@ export default function Personnel() {
 
   // Derived datasets for auxiliary views
   const onboardCount = records.filter(r=> r.status==='Onboard').length;
+  // Expose lightweight context provider hook for passive AI if page active
+  useEffect(()=>{
+    if(window.location.hash.replace('#','').startsWith('personnel')){
+      window.__buckPersonnelCtx = () => ({ total: records.length, onboard: onboardCount, crews: crewOptions.length, rotations: rotationOptions.length });
+    }
+    return () => { if(window.__buckPersonnelCtx) delete window.__buckPersonnelCtx; };
+  }, [records, onboardCount, crewOptions, rotationOptions]);
   const contactRecords = useMemo(()=> {
     const base = records.filter(r=> r.coreCrew || r.primaryPhone || r.secondaryPhone);
     const all = [...base, ...contactOnlyRecords];

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 
 const ADMIN_KEY = 'pobIsAdmin';
@@ -52,6 +53,7 @@ export default function AdminPage() {
     const next = [...locations, trimmed];
     setLocations(next);
     setNewLoc('');
+    emitDomain('CONFIG_CHANGED', { type:'location_add', name: trimmed }, 'Added location '+trimmed);
   };
   const updateLocation = (idx, value) => {
     const trimmed = value.trimStart();
@@ -67,6 +69,7 @@ export default function AdminPage() {
             return clone;
         });
       }
+    if(prevName !== trimmed) emitDomain('CONFIG_CHANGED', { type:'location_rename', from: prevName, to: trimmed }, 'Renamed location');
       return next;
     });
   };
@@ -76,6 +79,7 @@ export default function AdminPage() {
       if (name && locationCaps[name]) {
         setLocationCaps(c => { const clone={...c}; delete clone[name]; return clone; });
       }
+    emitDomain('CONFIG_CHANGED', { type:'location_delete', name }, 'Deleted location '+name);
       return l.filter((_,i)=> i!==idx);
     });
   };
@@ -83,6 +87,7 @@ export default function AdminPage() {
     setLocationCaps(c => {
       const existing = c[loc] || { max: '', flotel: '', fieldBoat: '' };
       const nextVal = value === '' ? '' : Math.max(0, parseInt(value,10) || 0);
+      emitDomain('CONFIG_CHANGED', { type:'cap_edit', loc, field, value: nextVal }, 'Updated cap '+loc+' '+field);
       return { ...c, [loc]: { ...existing, [field]: nextVal } };
     });
   };
@@ -100,7 +105,12 @@ export default function AdminPage() {
     localStorage.removeItem('pobPlannerData');
     localStorage.removeItem('pobPlannerComments');
     alert('Planner data cleared. Reload Planner page to see effect.');
+    emitDomain('CONFIG_CHANGED', { type:'planner_reset' }, 'Planner reset');
   };
+  useEffect(()=>{
+    window.__buckAdminCtx = () => ({ locations: locations.length, crews: crewOptions.length, rotations: rotationOptions.length });
+    return ()=> { delete window.__buckAdminCtx; };
+  }, [locations, crewOptions, rotationOptions]);
   return (
     <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 60px' }}>
       <h2 style={{ marginTop:0 }}>Admin Panel</h2>

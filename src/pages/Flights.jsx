@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../utils/generateFlightComment.js';
 import { DayPicker } from 'react-day-picker';
@@ -187,7 +188,8 @@ export default function FlightsPage() {
         return true;
       });
       localStorage.setItem('manifestSelectedPersonnel', JSON.stringify(payload));
-    } catch {/* ignore */}
+  } catch {/* ignore */}
+  emitDomain('MANIFEST_TEMPLATE_CHANGED', { added: Object.keys(selectedPeople).length }, 'Selected personnel staged for manifest');
     // Check catalog for existing manifest on target date (use last selected date or today fallback)
     try {
       const targetDateMdy = selectedDates.length ? keyForDate(selectedDates.sort((a,b)=>a-b)[selectedDates.length-1]) : null;
@@ -204,6 +206,7 @@ export default function FlightsPage() {
             try {
               localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound }));
             } catch {/* ignore */}
+            emitDomain('MANIFEST_TEMPLATE_CHANGED', { loadedExisting:true, date: targetIso }, 'Loaded existing manifest '+targetIso);
           }
         }
       }
@@ -237,6 +240,7 @@ export default function FlightsPage() {
       const existing = catalog.find(c=> c.meta && c.meta.date === iso);
       if(existing){
   window.location.hash = '#logistics/manifest-view/'+existing.id;
+        emitDomain('MANIFEST_GENERATED', { id: existing.id, date: iso, existing:true }, 'Opened existing manifest '+iso);
         return;
       } else {
         try {
@@ -244,10 +248,16 @@ export default function FlightsPage() {
           const meta = { ...(prev.meta||{}), date: iso };
           localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta, outbound: [], inbound: [] }));
         } catch {/* ignore */}
+        emitDomain('MANIFEST_TEMPLATE_CHANGED', { date: iso, newTemplate:true }, 'Started new manifest '+iso);
       }
     } catch {/* ignore */}
   window.location.hash = '#logistics/manifest';
   };
+  useEffect(()=>{
+    // expose lightweight flights context for passive AI
+    window.__buckFlightsCtx = () => ({ month: displayMonth.toISOString().slice(0,7), selectedDays: selectedDates.length, catalog: catalog.length });
+    return () => { delete window.__buckFlightsCtx; };
+  }, [displayMonth, selectedDates, catalog]);
 
   return (
     <div style={{ color: theme.text, background: theme.background, minHeight:'100vh', padding:'24px' }}>

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 
 // POB (Persons On Board) Landing Page
@@ -46,7 +47,7 @@ export default function POBPage(){
   });
   // local state to trigger re-render on assignment changes
   const [assignmentsVersion, setAssignmentsVersion] = useState(0);
-  const saveAssignments = (next) => { try { localStorage.setItem('pobBunkAssignments', JSON.stringify(next)); } catch{} assignmentsStore = next; setAssignmentsVersion(v=>v+1); };
+  const saveAssignments = (next, meta={}) => { try { localStorage.setItem('pobBunkAssignments', JSON.stringify(next)); } catch{} assignmentsStore = next; setAssignmentsVersion(v=>v+1); if(meta && meta.event){ emitDomain(meta.event, meta.payload||{}, meta.brief); } };
   const bunkMap = new Map(initialBunks.map(b=> [b.id, b]));
   const bunkToPersons = {}; Object.entries(assignmentsStore).forEach(([bid,val])=> { if(val && Array.isArray(val.personIds)) bunkToPersons[bid]=val.personIds; });
   const assignedRoster = onboard.reduce((acc,p)=>{
@@ -76,17 +77,17 @@ export default function POBPage(){
     if(!activeBunk) return; const cap = capacityFor(activeBunk); const cur = occupants(activeBunk);
     const nextIds = cur.includes(pid)? cur : [...cur, pid];
     const store = { ...assignmentsStore, [activeBunk]: { ...(assignmentsStore[activeBunk]||{}), personIds: nextIds } };
-    saveAssignments(store);
+    saveAssignments(store, { event:'BUNK_ASSIGNED', payload:{ bunk: activeBunk, person: pid }, brief:`Assigned ${pid} -> ${activeBunk}` });
   };
   const removePersonFromBunk = (pid) => {
     if(!activeBunk) return; const cur = occupants(activeBunk).filter(id=> id!==pid);
     const entry = { ...(assignmentsStore[activeBunk]||{}), personIds: cur };
     const store = { ...assignmentsStore, [activeBunk]: entry };
-    saveAssignments(store);
+    saveAssignments(store, { event:'BUNK_UNASSIGNED', payload:{ bunk: activeBunk, person: pid }, brief:`Removed ${pid} from ${activeBunk}` });
   };
   const clearBunk = () => {
     if(!activeBunk) return; if(!window.confirm('Unassign everyone from '+activeBunk+'?')) return;
-    const store = { ...assignmentsStore }; delete store[activeBunk]; saveAssignments(store);
+    const store = { ...assignmentsStore }; delete store[activeBunk]; saveAssignments(store, { event:'BUNK_UNASSIGNED', payload:{ bunk: activeBunk, cleared:true }, brief:`Cleared bunk ${activeBunk}` });
   };
   const occupancyStatus = (bid) => {
     const occ = occupants(bid).length; const cap = capacityFor(bid);
@@ -120,7 +121,7 @@ export default function POBPage(){
     // add to new
     const newIds = curOcc.includes(pid)? curOcc : [...curOcc, pid];
     nextStore[targetBunk] = { ...(nextStore[targetBunk]||{}), personIds: newIds };
-    saveAssignments(nextStore);
+  saveAssignments(nextStore, { event:'BUNK_ASSIGNED', payload:{ bunk: targetBunk, person: pid, movedFrom: currentBunk||null }, brief:`Moved ${pid} to ${targetBunk}` });
   };
   const unassignPerson = (pid) => {
     if(!pid) return;
@@ -130,8 +131,13 @@ export default function POBPage(){
     const filtered = (nextStore[currentBunk]?.personIds||[]).filter(id=> id!==pid);
     if(filtered.length) nextStore[currentBunk] = { ...nextStore[currentBunk], personIds: filtered };
     else delete nextStore[currentBunk];
-    saveAssignments(nextStore);
+    saveAssignments(nextStore, { event:'BUNK_UNASSIGNED', payload:{ bunk: currentBunk, person: pid }, brief:`Unassigned ${pid} from ${currentBunk}` });
   };
+  // Expose context
+  useEffect(()=>{
+    window.__buckPobCtx = () => ({ onboard: onboard.length, bunks: initialBunks.length, assignments: Object.keys(assignmentsStore).length });
+    return ()=> { delete window.__buckPobCtx; };
+  }, [onboard.length, initialBunks.length, assignmentsVersion]);
 
   return (
     <div style={{ padding:'24px 26px 80px', background: theme.background, color: theme.text, minHeight:'100vh' }}>

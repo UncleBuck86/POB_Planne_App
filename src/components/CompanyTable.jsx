@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import TableControlsBar from './CompanyTable/TableControlsBar';
 import { useTheme } from '../ThemeContext.jsx';
-import { generateFlightComments } from '../utils/generateFlightComment';
+import { generateFlightComments } from '../helpers/commentHelpers';
 // Import subcomponents for modular table rendering
 import CompanyTableHeader from './CompanyTable/CompanyTableHeader';
 import CompanyRow from './CompanyTable/CompanyRow';
@@ -20,6 +20,10 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   });
   const minZoom = 0.6;   // allow shrinking
   const maxZoom = 1.6;   // allow enlargement
+  // Add missing resetZoom function
+  const resetZoom = () => setZoom(1);
+  // Add missing onBulkImport function
+  const onBulkImport = () => {};
   // Removed frame height & auto-fit (direct table layout)
   // autoFit removed
   // Auto-hide past dates (can be toggled off if user sets custom range)
@@ -46,7 +50,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   useEffect(() => {
     localStorage.setItem('pobZoom', String(zoom));
   }, [zoom]);
-  // ...existing code...
   // Auto-hide companies with no numbers in the next 28 days
   // Auto-hide logic removed; hiddenRows is now only controlled manually.
   const { theme } = useTheme ? useTheme() : { theme: { primary: '#388e3c', text: '#fff' } };
@@ -96,7 +99,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     const existing = new Set(rowData.map(r => r.id));
     setPinnedCompanies(prev => prev.filter(id => existing.has(id)));
     setHiddenRows(prev => prev.filter(id => existing.has(id)));
-  }, [rowData.length]);
+  }, [rowData]);
   const [lastSavedData, setLastSavedData] = useState(rowData); // Last saved table data
   const lastSavedById = useMemo(() => {
     const map = {};
@@ -322,12 +325,20 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     closeBulk();
   };
 
+  // State to control AI banner visibility
+  const [showAIBanner, setShowAIBanner] = useState(true);
+
   // Main render
   return (
-    <div>
+    <div style={{ width: '100%', overflowX: 'auto' }}>
+      {showAIBanner && (
+        <div role="alert" aria-live="polite" style={{ background: '#ffeeba', color: '#222', padding: '8px 16px', marginBottom: 8, borderRadius: 4, border: '1px solid #f5c06f', fontWeight: 500 }}>
+          AI features are currently disabled. <button aria-label="Dismiss AI notice" style={{ marginLeft: 16, background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontWeight: 600 }} onClick={() => setShowAIBanner(false)}>Dismiss</button>
+        </div>
+      )}
       {/* Controls bar: scroll, save, autosave, auto-hide, undo/redo, zoom slider */}
       <TableControlsBar
-        theme={theme}
+        theme={themeOverride}
         autosave={autosave}
         setAutosave={setAutosave}
         autoHide={autoHide}
@@ -339,7 +350,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         pushUndo={pushUndo}
         setUndoStack={setUndoStack}
         setRedoStack={setRedoStack}
-  rowData={rowData}
+        rowData={rowData}
         localComments={localComments}
         setRowData={setRowData}
         setLocalComments={setLocalComments}
@@ -347,8 +358,9 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         setZoom={setZoom}
         minZoom={minZoom}
         maxZoom={maxZoom}
-  scrollTable={scrollTable}
-  onBulkImport={openBulk}
+        resetZoom={resetZoom}
+        scrollTable={scrollTable}
+        onBulkImport={onBulkImport}
       />
       {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}
 

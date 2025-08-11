@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
 import CompanyTable from './components/CompanyTable';
-import { generateFlightComments } from './utils/generateFlightComment';
-import { getAllDates, formatDate } from './utils/dateUtils';
+import { generateFlightComments } from './helpers/commentHelpers';
+import { getAllDates } from './services/dateService';
+import { formatDate } from './helpers/dateHelpers';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { themePresets } from './themePresets';
 

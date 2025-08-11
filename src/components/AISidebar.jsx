@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { getPassiveSnapshot, getPassiveSuggestions } from '../ai/passiveAI.js';
+import { getPassiveSuggestions } from '../ai/passiveAI.js';
 import { streamChat, isOpenAI } from '../ai/client.js';
 
 export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext }) {

@@ -1,47 +1,7 @@
-import { onEvent, emitDomain } from './eventBus.js';
-import { streamChat } from './client.js';
-
-// Rolling event log & providers
-let recent = [];
-const MAX_EVENTS = 40;
-const providers = {}; // name -> fn()
-let enabled = false;
-let debugEnabled = false;
-let pending = false;
-let lastRun = 0;
-let intervalMs = 60_000; // configurable interval
-const CRITICAL = new Set(['POB_OVER_MAX','POB_OVER_EFFECTIVE']);
-let lastSnapshot = null;
-let lastSuggestions = [];
-let systemPrompt = 'You are Buck, an offshore logistics assistant. Provide at most 3 concise actionable bullet suggestions (risk prevention, capacity, flight optimization).';
-let redactionEnabled = false;
-const suggestionHistory = []; // { ts, suggestions }
-const MAX_HISTORY = 40;
-
-export function registerContextProvider(name, fn) { providers[name] = fn; }
-export function setPassiveAIEnabled(v){ enabled = !!v; }
-export function setPassiveDebug(v){ debugEnabled = !!v; exposePassiveDebug(); }
-export function getPassiveSnapshot(){ return lastSnapshot; }
-export function getPassiveEvents(){ return [...recent]; }
-export function getPassiveSuggestions(){ return [...lastSuggestions]; }
-export function setPassiveInterval(ms){ if(typeof ms==='number' && ms>=5000) intervalMs = ms; }
-export function triggerPassiveNow(){ if(!enabled) return; schedule(true); }
-export function setPassiveSystemPrompt(p){ if(typeof p==='string' && p.trim()) systemPrompt = p.trim(); }
-export function setPassiveRedaction(flag){ redactionEnabled = !!flag; }
-export function getPassiveSuggestionHistory(){ return [...suggestionHistory]; }
-
-function record(evt){
-  recent.push(evt);
-  if(recent.length>MAX_EVENTS) recent.splice(0, recent.length-MAX_EVENTS);
-}
-
-function buildSnapshot(){
-  const snap = { ts:new Date().toISOString(), intervalMs, events: recent.map(e=>({ t:e.ts, type:e.type, brief:e.brief, meta: trim(e.meta) })), ctx:{} };
-  for(const [k,fn] of Object.entries(providers)) {
-    try { snap.ctx[k] = trim(fn()); } catch { /* ignore */ }
-  }
-  lastSnapshot = snap; return snap;
-}
+// Passive AI code removed on 2025-08-11. See _ARCHIVE_2025_08_11/passiveAI.js for original implementation.
+export function getPassiveSuggestions() { return []; }
+export function registerContextProvider() { /* stub */ }
+export function setPassiveAIEnabled() { /* stub */ }
 
 function maskString(str){
   if(!str) return str;
@@ -101,28 +61,11 @@ async function runCycle(){
     lastRun=Date.now(); pending=false; }
 }
 
-export function initPassiveAI(){
-  const domainEvents = [
-    'POB_TOTAL_CHANGED','CAPACITY_THRESHOLD','WIDGET_MOVED','PERSON_ADDED','PERSON_UPDATED','PERSON_REMOVED','FLIGHT_MANIFEST_UPDATED','BUNK_ASSIGNED','BUNK_UNASSIGNED','CONFIG_CHANGED','MANIFEST_TEMPLATE_CHANGED','MANIFEST_GENERATED','UI_CLICK'
-  ];
-  domainEvents.forEach(name=> onEvent(name, evt=> {
-    record(evt);
-    const immediate = !!(evt.meta && (evt.meta.errorCode && CRITICAL.has(evt.meta.errorCode) || evt.meta.forceImmediate));
-    schedule(immediate);
-  }));
-  // Manual trigger event (UI button)
-  window.addEventListener('buckPassiveRefresh', ()=> triggerPassiveNow());
-  buildSnapshot();
-  // First cycle shortly after init for baseline
-  schedule(true);
-}
+export function initPassiveAI() { /* stub */ }
 
-export function exposePassiveDebug(){
-  if(debugEnabled){
-    window.__buckPassive = {
-      snapshot: ()=> lastSnapshot,
-      events: ()=> getPassiveEvents(),
-      suggestions: ()=> getPassiveSuggestions()
-    };
-  } else if(window.__buckPassive) delete window.__buckPassive;
-}
+export function exposePassiveDebug() { /* stub */ }
+export function setPassiveDebug() { /* stub */ }
+export function setPassiveInterval() { /* stub */ }
+export function setPassiveRedaction() { /* stub */ }
+export function setPassiveSystemPrompt() { /* stub */ }
+export function triggerPassiveNow() { /* stub */ }

@@ -28,12 +28,12 @@ export default function TableControlsBar({
   onBulkImport
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }} role="toolbar" aria-label="Table controls">
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button title="Scroll to start" onClick={() => scrollTable('start')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'<<'}</button>
-        <button title="Scroll left" onClick={() => scrollTable('left')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'<'}</button>
-        <button title="Scroll right" onClick={() => scrollTable('right')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'>'}</button>
-        <button title="Scroll to end" onClick={() => scrollTable('end')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'>>'}</button>
+        <button title="Scroll to start" aria-label="Scroll to start" onClick={() => scrollTable('start')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'<<'}</button>
+        <button title="Scroll left" aria-label="Scroll left" onClick={() => scrollTable('left')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'<'}</button>
+        <button title="Scroll right" aria-label="Scroll right" onClick={() => scrollTable('right')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'>'}</button>
+        <button title="Scroll to end" aria-label="Scroll to end" onClick={() => scrollTable('end')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'>>'}</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button

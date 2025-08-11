@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
+import { registerContextProvider } from '../ai/passiveAI.js';
+import { emitEvent } from '../ai/eventBus.js';
 import { getAIResponse } from '../ai/client.js';
 import { getNextNDays } from '../utils/dateRanges.js';
 import { generateFlightDeltas } from '../utils/flightDeltas.js';
@@ -138,6 +140,34 @@ function Dashboard() {
       timestamp: new Date().toISOString()
     };
   };
+  // Passive AI context provider registration (dashboard-specific)
+  useEffect(()=> {
+    const providerId = '__dashProviderRegistered';
+    if (window[providerId]) return; // simple guard to avoid duplicate registration across re-mounts
+    try {
+      registerContextProvider('dashboard', () => {
+        try { return buildAIContext(); } catch { return { error:'buildAIContext failed' }; }
+      });
+      registerContextProvider('pobTotals', () => ({ todayTotal, capMax, capEffective, overMax, overEffective, location: userLocation }));
+      registerContextProvider('onboardStats', () => ({ onboard: onboard.length }));
+      registerContextProvider('companiesPreview', () => {
+        const preview = visibleCompanies.slice(0,5).map(c=> ({ company:c.company }));
+        return { count: visibleCompanies.length, preview };
+      });
+      window[providerId] = true;
+    } catch {/* ignore */}
+  }, [todayTotal, capMax, capEffective, overMax, overEffective, userLocation, onboard.length, visibleCompanies]);
+
+  // Emit passive events when POB / capacity status changes
+  const lastPOBRef = useRef();
+  useEffect(()=> {
+    const signature = `${todayTotal}|${capMax}|${capEffective}|${overMax}|${overEffective}|${userLocation}`;
+    if (lastPOBRef.current === signature) return;
+    lastPOBRef.current = signature;
+    emitEvent('POB_TOTAL_CHANGED', { type:'POB_TOTAL_CHANGED', ts: Date.now(), brief:`POB ${todayTotal}/${capMax||'?'}`, meta:{ todayTotal, capMax, capEffective, overMax, overEffective, userLocation } });
+    if (overMax) emitEvent('CAPACITY_THRESHOLD', { type:'CAPACITY_THRESHOLD', ts:Date.now(), brief:'Over Max POB', meta:{ errorCode:'POB_OVER_MAX', todayTotal, capMax, capEffective, userLocation } });
+    if (overEffective) emitEvent('CAPACITY_THRESHOLD', { type:'CAPACITY_THRESHOLD', ts:Date.now(), brief:'Over Effective Cap', meta:{ errorCode:'POB_OVER_EFFECTIVE', todayTotal, capMax, capEffective, userLocation } });
+  }, [todayTotal, capMax, capEffective, overMax, overEffective, userLocation]);
   const { addToast } = useToast();
   // Compute dynamic character-based width per forecast date column (based on longest flight entry or comment line)
   const forecastColCharWidths = useMemo(() => {

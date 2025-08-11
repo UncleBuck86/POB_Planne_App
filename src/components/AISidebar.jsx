@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getPassiveSnapshot, getPassiveSuggestions } from '../ai/passiveAI.js';
 import { streamChat, isOpenAI } from '../ai/client.js';
 
 export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext }) {
@@ -8,6 +9,16 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
     { role: 'assistant', content: suggestion || 'Ask me about POB planning, logistics risks, or capacity issues.' }
   ]);
   const [includeContext, setIncludeContext] = useState(true);
+  const [passive, setPassive] = useState([]);
+  const [showDebug, setShowDebug] = useState(false);
+  useEffect(()=>{
+    const handler = e => { setPassive(getPassiveSuggestions()); };
+    window.addEventListener('passiveAISuggestions', handler);
+    // initial load
+    setPassive(getPassiveSuggestions());
+    return ()=> window.removeEventListener('passiveAISuggestions', handler);
+  },[]);
+
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -111,6 +122,28 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
           <input type="checkbox" checked={includeContext} onChange={e=> setIncludeContext(e.target.checked)} /> Include screen context
         </label>
         <div style={{ marginTop:6, fontSize:10, opacity:0.55 }}>Shift+Enter for newline.</div>
+        {passive.length>0 && (
+          <div style={{ marginTop:12 }}>
+            <div style={{ fontSize:11, fontWeight:'bold', marginBottom:4, opacity:0.85 }}>Passive Suggestions</div>
+            {passive.map((p,i)=>(
+              <div key={i} style={{ background:'#262b31', padding:'6px 8px', borderRadius:6, fontSize:11, marginBottom:6 }}>
+                <div style={{ fontWeight:'600', marginBottom:2 }}>{p.title||p.type||'Suggestion'}</div>
+                <div style={{ opacity:.85, whiteSpace:'pre-wrap' }}>{p.detail||''}</div>
+                {p.urgency && <div style={{ marginTop:4, fontSize:10, opacity:.6 }}>Urgency: {p.urgency}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ marginTop:10, fontSize:10 }}>
+          <button type="button" onClick={()=> setShowDebug(s=>!s)} style={{ background:'#333', color:'#eee', border:'1px solid #444', padding:'4px 8px', borderRadius:4, cursor:'pointer', fontSize:10 }}>
+            {showDebug? 'Hide Debug Context':'Show Debug Context'}
+          </button>
+        </div>
+        {showDebug && (
+          <pre style={{ marginTop:8, maxHeight:160, overflow:'auto', background:'#15181c', padding:8, fontSize:10, border:'1px solid #333', borderRadius:6 }}>
+            {JSON.stringify(getPassiveSnapshot(), null, 2) || 'No snapshot'}
+          </pre>
+        )}
       </div>
     </div>
   );

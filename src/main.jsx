@@ -9,6 +9,7 @@ import POBPage from './pages/POB.jsx';
 import AdminPage from './pages/Admin.jsx';
 import { isAdmin as checkAdmin } from './pages/Admin.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
+import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug } from './ai/passiveAI.js';
 import { ToastProvider } from './alerts/ToastProvider.jsx';
 
 function RootRouter() {
@@ -41,6 +42,8 @@ function NavShell({ page, content }) {
 	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
 	const [aiSuggestion, setAISuggestion] = useState('');
 	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
+	const [passiveAI, setPassiveAI] = useState(()=> { try { return localStorage.getItem('buckPassiveAI') !== 'false'; } catch { return true; } });
+	const [passiveDebug, setPassiveDebug] = useState(()=> { try { return localStorage.getItem('buckPassiveDebug') === 'true'; } catch { return false; } });
 	const TOAST_PREF_KEY = 'pobToastDisabled';
 	const [toastDisabled, setToastDisabled] = useState(() => { try { return localStorage.getItem(TOAST_PREF_KEY)==='true'; } catch { return false; } });
 	const toggleToastPref = () => {
@@ -77,6 +80,15 @@ function NavShell({ page, content }) {
 		window.addEventListener('mousedown',handler); window.addEventListener('touchstart',handler); window.addEventListener('keydown',key);
 		return ()=>{ window.removeEventListener('mousedown',handler); window.removeEventListener('touchstart',handler); window.removeEventListener('keydown',key); };
 	},[open]);
+	// Passive AI init (once)
+	useEffect(()=>{
+		initPassiveAI();
+		registerContextProvider('page', ()=> ({ page }));
+		setPassiveAIEnabled(passiveAI);
+		setPassiveDebug(passiveDebug);
+	},[]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveAI', passiveAI? 'true':'false'); } catch {} setPassiveAIEnabled(passiveAI); }, [passiveAI]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveDebug', passiveDebug? 'true':'false'); } catch {} setPassiveDebug(passiveDebug); }, [passiveDebug]);
 	// Listen for global AI events
 	useEffect(()=>{
 		const openEvt = () => setAISidebarOpen(true);
@@ -226,6 +238,16 @@ function NavShell({ page, content }) {
 							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 10px' }}>
 								<input id="toggle-toast" type="checkbox" checked={!toastDisabled} onChange={toggleToastPref} />
 								<label htmlFor="toggle-toast" style={{ fontSize:11 }}>Enable Pop-up Notifications</label>
+							</div>
+							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
+							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>AI Settings</div>
+							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 6px' }}>
+								<input id="toggle-passive-ai" type="checkbox" checked={passiveAI} onChange={e=> setPassiveAI(e.target.checked)} />
+								<label htmlFor="toggle-passive-ai" style={{ fontSize:11 }}>Passive Suggestions</label>
+							</div>
+							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 8px' }}>
+								<input id="toggle-passive-debug" type="checkbox" checked={passiveDebug} onChange={e=> setPassiveDebug(e.target.checked)} />
+								<label htmlFor="toggle-passive-debug" style={{ fontSize:11 }}>Passive Debug Mode</label>
 							</div>
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>Admin</div>

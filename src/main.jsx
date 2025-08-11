@@ -8,6 +8,7 @@ import POBPage from './pages/POB.jsx';
 import AdminPage from './pages/Admin.jsx';
 import { isAdmin as checkAdmin } from './pages/Admin.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
+import { ToastProvider } from './alerts/ToastProvider.jsx';
 
 function RootRouter() {
 	const [page, setPage] = useState(window.location.hash.replace('#','') || 'dashboard');
@@ -25,7 +26,9 @@ function RootRouter() {
 	else content = <Dashboard />;
 	return (
 		<ThemeProvider>
-			<NavShell page={page} content={content} />
+			<ToastProvider>
+				<NavShell page={page} content={content} />
+			</ToastProvider>
 		</ThemeProvider>
 	);
 }
@@ -34,6 +37,14 @@ function NavShell({ page, content }) {
 	const { theme, team, changeTheme } = useTheme();
 	const [open, setOpen] = useState(false);
 	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
+	const TOAST_PREF_KEY = 'pobToastDisabled';
+	const [toastDisabled, setToastDisabled] = useState(() => { try { return localStorage.getItem(TOAST_PREF_KEY)==='true'; } catch { return false; } });
+	const toggleToastPref = () => {
+		setToastDisabled(prev => {
+			const next = !prev; try { localStorage.setItem(TOAST_PREF_KEY, next? 'true':'false'); } catch {}
+			return next;
+		});
+	};
 	// Planner page location selection state
 	const [plannerLocation, setPlannerLocation] = useState(() => {
 		try { return localStorage.getItem('pobPlannerLocation') || ''; } catch { return ''; }
@@ -110,6 +121,10 @@ function NavShell({ page, content }) {
 							{page==='dashboard' && (
 								<button onClick={()=>{ window.dispatchEvent(new Event('openDashboardSettings')); setOpen(false); }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginBottom:10 }}>Dashboard Layout</button>
 							)}
+							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 10px' }}>
+								<input id="toggle-toast" type="checkbox" checked={!toastDisabled} onChange={toggleToastPref} />
+								<label htmlFor="toggle-toast" style={{ fontSize:11 }}>Enable Pop-up Notifications</label>
+							</div>
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>Admin</div>
 							{!adminEnabled && (

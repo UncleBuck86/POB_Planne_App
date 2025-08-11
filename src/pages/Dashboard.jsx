@@ -5,6 +5,8 @@ import { generateFlightDeltas } from '../utils/flightDeltas.js';
 import { GRID_SIZE, loadLayout, saveLayout, loadVisibility, saveVisibility } from '../utils/widgetLayout.js';
 import { loadWidgetColors, saveWidgetColors, widgetColorTheme } from '../utils/widgetColors.js';
 import { thStyle, tdStyle, tdLeft, onCell } from '../utils/dashboardStyles.js';
+import { useToast } from '../alerts/ToastProvider.jsx';
+import { explainError } from '../alerts/errorExplain.js';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
 
 // Reuse theming like planner page
@@ -113,6 +115,7 @@ function Dashboard() {
   const overEffective = capEffective>0 && todayTotal > capEffective;
   // Precompute flight deltas once for next7 range
   const flightDeltas = useMemo(()=> generateFlightDeltas(rowData, next7.map(n=>n.key)), [rowData, next7]);
+  const { addToast } = useToast();
   // Compute dynamic character-based width per forecast date column (based on longest flight entry or comment line)
   const forecastColCharWidths = useMemo(() => {
     return next7.map(d => {
@@ -335,6 +338,14 @@ function Dashboard() {
                       const flotel = parseInt(caps.flotel,10)||0;
                       const fieldBoat = parseInt(caps.fieldBoat,10)||0;
                       const effective = max + flotel + fieldBoat;
+                      if (userLocation && max>0 && total>max && total<=effective) {
+                        const info = explainError('POB_OVER_MAX', { total, max, effective, date:d.key, location:userLocation });
+                        addToast({ type:'warn', ...info, dedupeKey:`POB_OVER_MAX_${userLocation}_${d.key}`, link:'#admin' });
+                      }
+                      if (userLocation && effective>0 && total>effective) {
+                        const info = explainError('POB_OVER_EFFECTIVE', { total, max, effective, date:d.key, location:userLocation, flotel, fieldBoat });
+                        addToast({ type:'error', ...info, dedupeKey:`POB_OVER_EFFECTIVE_${userLocation}_${d.key}`, link:'#admin' });
+                      }
                       let bg = wc.base || 'transparent';
                       let color = wc.text || theme.text;
                       if (max>0 && total>max) {

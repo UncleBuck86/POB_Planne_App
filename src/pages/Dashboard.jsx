@@ -101,6 +101,16 @@ function Dashboard() {
     acc[d.key] = visibleCompanies.reduce((sum, c) => sum + (parseInt(c[d.key], 10) || 0), 0);
     return acc;
   }, {});
+  // Precompute current day caps summary for warning badge
+  const todayKey = next7[0]?.key;
+  const todayTotal = todayKey ? (totalsPerDay[todayKey] || 0) : 0;
+  const currentCaps = locationCaps[userLocation] || {};
+  const capMax = parseInt(currentCaps.max,10)||0;
+  const capFlotel = parseInt(currentCaps.flotel,10)||0;
+  const capFieldBoat = parseInt(currentCaps.fieldBoat,10)||0;
+  const capEffective = capMax + capFlotel + capFieldBoat;
+  const overMax = capMax>0 && todayTotal > capMax;
+  const overEffective = capEffective>0 && todayTotal > capEffective;
   // Precompute flight deltas once for next7 range
   const flightDeltas = useMemo(()=> generateFlightDeltas(rowData, next7.map(n=>n.key)), [rowData, next7]);
   // Compute dynamic character-based width per forecast date column (based on longest flight entry or comment line)
@@ -259,6 +269,9 @@ function Dashboard() {
       style={{ position:'absolute', left:layout.nav.x, top:layout.nav.y, cursor: editLayout ? 'grab' : 'default', userSelect: editLayout ? 'none':'auto', padding: '12px 16px', background: wc.base || theme.surface, border: '1px solid '+(wc.border || '#bfc4ca'), borderRadius: 8, minWidth:260, boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text || theme.text }}
     >
   <h3 style={{ margin: '0 0 8px', background: wc.header||'transparent', padding: wc.header? '4px 6px':0, borderRadius:4, color: wc.text || (team === 'dark' ? theme.text : theme.secondary), fontSize:16 }}>Navigation {userLocation && <span style={{ fontSize:11, fontWeight:400, opacity:0.75 }}>({userLocation})</span>}</h3>
+      {(overMax || overEffective) && !editLayout && (
+        <div style={{ position:'absolute', top:6, right:6, background: overEffective? '#850000':'#c34b00', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:12, boxShadow:'0 0 0 2px rgba(0,0,0,0.3)' }} title={overEffective? 'Total POB exceeds Max + Contingency':'Total POB exceeds Max POB'}>POB!</div>
+      )}
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
         <li><a href="#planner" style={{ color: wc.text || theme.text, fontWeight: 'bold', textDecoration: 'none' }}>Go to Planner</a></li>
       </ul>
@@ -286,6 +299,32 @@ function Dashboard() {
               {(() => {
                 const rows = [];
                 // Total POB row (first)
+                // Max POB row (regulatory limit)
+                rows.push(
+                  <tr key="max-pob" style={{ background: theme.background }}>
+                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:10, textAlign:'left' }}>Max POB</td>
+                    {next7.map(d => {
+                      const caps = locationCaps[userLocation] || {};
+                      const max = parseInt(caps.max,10)||'';
+                      return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, fontWeight:'bold', opacity:max?1:.4 }}>{max!==''? max: ''}</td>;
+                    })}
+                  </tr>
+                );
+                // Effective capacity row (max + contingencies)
+                rows.push(
+                  <tr key="effective-pob" style={{ background: theme.background }}>
+                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:10, textAlign:'left' }}>Effective Cap</td>
+                    {next7.map(d => {
+                      const caps = locationCaps[userLocation] || {};
+                      const max = parseInt(caps.max,10)||0;
+                      const flotel = parseInt(caps.flotel,10)||0;
+                      const fieldBoat = parseInt(caps.fieldBoat,10)||0;
+                      const eff = (max+flotel+fieldBoat)||'';
+                      return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, opacity: eff?1:.4 }} title={eff?`Max ${max} + Flotel ${flotel} + Field Boat ${fieldBoat}`:''}>{eff||''}</td>;
+                    })}
+                  </tr>
+                );
+                // Total POB row with highlighting
                 rows.push(
                   <tr key="total-pob" style={{ background: theme.background }}>
                     <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:11, textAlign:'left', minWidth:110 }}>Total POB</td>
@@ -299,7 +338,6 @@ function Dashboard() {
                       let bg = wc.base || 'transparent';
                       let color = wc.text || theme.text;
                       if (max>0 && total>max) {
-                        // Over legal max; escalate color
                         bg = 'rgba(200,0,0,0.35)';
                       }
                       if (effective>0 && total>effective) {
@@ -307,9 +345,7 @@ function Dashboard() {
                         color = '#fff';
                       }
                       const title = max>0 ? `Total ${total} / Max ${max}${flotel||fieldBoat?` (+Contingency ${effective})`:''}` : `Total ${total}`;
-                      return (
-                        <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12, background:bg, color }} title={title}>{total||''}</td>
-                      );
+                      return <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12, background:bg, color }} title={title}>{total||''}</td>;
                     })}
                   </tr>
                 );
@@ -355,6 +391,11 @@ function Dashboard() {
           </table>
         </div>
   <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Read-only snapshot.</div>
+      <div style={{ marginTop:4, fontSize:9, lineHeight:1.4, opacity:0.75, maxWidth:420 }}>
+        <span style={{ display:'inline-block', width:12, height:12, background:'rgba(200,0,0,0.35)', border:'1px solid rgba(120,0,0,0.6)', marginRight:4, verticalAlign:'middle' }} /> Over Max POB &le; Effective.{' '}
+        <span style={{ display:'inline-block', width:12, height:12, background:'rgba(120,0,0,0.55)', border:'1px solid rgba(80,0,0,0.7)', margin:'0 4px', verticalAlign:'middle' }} /> Over Effective (Max + Contingency).{' '}
+        Effective = Max + Flotel + Field Boat.
+      </div>
     </section>
   ); })()}
       {/* Flight Forecast Widget (horizontal like POB Forecast) */}

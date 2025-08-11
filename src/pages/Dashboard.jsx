@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import AISidebar from '../components/AISidebar.jsx';
 import { useTheme } from '../ThemeContext.jsx';
+import { getAIResponse } from '../ai/client.js';
 import { getNextNDays } from '../utils/dateRanges.js';
 import { generateFlightDeltas } from '../utils/flightDeltas.js';
 import { GRID_SIZE, loadLayout, saveLayout, loadVisibility, saveVisibility } from '../utils/widgetLayout.js';
@@ -21,6 +23,7 @@ const Dropdown = styled.div`
 
 function Dashboard() {
   const { theme, team, changeTheme } = useTheme();
+  const [aiSuggestion, setAISuggestion] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
   // Listen for global event to open dashboard settings
@@ -260,6 +263,33 @@ function Dashboard() {
         {availableLocations.map(loc => <option value={loc} key={loc}>{loc}</option>)}
       </select>
     </div>
+    {/* Agent-style AI Suggestion Button */}
+    <button
+      style={{ padding:'6px 14px', background:theme.secondary, color:theme.text, border:'1px solid '+theme.primary, borderRadius:8, fontWeight:'bold', fontSize:13, marginLeft:12, cursor:'pointer' }}
+      onClick={async () => {
+        setAISuggestion('Loading...');
+        const pobData = rowData;
+        const prompt = `Suggest improvements for POB planning based on this data: ${JSON.stringify(pobData).slice(0, 4000)}`;
+        try {
+          const aiResponse = await getAIResponse(prompt);
+          setAISuggestion(aiResponse);
+        } catch (err) {
+          setAISuggestion('AI error: ' + err.message);
+        }
+      }}
+    >Generate POB Suggestions (AI)</button>
+    <AISidebar
+      suggestion={aiSuggestion}
+      onAsk={async (question) => {
+        setAISuggestion('Loading...');
+        try {
+          const aiResponse = await getAIResponse(question);
+          setAISuggestion(aiResponse);
+        } catch (err) {
+          setAISuggestion('AI error: ' + err.message);
+        }
+      }}
+    />
   </div>
   <div ref={containerRef} style={{ position:'relative', minHeight:600 }}>
     {editLayout && (

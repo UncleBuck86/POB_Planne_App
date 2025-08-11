@@ -18,7 +18,10 @@ export function loadLayout() {
     return stored ? { ...defaultLayout, ...stored } : defaultLayout;
   } catch { return defaultLayout; }
 }
-export function saveLayout(layout) { try { localStorage.setItem(layoutKey, JSON.stringify(layout)); } catch {} }
+export function saveLayout(layout) {
+  try { localStorage.setItem(layoutKey, JSON.stringify(layout)); } catch {}
+  emitPassive('WIDGET_MOVED', { ids: Object.keys(layout||{}) });
+}
 
 export function loadVisibility() {
   try {
@@ -26,7 +29,10 @@ export function loadVisibility() {
     return stored ? { ...defaultVisibility, ...stored } : defaultVisibility;
   } catch { return defaultVisibility; }
 }
-export function saveVisibility(v) { try { localStorage.setItem(visibilityKey, JSON.stringify(v)); } catch {} }
+export function saveVisibility(v) {
+  try { localStorage.setItem(visibilityKey, JSON.stringify(v)); } catch {}
+  emitPassive('VISIBILITY_CHANGED', { visible: v });
+}
 
 // Fire passive AI events (lazy import to avoid hard dependency at module load)
 function emitPassive(name, meta) {
@@ -36,11 +42,4 @@ function emitPassive(name, meta) {
   } catch {/* ignore */}
 }
 
-// Wrap original save functions to emit events (non-breaking, preserving exports)
-const _origSaveLayout = saveLayout;
-export function saveLayoutWithEvent(l){ _origSaveLayout(l); emitPassive('WIDGET_MOVED', { ids:Object.keys(l||{}) }); }
-export { saveLayoutWithEvent as saveLayout }; // re-export overriding name
-
-const _origSaveVisibility = saveVisibility;
-export function saveVisibilityWithEvent(v){ _origSaveVisibility(v); emitPassive('VISIBILITY_CHANGED', { visible: v }); }
-export { saveVisibilityWithEvent as saveVisibility };
+// (Instrumentation inlined into saveLayout/saveVisibility above; wrappers removed to avoid duplicate exports)

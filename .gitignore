@@ -21,6 +21,10 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
+# Private notes (API keys, personal refs) - never commit
+PRIVATE_NOTES.md
+PRIVATE_NOTES.local.md
+
 # IDE files
 .vscode/
 .idea/

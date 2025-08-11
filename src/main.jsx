@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+import AISidebar from './components/AISidebar.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Personnel from './pages/Personnel.jsx';
 import Logistics from './pages/Logistics.jsx';
@@ -36,6 +37,9 @@ function RootRouter() {
 function NavShell({ page, content }) {
 	const { theme, team, changeTheme } = useTheme();
 	const [open, setOpen] = useState(false);
+	// Global AI sidebar state & suggestion
+	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
+	const [aiSuggestion, setAISuggestion] = useState('');
 	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
 	const TOAST_PREF_KEY = 'pobToastDisabled';
 	const [toastDisabled, setToastDisabled] = useState(() => { try { return localStorage.getItem(TOAST_PREF_KEY)==='true'; } catch { return false; } });
@@ -73,9 +77,32 @@ function NavShell({ page, content }) {
 		window.addEventListener('mousedown',handler); window.addEventListener('touchstart',handler); window.addEventListener('keydown',key);
 		return ()=>{ window.removeEventListener('mousedown',handler); window.removeEventListener('touchstart',handler); window.removeEventListener('keydown',key); };
 	},[open]);
+	// Listen for global AI events
+	useEffect(()=>{
+		const openEvt = () => setAISidebarOpen(true);
+		const setSuggestionEvt = (e) => { if (typeof e.detail === 'string') setAISuggestion(e.detail); };
+		window.addEventListener('openAISidebar', openEvt);
+		window.addEventListener('setAISuggestion', setSuggestionEvt);
+		return ()=>{ window.removeEventListener('openAISidebar', openEvt); window.removeEventListener('setAISuggestion', setSuggestionEvt); };
+	},[]);
+	// Inject ear flick animation CSS once
+	useEffect(()=>{
+		if (window.__buckEarCSSInjected) return; // guard
+		const style = document.createElement('style');
+		style.textContent = `@keyframes buckEarFlick{0%{transform:rotate(0deg);}20%{transform:rotate(-18deg);}40%{transform:rotate(12deg);}60%{transform:rotate(-8deg);}80%{transform:rotate(4deg);}100%{transform:rotate(0deg);} }\n.buck-ear-flick{animation:buckEarFlick .65s ease-out; transform-origin:50% 90%;}`;
+		document.head.appendChild(style);
+		window.__buckEarCSSInjected = true;
+	},[]);
+	// Context provider for AI: if on dashboard and dashboard has registered builder
+	const getAIContext = () => {
+		if (page === 'dashboard' && typeof window.__getDashboardAIContext === 'function') {
+			try { return window.__getDashboardAIContext(); } catch { return { page, timestamp: new Date().toISOString() }; }
+		}
+		return { page, timestamp: new Date().toISOString() };
+	};
 	return (
 		<div style={{ minHeight:'100vh' }}>
-			<nav style={{ display:'flex', alignItems:'flex-end', gap:8, padding:'10px 18px 4px', borderBottom:'3px solid #222', background:'#111', position:'sticky', top:0, zIndex:80 }}>
+			<nav style={{ display:'flex', alignItems:'flex-end', gap:8, padding:'10px 18px 4px', borderBottom:'3px solid #222', background:'#111', position:'sticky', top:0, zIndex:120 }}>
 				<div style={{ display:'flex', alignItems:'flex-end', gap:8 }}>
 				{[
 					{ key: 'dashboard', label: 'Dashboard', color: '#2d6cdf' },
@@ -96,7 +123,82 @@ function NavShell({ page, content }) {
 					);
 				})}
 				</div>
-				<div style={{ marginLeft:'auto', position:'relative' }}>
+				<div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, position:'relative' }}>
+					<button
+						onClick={()=>{ window.dispatchEvent(new CustomEvent('openAISidebar')); }}
+						title="Ask Buck (AI Assistant)"
+						style={{
+							position:'relative',
+							background:'linear-gradient(120deg,#1d4ed8,#6366f1,#8b5cf6)',
+							backgroundSize:'220% 220%',
+							color:'#fff',
+							border:'1px solid #253b80',
+							padding:'8px 16px 8px 46px',
+							borderRadius:10,
+							cursor:'pointer',
+							fontSize:14,
+							fontWeight:700,
+							letterSpacing:'.5px',
+							boxShadow:'0 4px 10px -2px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05)',
+							transition:'background-position .8s ease, transform .15s ease, box-shadow .3s ease',
+							overflow:'hidden'
+						}}
+						onMouseEnter={e=>{ 
+							e.currentTarget.style.backgroundPosition='90% 10%'; 
+							e.currentTarget.style.boxShadow='0 6px 14px -2px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.07)';
+							// trigger ear flick
+							const leftEar = e.currentTarget.querySelector('.buck-ear-left');
+							const rightEar = e.currentTarget.querySelector('.buck-ear-right');
+							[leftEar,rightEar].forEach(el=>{ if(!el) return; el.classList.remove('buck-ear-flick'); void el.offsetWidth; });
+							if(leftEar){ leftEar.classList.add('buck-ear-flick'); }
+							if(rightEar){ setTimeout(()=> rightEar.classList.add('buck-ear-flick'),120); }
+						}}
+						onMouseLeave={e=>{ e.currentTarget.style.backgroundPosition='0% 50%'; e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 10px -2px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05)'; }}
+						onMouseDown={e=>{ e.currentTarget.style.transform='translateY(2px)'; }}
+						onMouseUp={e=>{ e.currentTarget.style.transform='translateY(0)'; }}
+					>
+						<span style={{ position:'absolute', left:10, top:7, width:28, height:28, borderRadius:'50%', background:'linear-gradient(145deg,#0f172a,#1e293b)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 0 2px rgba(255,255,255,0.12), 0 2px 4px rgba(0,0,0,0.5)', overflow:'hidden' }} aria-hidden="true" className="buck-stag-icon">
+							<svg width="24" height="24" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display:'block' }}>
+								<defs>
+									<linearGradient id="buckGradFace" x1="16" y1="12" x2="48" y2="56" gradientUnits="userSpaceOnUse">
+										<stop stopColor="#fbbf24" />
+										<stop offset="60%" stopColor="#d97706" />
+										<stop offset="100%" stopColor="#92400e" />
+									</linearGradient>
+									<linearGradient id="buckGradAntler" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+										<stop stopColor="#e2e8f0" />
+										<stop offset="100%" stopColor="#94a3b8" />
+									</linearGradient>
+								</defs>
+								{/* Antlers simplified */}
+								<path d="M18 10 L14 6 L12 8 L16 14 L16 18 L12 22 L14 24 L18 20 L20 24 L24 26 L24 22 L22 18 L22 14 Z" stroke="url(#buckGradAntler)" strokeWidth="2" strokeLinejoin="round" fill="none" />
+								<path d="M46 10 L50 6 L52 8 L48 14 L48 18 L52 22 L50 24 L46 20 L44 24 L40 26 L40 22 L42 18 L42 14 Z" stroke="url(#buckGradAntler)" strokeWidth="2" strokeLinejoin="round" fill="none" />
+								{/* Ears */}
+								<path className="buck-ear-left" d="M22 18 L18 30 L24 30 L26 20 Z" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1.2" />
+								<path className="buck-ear-right" d="M42 18 L46 30 L40 30 L38 20 Z" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1.2" />
+								{/* Head */}
+								<path d="M24 20 L40 20 L46 30 L40 48 L32 54 L24 48 L18 30 Z" fill="url(#buckGradFace)" stroke="#78350f" strokeWidth="1.2" strokeLinejoin="round" />
+								{/* Eyes */}
+								<circle cx="28" cy="34" r="3" fill="#1e293b" />
+								<circle cx="36" cy="34" r="3" fill="#1e293b" />
+								<circle cx="27.5" cy="33.5" r="1.2" fill="#fef3c7" />
+								<circle cx="35.5" cy="33.5" r="1.2" fill="#fef3c7" />
+								{/* Snout */}
+								<path d="M30 38 L34 38 L36 44 L32 48 L28 44 Z" fill="#78350f" stroke="#431407" strokeWidth="1" />
+								<circle cx="32" cy="42.5" r="1.6" fill="#0f172a" />
+							</svg>
+						</span>
+						<span style={{ position:'relative', zIndex:2 }}>Ask Buck</span>
+						<span style={{ position:'absolute', inset:0, pointerEvents:'none', background:'radial-gradient(circle at 20% 15%, rgba(255,255,255,0.25), transparent 60%)', mixBlendMode:'overlay', opacity:.5 }} />
+					</button>
+					{/* Global AI Sidebar mounted here */}
+					<AISidebar
+						open={aiSidebarOpen}
+						setOpen={setAISidebarOpen}
+						suggestion={aiSuggestion}
+						getContext={getAIContext}
+						onAsk={(q)=>{ /* handled internally by AISidebar stream */ return q; }}
+					/>
 					<button ref={gearRef} onClick={()=>setOpen(o=>!o)} title="Theme Settings" style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:24, lineHeight:1, color:'#fff', padding:'0 4px' }}>⚙️</button>
 					{open && (
 						<div ref={ref} style={{ position:'absolute', top:40, right:0, background: theme.surface, color: theme.text, border:'1px solid '+(theme.primary||'#444'), borderRadius:10, padding:'12px 14px 14px', boxShadow:'0 4px 14px rgba(0,0,0,0.4)', minWidth:220, zIndex:200 }}>

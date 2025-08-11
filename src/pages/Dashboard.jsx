@@ -1,5 +1,4 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import AISidebar from '../components/AISidebar.jsx';
 import { useTheme } from '../ThemeContext.jsx';
 import { getAIResponse } from '../ai/client.js';
 import { getNextNDays } from '../utils/dateRanges.js';
@@ -30,7 +29,7 @@ function Dashboard() {
   useEffect(()=>{
     const openEvt = () => setSettingsOpen(o=> !o);
     window.addEventListener('openDashboardSettings', openEvt);
-    return () => window.removeEventListener('openDashboardSettings', openEvt);
+    return () => { window.removeEventListener('openDashboardSettings', openEvt); };
   },[]);
   const widgetBorderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
   // User location setting (persist per user in localStorage)
@@ -118,6 +117,27 @@ function Dashboard() {
   const overEffective = capEffective>0 && todayTotal > capEffective;
   // Precompute flight deltas once for next7 range
   const flightDeltas = useMemo(()=> generateFlightDeltas(rowData, next7.map(n=>n.key)), [rowData, next7]);
+  // Build an AI context snapshot summarizing current screen/state (avoid huge raw data)
+  const buildAIContext = () => {
+    const MAX_COMPANIES = 25;
+    const trimmedCompanies = visibleCompanies.slice(0, MAX_COMPANIES).map(c => {
+      const minimal = { company: c.company };
+      next7.forEach(d => { if (c[d.key]) minimal[d.key] = c[d.key]; });
+      return minimal;
+    });
+    const commentsSummary = next7.reduce((acc,d)=>{ const txt=(comments[d.key]||'').trim(); if (txt) acc[d.key] = txt.split(/\n/).slice(0,3).join(' | '); return acc; }, {});
+    return {
+      userLocation,
+      capacity: { max: capMax, flotel: capFlotel, fieldBoat: capFieldBoat, effective: capEffective, todayTotal, overMax, overEffective },
+      days: next7.map(d=> d.key),
+      totalsPerDay,
+      companiesPreview: trimmedCompanies,
+      commentsPreview: commentsSummary,
+      widgetsVisible: Object.keys(visible).filter(k=> visible[k]),
+      layout: layout,
+      timestamp: new Date().toISOString()
+    };
+  };
   const { addToast } = useToast();
   // Compute dynamic character-based width per forecast date column (based on longest flight entry or comment line)
   const forecastColCharWidths = useMemo(() => {
@@ -144,6 +164,7 @@ function Dashboard() {
   const containerRef = useRef(null);
   // Mini theme colors per widget
   const [widgetColors, setWidgetColors] = useState(loadWidgetColors);
+  const getWC = (id) => widgetColorTheme(widgetColors, id);
   useEffect(()=> { saveWidgetColors(widgetColors); }, [widgetColors]);
   const setWidgetColor = (id,val)=> setWidgetColors(c=> ({...c,[id]:val}));
   const clearWidgetColor = (id)=> setWidgetColors(c=> { const n={...c}; delete n[id]; return n; });
@@ -151,7 +172,6 @@ function Dashboard() {
     if (!editLayout) return;
     const rect = e.currentTarget.getBoundingClientRect();
     dragState.current = { id, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top };
-    // When user begins moving a widget in edit mode, close settings if open
     setSettingsOpen(o => o ? false : o);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
@@ -162,7 +182,7 @@ function Dashboard() {
     const contRect = containerRef.current?.getBoundingClientRect();
     const baseX = e.clientX - (contRect?.left || 0) - offsetX;
     const baseY = e.clientY - (contRect?.top || 0) - offsetY;
-  const snap = (v) => Math.max(0, Math.round(v / GRID_SIZE) * GRID_SIZE);
+    const snap = (v) => Math.max(0, Math.round(v / GRID_SIZE) * GRID_SIZE);
     setLayout(l => ({ ...l, [id]: { x: snap(baseX), y: snap(baseY) } }));
   };
   const onPointerUp = () => {
@@ -192,6 +212,8 @@ function Dashboard() {
     };
   }, [settingsOpen, editLayout]);
 
+  // Expose context builder globally while dashboard mounted
+  useEffect(()=>{ window.__getDashboardAIContext = buildAIContext; return () => { if(window.__getDashboardAIContext === buildAIContext) delete window.__getDashboardAIContext; }; }, [userLocation, capMax, capFlotel, capFieldBoat, capEffective, todayTotal, overMax, overEffective, next7, totalsPerDay, visibleCompanies, comments, visible, layout]);
   return (
     <StyledThemeProvider theme={theme}>
       <GlobalStyle />
@@ -267,36 +289,28 @@ function Dashboard() {
     <button
       style={{ padding:'6px 14px', background:theme.secondary, color:theme.text, border:'1px solid '+theme.primary, borderRadius:8, fontWeight:'bold', fontSize:13, marginLeft:12, cursor:'pointer' }}
       onClick={async () => {
+        window.dispatchEvent(new CustomEvent('openAISidebar'));
         setAISuggestion('Loading...');
         const pobData = rowData;
         const prompt = `Suggest improvements for POB planning based on this data: ${JSON.stringify(pobData).slice(0, 4000)}`;
         try {
           const aiResponse = await getAIResponse(prompt);
           setAISuggestion(aiResponse);
+          window.dispatchEvent(new CustomEvent('setAISuggestion', { detail: aiResponse }));
         } catch (err) {
-          setAISuggestion('AI error: ' + err.message);
+          const msg = 'AI error: ' + err.message;
+          setAISuggestion(msg);
+          window.dispatchEvent(new CustomEvent('setAISuggestion', { detail: msg }));
         }
       }}
     >Generate POB Suggestions (AI)</button>
-    <AISidebar
-      suggestion={aiSuggestion}
-      onAsk={async (question) => {
-        setAISuggestion('Loading...');
-        try {
-          const aiResponse = await getAIResponse(question);
-          setAISuggestion(aiResponse);
-        } catch (err) {
-          setAISuggestion('AI error: ' + err.message);
-        }
-      }}
-    />
   </div>
   <div ref={containerRef} style={{ position:'relative', minHeight:600 }}>
     {editLayout && (
-  <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px)`, pointerEvents:'none', zIndex:0 }} />
+      <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px)`, pointerEvents:'none', zIndex:0 }} />
     )}
-    {/* Navigation Widget */}
-  {visible.nav && (() => { const wc = widgetColorTheme('nav'); return (
+  {/* Navigation Widget */}
+  {visible.nav && (() => { const wc = getWC('nav'); return (
     <div
       onPointerDown={e => onPointerDown(e,'nav')}
       style={{ position:'absolute', left:layout.nav.x, top:layout.nav.y, cursor: editLayout ? 'grab' : 'default', userSelect: editLayout ? 'none':'auto', padding: '12px 16px', background: wc.base || theme.surface, border: '1px solid '+(wc.border || '#bfc4ca'), borderRadius: 8, minWidth:260, boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text || theme.text }}
@@ -310,8 +324,8 @@ function Dashboard() {
       </ul>
     </div>
   ); })()}
-    {/* Forecast Widget */}
-  {visible.forecast && (() => { const wc = widgetColorTheme('forecast'); return (
+  {/* Forecast Widget */}
+  {visible.forecast && (() => { const wc = getWC('forecast'); return (
     <section
       onPointerDown={e => onPointerDown(e,'forecast')}
       style={{ position:'absolute', left:layout.forecast.x, top:layout.forecast.y, padding: '6px 8px', background: wc.base || theme.surface, border: '1px solid '+(wc.border||widgetBorderColor), borderRadius: 8, display:'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text || theme.text }}>
@@ -440,7 +454,7 @@ function Dashboard() {
     </section>
   ); })()}
       {/* Flight Forecast Widget (horizontal like POB Forecast) */}
-  {visible.flightForecast && (() => { const wc = widgetColorTheme('flightForecast'); return (
+  {visible.flightForecast && (() => { const wc = getWC('flightForecast'); return (
     <section
       onPointerDown={e => onPointerDown(e,'flightForecast')}
       style={{ position:'absolute', left:(layout.flightForecast?.x||340), top:(layout.flightForecast?.y||160), padding: '6px 8px', background: wc.base||theme.surface, border: '1px solid '+(wc.border||widgetBorderColor), borderRadius: 8, display:'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text||theme.text }}>
@@ -483,7 +497,7 @@ function Dashboard() {
     </section>
   ); })()}
       {/* POB Onboard Widget */}
-  {visible.onboard && (() => { const wc = widgetColorTheme('onboard'); return (
+  {visible.onboard && (() => { const wc = getWC('onboard'); return (
     <section
         onPointerDown={e => onPointerDown(e,'onboard')}
         style={{ position:'absolute', left:layout.onboard.x, top:layout.onboard.y, padding: '12px 14px', background: wc.base||theme.surface, border: '1px solid '+(wc.border||widgetBorderColor), borderRadius: 8, display: 'inline-block', cursor: editLayout ? 'grab':'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text||theme.text }}>
@@ -524,7 +538,7 @@ function Dashboard() {
   ); })()}
       {/* POB Companies Widget */}
   {visible.pobCompanies && (() => {
-    const wc = widgetColorTheme('pobCompanies');
+  const wc = getWC('pobCompanies');
     // Aggregate counts by company for onboard personnel
     const coreCounts = {};
     const nonCoreCounts = {};

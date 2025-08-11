@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChat, isOpenAI } from '../ai/client.js';
 
-export default function AISidebar({ suggestion, onAsk, open, setOpen }) {
+export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext }) {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState(() => [
     { role: 'assistant', content: suggestion || 'Ask me about POB planning, logistics risks, or capacity issues.' }
   ]);
+  const [includeContext, setIncludeContext] = useState(true);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -22,7 +23,15 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen }) {
 
   const handleAsk = async () => {
     if (!question.trim()) return;
-    const userMsg = { role: 'user', content: question.trim() };
+    // Optionally append context snapshot
+    let content = question.trim();
+    if (includeContext && typeof getContext === 'function') {
+      try {
+        const ctx = getContext();
+        content += '\n\n[SCREEN_CONTEXT]\n' + JSON.stringify(ctx).slice(0, 6000);
+      } catch {/* ignore context errors */}
+    }
+    const userMsg = { role: 'user', content };
     setMessages(m => [...m, userMsg]);
     setQuestion('');
     setLoading(true);
@@ -98,6 +107,9 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen }) {
             {loading ? '...' : 'Send'}
           </button>
         </form>
+        <label style={{ display:'flex', alignItems:'center', gap:6, marginTop:8, fontSize:11, opacity:0.8 }}>
+          <input type="checkbox" checked={includeContext} onChange={e=> setIncludeContext(e.target.checked)} /> Include screen context
+        </label>
         <div style={{ marginTop:6, fontSize:10, opacity:0.55 }}>Shift+Enter for newline.</div>
       </div>
     </div>

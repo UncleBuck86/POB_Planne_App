@@ -1,6 +1,10 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
-import { generateFlightComments } from '../utils/generateFlightComment.js';
+import { getNextNDays } from '../utils/dateRanges.js';
+import { generateFlightDeltas } from '../utils/flightDeltas.js';
+import { GRID_SIZE, loadLayout, saveLayout, loadVisibility, saveVisibility } from '../utils/widgetLayout.js';
+import { loadWidgetColors, saveWidgetColors, widgetColorTheme } from '../utils/widgetColors.js';
+import { thStyle, tdStyle, tdLeft, onCell } from '../utils/dashboardStyles.js';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
 
 // Reuse theming like planner page
@@ -83,16 +87,7 @@ function Dashboard() {
     }
     return { ...r, daysOnboardDisplay: days };
   }), [onboard, todayMid]);
-  const today = new Date();
-  const next7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    return {
-      key: (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear(),
-      label: d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
-      dow: d.toLocaleDateString('en-US', { weekday: 'short' })
-    };
-  });
+  const next7 = useMemo(()=> getNextNDays(7), []);
   const visibleCompanies = rowData.filter(r => r.company && r.company.trim());
   const hasComments = useMemo(() => next7.some(d => (comments[d.key] || '').trim().length > 0), [comments, next7]);
   const totalsPerDay = next7.reduce((acc, d) => {
@@ -100,60 +95,35 @@ function Dashboard() {
     return acc;
   }, {});
   // Precompute flight deltas once for next7 range
-  const flightDeltas = useMemo(() => {
-    const calc = generateFlightComments(rowData, next7.map(n => ({ date: n.key })));
-    return { out: calc.flightsOut, in: calc.flightsIn };
-  }, [rowData, next7]);
+  const flightDeltas = useMemo(()=> generateFlightDeltas(rowData, next7.map(n=>n.key)), [rowData, next7]);
+  // Compute dynamic character-based width per forecast date column (based on longest flight entry or comment line)
+  const forecastColCharWidths = useMemo(() => {
+    return next7.map(d => {
+      let maxLen = 0;
+      const outs = (flightDeltas.out[d.key] || []);
+      const ins  = (flightDeltas.in[d.key] || []);
+      [...outs, ...ins].forEach(entry => { if (entry && entry.length > maxLen) maxLen = entry.length; });
+      const comment = comments[d.key] || '';
+      comment.split(/\r?\n/).forEach(line => { if (line.length > maxLen) maxLen = line.length; });
+      // Clamp to sensible bounds to avoid huge columns
+      if (maxLen < 6) maxLen = 6; // minimum readable
+      if (maxLen > 30) maxLen = 30; // maximum to keep overall table compact
+      return maxLen;
+    });
+  }, [next7, flightDeltas, comments]);
   // --- Movable widgets layout ---
-  const GRID = 20; // px grid size
-  const layoutKey = 'dashboardWidgetLayoutV1';
-  const visibilityKey = 'dashboardWidgetVisibilityV1';
-  const defaultLayout = {
-    nav: { x: 20, y: 20 },
-    forecast: { x: 20, y: 160 },
-    flightForecast: { x: 340, y: 160 },
-    onboard: { x: 20, y: 360 },
-    pobCompanies: { x: 340, y: 360 }
-  };
-  const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true, pobCompanies: true };
-  const [layout, setLayout] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(layoutKey));
-      return stored ? { ...defaultLayout, ...stored } : defaultLayout;
-    } catch { return defaultLayout; }
-  });
-  useEffect(() => { localStorage.setItem(layoutKey, JSON.stringify(layout)); }, [layout]);
+  const [layout, setLayout] = useState(loadLayout);
+  useEffect(()=> { saveLayout(layout); }, [layout]);
   const [editLayout, setEditLayout] = useState(false);
-  const [visible, setVisible] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(visibilityKey));
-      return stored ? { ...defaultVisibility, ...stored } : defaultVisibility;
-    } catch { return defaultVisibility; }
-  });
-  useEffect(() => { localStorage.setItem(visibilityKey, JSON.stringify(visible)); }, [visible]);
+  const [visible, setVisible] = useState(loadVisibility);
+  useEffect(()=> { saveVisibility(visible); }, [visible]);
   const dragState = useRef({ id:null, offsetX:0, offsetY:0 });
   const containerRef = useRef(null);
   // Mini theme colors per widget
-  const colorKey = 'dashboardWidgetColorsV1';
-  const [widgetColors, setWidgetColors] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(colorKey)) || {}; } catch { return {}; }
-  });
-  useEffect(()=>{ localStorage.setItem(colorKey, JSON.stringify(widgetColors)); }, [widgetColors]);
-  const setWidgetColor = (id, val) => setWidgetColors(c => ({ ...c, [id]: val }));
-  const clearWidgetColor = (id) => setWidgetColors(c => { const n={...c}; delete n[id]; return n; });
-  const deriveColors = (hex) => {
-    if (!hex || !/^#?[0-9a-fA-F]{6}$/.test(hex)) return null;
-    const h = hex.startsWith('#')?hex.slice(1):hex;
-    const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
-    const toHex=v=>('0'+v.toString(16)).slice(-2);
-    const shade=f=> '#' + toHex(Math.round(r*f)) + toHex(Math.round(g*f)) + toHex(Math.round(b*f));
-    // luminance for contrast
-    const srgb=[r,g,b].map(v=>{v/=255; return v<=0.03928? v/12.92: Math.pow((v+0.055)/1.055,2.4);});
-    const lum=0.2126*srgb[0]+0.7152*srgb[1]+0.0722*srgb[2];
-    const text = lum > 0.55 ? '#000' : '#fff';
-    return { base:'#'+h, header: shade(0.75), border: shade(0.65), text };
-  };
-  const widgetColorTheme = (id) => deriveColors(widgetColors[id]||'') || {};
+  const [widgetColors, setWidgetColors] = useState(loadWidgetColors);
+  useEffect(()=> { saveWidgetColors(widgetColors); }, [widgetColors]);
+  const setWidgetColor = (id,val)=> setWidgetColors(c=> ({...c,[id]:val}));
+  const clearWidgetColor = (id)=> setWidgetColors(c=> { const n={...c}; delete n[id]; return n; });
   const onPointerDown = (e, id) => {
     if (!editLayout) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -169,7 +139,7 @@ function Dashboard() {
     const contRect = containerRef.current?.getBoundingClientRect();
     const baseX = e.clientX - (contRect?.left || 0) - offsetX;
     const baseY = e.clientY - (contRect?.top || 0) - offsetY;
-    const snap = (v) => Math.max(0, Math.round(v / GRID) * GRID);
+  const snap = (v) => Math.max(0, Math.round(v / GRID_SIZE) * GRID_SIZE);
     setLayout(l => ({ ...l, [id]: { x: snap(baseX), y: snap(baseY) } }));
   };
   const onPointerUp = () => {
@@ -251,7 +221,7 @@ function Dashboard() {
                   )}
                 </div>
               )}
-              {editLayout && <div style={{ marginTop:6, fontSize:10, opacity:0.7 }}>Drag to reposition (grid {GRID}px)</div>}
+              {editLayout && <div style={{ marginTop:6, fontSize:10, opacity:0.7 }}>Drag to reposition (grid {GRID_SIZE}px)</div>}
               {editLayout && <div style={{ marginTop:4, fontSize:10, opacity:0.55 }}>Toggle checkboxes to show / hide widgets.</div>}
             </div>
           </Dropdown>
@@ -273,7 +243,7 @@ function Dashboard() {
   </div>
   <div ref={containerRef} style={{ position:'relative', minHeight:600 }}>
     {editLayout && (
-      <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID}px)`, pointerEvents:'none', zIndex:0 }} />
+  <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px)`, pointerEvents:'none', zIndex:0 }} />
     )}
     {/* Navigation Widget */}
   {visible.nav && (() => { const wc = widgetColorTheme('nav'); return (
@@ -297,36 +267,62 @@ function Dashboard() {
           <table style={{ borderCollapse: 'collapse', width: 'auto', tableLayout: 'auto' }}>
             <thead>
               <tr>
-                <th style={thStyle(theme, hasComments, wc)}>Company</th>
-                {next7.map(d => {
-                  const header = `${d.dow} ${d.label}`; // single-line compact
-                  return (
-                    <th key={d.key} style={thStyle(theme, hasComments, wc)} title={d.key}>{header}</th>
-                  );
+                <th style={{ ...thStyle(theme, hasComments, wc), position:'sticky', left:0 }}> </th>
+                {next7.map((d,i) => {
+                  const header = `${d.dow} ${d.label}`;
+                  const ch = forecastColCharWidths[i] || 10;
+                  return <th key={d.key} style={{ ...thStyle(theme, hasComments, wc), width: ch + 'ch' }} title={d.key}>{header}</th>;
                 })}
               </tr>
             </thead>
             <tbody>
-              {visibleCompanies.map(c => (
-                <tr key={c.id || c.company}>
-                  <td style={tdLeft(theme, wc)}>{c.company}</td>
-                  {next7.map(d => (
-                    <td key={d.key} style={tdStyle(theme, wc)}>{c[d.key] || ''}</td>
-                  ))}
-                </tr>
-              ))}
-              <tr style={{ background: theme.background }}>
-                <td style={{ ...tdLeft(theme, wc), fontWeight: 'bold', fontSize: 13 }}>Totals</td>
-                {next7.map(d => (
-                  <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight: 'bold', fontSize: 11 }}>{totalsPerDay[d.key] || ''}</td>
-                ))}
-              </tr>
-              <tr>
-                <td style={{ ...tdLeft(theme, wc), fontStyle: 'italic', fontSize: 13 }}>Comments</td>
-                {next7.map(d => (
-                  <td key={d.key} style={{ ...tdStyle(theme, wc), fontStyle: 'italic', whiteSpace: 'pre-wrap', fontSize: 10 }}>{comments[d.key] || ''}</td>
-                ))}
-              </tr>
+              {(() => {
+                const rows = [];
+                // Total POB row (first)
+                rows.push(
+                  <tr key="total-pob" style={{ background: theme.background }}>
+                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:11, textAlign:'left', minWidth:110 }}>Total POB</td>
+                    {next7.map(d => <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12 }} title="Total POB">{totalsPerDay[d.key]||''}</td>)}
+                  </tr>
+                );
+                // Flights Out commentary row like planner (Out: list)
+                rows.push(
+                  <tr key="flights-out-row">
+                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left' }}>Flights Out (+)</td>
+                    {next7.map((d,i) => {
+                      const arr = (flightDeltas.out[d.key]||[]).filter(Boolean);
+                      const val = arr.join('\n');
+                      const ch = forecastColCharWidths[i] || 10;
+                      return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, whiteSpace:'pre-line', width: ch + 'ch' }}>{val}</td>;
+                    })}
+                  </tr>
+                );
+                // Flights In commentary row like planner (In: list)
+                rows.push(
+                  <tr key="flights-in-row">
+                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left' }}>Flights In (-)</td>
+                    {next7.map((d,i) => {
+                      const arr = (flightDeltas.in[d.key]||[]).filter(Boolean);
+                      const val = arr.join('\n');
+                      const ch = forecastColCharWidths[i] || 10;
+                      return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, whiteSpace:'pre-line', width: ch + 'ch' }}>{val}</td>;
+                    })}
+                  </tr>
+                );
+                // Comments row (user planner comments)
+                rows.push(
+                  <tr key="comments-row">
+                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:10, textAlign:'left' }}>Comments</td>
+                    {next7.map((d,i) => {
+                      const ch = forecastColCharWidths[i] || 10;
+                      return (
+                        <td key={d.key} style={{ ...tdStyle(theme, wc), fontStyle: 'italic', whiteSpace: 'pre-line', fontSize: 10, width: ch + 'ch' }} title="Flight / Planner Comments">{comments[d.key] || ''}</td>
+                      );
+                    })}
+                  </tr>
+                );
+                return rows;
+              })()}
             </tbody>
           </table>
         </div>
@@ -487,50 +483,3 @@ function Dashboard() {
 }
 
 export default Dashboard;
-
-// Styling helpers
-const thStyle = (theme, hasComments, wc) => {
-  const borderColor = wc?.border || (theme.name === 'Dark' ? '#bfc4ca' : '#444');
-  return {
-    padding: '3px 4px',
-    border: `1px solid ${borderColor}`,
-    background: wc?.header || theme.primary,
-    color: wc?.text || theme.text,
-    fontSize: 10,
-    textAlign: 'center',
-    whiteSpace: 'nowrap',
-    width: 'auto'
-  };
-};
-const tdStyle = (theme, wc) => {
-  const borderColor = (wc?.border && wc.base) ? wc.border : (theme.name === 'Dark' ? '#bfc4ca40' : '#444');
-  return {
-    padding: '2px 4px',
-    border: `1px solid ${borderColor}`,
-    fontSize: 10,
-    textAlign: 'center',
-    color: wc?.text || theme.text,
-    background: wc?.base ? wc.base : 'transparent'
-  };
-};
-const tdLeft = (theme, wc) => ({
-  ...tdStyle(theme, wc),
-  textAlign: 'left',
-  fontWeight: 500,
-  maxWidth: 120,
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis'
-});
-
-// Cell style for onboard widget
-const onCell = (theme, wc) => ({
-  padding: '3px 6px',
-  border: '1px solid ' + (wc?.border || (theme.name === 'Dark' ? '#bfc4ca40' : '#444')),
-  fontSize: 11,
-  whiteSpace: 'nowrap',
-  textAlign: 'left',
-  verticalAlign: 'top',
-  color: wc?.text || theme.text,
-  background: wc?.base || 'transparent'
-});

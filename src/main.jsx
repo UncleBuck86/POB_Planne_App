@@ -10,6 +10,7 @@ import AdminPage from './pages/Admin.jsx';
 import { isAdmin as checkAdmin } from './pages/Admin.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug, setPassiveInterval, triggerPassiveNow, setPassiveSystemPrompt, setPassiveRedaction } from './ai/passiveAI.js';
+import { emitDomain } from './ai/eventBus.js';
 import { ToastProvider } from './alerts/ToastProvider.jsx';
 
 function RootRouter() {
@@ -94,9 +95,25 @@ function NavShell({ page, content }) {
 		registerContextProvider('admin', ()=> { try { return window.__buckAdminCtx? window.__buckAdminCtx(): null; } catch { return null; } });
 		const onResize = () => { /* force snapshot by emitting synthetic event */ window.dispatchEvent(new CustomEvent('passiveWindowResize')); };
 		window.addEventListener('resize', onResize);
+		const clickHandler = (e) => {
+			try {
+				const tgt = e.target;
+				if(!tgt) return;
+				// Derive a brief label: prefer data-ai-label, else text of button/link (trimmed)
+				let label = '';
+				if(tgt.getAttribute) label = tgt.getAttribute('data-ai-label') || '';
+				if(!label && tgt.closest) {
+					const btn = tgt.closest('button, a');
+					if(btn){ label = (btn.getAttribute('data-ai-label') || btn.textContent || '').trim().slice(0,60); }
+				}
+				if(!label) return; // only emit for labeled / meaningful clicks
+				emitDomain('UI_CLICK', { label, page }, 'Click '+label);
+			} catch {/* ignore */}
+		};
+		window.addEventListener('click', clickHandler, true);
 		setPassiveAIEnabled(passiveAI);
 		setPassiveDebug(passiveDebug);
-		return ()=> window.removeEventListener('resize', onResize);
+		return ()=> { window.removeEventListener('resize', onResize); window.removeEventListener('click', clickHandler, true); };
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	},[]);
 	useEffect(()=>{ try { localStorage.setItem('buckPassiveAI', passiveAI? 'true':'false'); } catch {} setPassiveAIEnabled(passiveAI); }, [passiveAI]);

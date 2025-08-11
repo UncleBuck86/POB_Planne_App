@@ -36,6 +36,13 @@ function Dashboard() {
   const [availableLocations, setAvailableLocations] = useState(() => {
     try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
   });
+  // Load location caps (max, flotel, fieldBoat) for highlighting
+  const [locationCaps, setLocationCaps] = useState(()=> { try { return JSON.parse(localStorage.getItem('pobLocationCaps')) || {}; } catch { return {}; } });
+  useEffect(()=> {
+    const onStorage = (e) => { if (e.key === 'pobLocationCaps') { try { setLocationCaps(JSON.parse(e.newValue)||{}); } catch { setLocationCaps({}); } } };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   useEffect(() => {
     // Listen for admin updates to locations
     const onStorage = (e) => {
@@ -282,7 +289,28 @@ function Dashboard() {
                 rows.push(
                   <tr key="total-pob" style={{ background: theme.background }}>
                     <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:11, textAlign:'left', minWidth:110 }}>Total POB</td>
-                    {next7.map(d => <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12 }} title="Total POB">{totalsPerDay[d.key]||''}</td>)}
+                    {next7.map(d => {
+                      const total = totalsPerDay[d.key]||0;
+                      const caps = locationCaps[userLocation] || {};
+                      const max = parseInt(caps.max,10)||0;
+                      const flotel = parseInt(caps.flotel,10)||0;
+                      const fieldBoat = parseInt(caps.fieldBoat,10)||0;
+                      const effective = max + flotel + fieldBoat;
+                      let bg = wc.base || 'transparent';
+                      let color = wc.text || theme.text;
+                      if (max>0 && total>max) {
+                        // Over legal max; escalate color
+                        bg = 'rgba(200,0,0,0.35)';
+                      }
+                      if (effective>0 && total>effective) {
+                        bg = 'rgba(120,0,0,0.55)';
+                        color = '#fff';
+                      }
+                      const title = max>0 ? `Total ${total} / Max ${max}${flotel||fieldBoat?` (+Contingency ${effective})`:''}` : `Total ${total}`;
+                      return (
+                        <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12, background:bg, color }} title={title}>{total||''}</td>
+                      );
+                    })}
                   </tr>
                 );
                 // Flights Out commentary row like planner (Out: list)

@@ -14,6 +14,10 @@ export default function AdminPage() {
     try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
   });
   const [newLoc, setNewLoc] = useState('');
+  // Location POB caps & contingencies
+  const CAPS_KEY = 'pobLocationCaps';
+  const [locationCaps, setLocationCaps] = useState(()=> { try { return JSON.parse(localStorage.getItem(CAPS_KEY)) || {}; } catch { return {}; } });
+  useEffect(()=> { try { localStorage.setItem(CAPS_KEY, JSON.stringify(locationCaps)); } catch {} }, [locationCaps]);
   // Personnel list options (centralized here for admin)
   const [crewOptions, setCrewOptions] = useState(()=> { try { return JSON.parse(localStorage.getItem('personnelCrewOptions')) || []; } catch { return []; }});
   const [personnelLocOptions, setPersonnelLocOptions] = useState(()=> { try { return JSON.parse(localStorage.getItem('personnelLocationOptions')) || []; } catch { return []; }});
@@ -51,10 +55,36 @@ export default function AdminPage() {
   };
   const updateLocation = (idx, value) => {
     const trimmed = value.trimStart();
-    setLocations(l => l.map((v,i)=> i===idx ? trimmed : v));
+    setLocations(l => {
+      const prevName = l[idx];
+      const next = l.map((v,i)=> i===idx ? trimmed : v);
+      if (prevName && prevName !== trimmed && locationCaps[prevName]) {
+        setLocationCaps(c => {
+          const clone = { ...c };
+            // Move caps mapping to new name if not occupied
+            if (!clone[trimmed]) clone[trimmed] = clone[prevName];
+            delete clone[prevName];
+            return clone;
+        });
+      }
+      return next;
+    });
   };
   const deleteLocation = (idx) => {
-    setLocations(l => l.filter((_,i)=> i!==idx));
+    setLocations(l => {
+      const name = l[idx];
+      if (name && locationCaps[name]) {
+        setLocationCaps(c => { const clone={...c}; delete clone[name]; return clone; });
+      }
+      return l.filter((_,i)=> i!==idx);
+    });
+  };
+  const updateCap = (loc, field, value) => {
+    setLocationCaps(c => {
+      const existing = c[loc] || { max: '', flotel: '', fieldBoat: '' };
+      const nextVal = value === '' ? '' : Math.max(0, parseInt(value,10) || 0);
+      return { ...c, [loc]: { ...existing, [field]: nextVal } };
+    });
   };
   useEffect(()=> { localStorage.setItem('flightManifestLocations', JSON.stringify(locations)); }, [locations]);
   let aircraftTypes = [];
@@ -88,22 +118,43 @@ export default function AdminPage() {
         <div style={sectionHeader(theme)}>Flight & Planner Configuration</div>
         <p style={{ marginTop:0, fontSize:12, lineHeight:1.45 }}>Manage flight-related lists and open the manifest template builder.</p>
         <div style={{ marginBottom:18 }}>
-          <strong style={{ fontSize:12 }}>Flight Locations</strong>
-          <div style={{ fontSize:11, opacity:.7, marginTop:2, marginBottom:6 }}>Populate location dropdowns (Dashboard, Manifest, Planner selector).</div>
+          <strong style={{ fontSize:12 }}>Flight Locations & POB Limits</strong>
+          <div style={{ fontSize:11, opacity:.7, marginTop:2, marginBottom:6 }}>Manage locations plus regulatory Max POB and contingency bunks (Flotel / Field Boat). Highlighting on Dashboard occurs when forecast exceeds these limits.</div>
           {locations.length === 0 && <div style={{ fontSize:12, opacity:.6, marginBottom:8 }}>No locations yet. Add one below.</div>}
           {locations.length > 0 && (
             <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
-              {locations.map((loc, idx) => (
-                <div key={idx} style={{ display:'flex', gap:6, alignItems:'center' }}>
-                  <input
-                    type="text"
-                    value={loc}
-                    onChange={e=>updateLocation(idx, e.target.value)}
-                    style={{ flex:1, padding:'6px 8px', border:'1px solid '+(theme.name==='Dark'?'#666':'#888'), background: theme.surface, color: theme.text, borderRadius:6, fontSize:12 }}
-                    placeholder="Location name" />
-                  <button onClick={()=>deleteLocation(idx)} style={{ padding:'6px 10px', background:'transparent', color: theme.text, border:'1px solid '+(theme.primary||'#267'), borderRadius:6, cursor:'pointer', fontSize:11 }}>Delete</button>
+              {locations.map((loc, idx) => {
+                const caps = locationCaps[loc] || { max: '', flotel: '', fieldBoat: '' };
+                return (
+                <div key={idx} style={{ display:'flex', flexDirection:'column', gap:4, padding:'8px 10px', border:'1px solid '+(theme.name==='Dark'?'#555':'#bbb'), borderRadius:8, background: theme.name==='Dark'? '#2b3034':'#f5f9fc' }}>
+                  <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                    <input
+                      type="text"
+                      value={loc}
+                      onChange={e=>updateLocation(idx, e.target.value)}
+                      style={{ flex:1, padding:'6px 8px', border:'1px solid '+(theme.name==='Dark'?'#666':'#888'), background: theme.surface, color: theme.text, borderRadius:6, fontSize:12 }}
+                      placeholder="Location name" />
+                    <button onClick={()=>deleteLocation(idx)} style={{ padding:'6px 10px', background:'transparent', color: theme.text, border:'1px solid '+(theme.primary||'#267'), borderRadius:6, cursor:'pointer', fontSize:11 }}>Delete</button>
+                  </div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                    <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                      <label style={{ fontSize:9, fontWeight:700, opacity:.7 }}>Max POB</label>
+                      <input type="number" min="0" value={caps.max} onChange={e=>updateCap(loc,'max', e.target.value)} style={{ width:90, padding:'4px 6px', border:'1px solid '+(theme.name==='Dark'?'#666':'#888'), background: theme.surface, color: theme.text, borderRadius:6, fontSize:11 }} placeholder="e.g. 120" />
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                      <label style={{ fontSize:9, fontWeight:700, opacity:.7 }}>Flotel Bunks</label>
+                      <input type="number" min="0" value={caps.flotel} onChange={e=>updateCap(loc,'flotel', e.target.value)} style={{ width:90, padding:'4px 6px', border:'1px solid '+(theme.name==='Dark'?'#666':'#888'), background: theme.surface, color: theme.text, borderRadius:6, fontSize:11 }} placeholder="0" />
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                      <label style={{ fontSize:9, fontWeight:700, opacity:.7 }}>Field Boat Bunks</label>
+                      <input type="number" min="0" value={caps.fieldBoat} onChange={e=>updateCap(loc,'fieldBoat', e.target.value)} style={{ width:110, padding:'4px 6px', border:'1px solid '+(theme.name==='Dark'?'#666':'#888'), background: theme.surface, color: theme.text, borderRadius:6, fontSize:11 }} placeholder="0" />
+                    </div>
+                    <div style={{ alignSelf:'flex-end', fontSize:10, opacity:.65 }}>
+                      Eff: {((caps.max||0)+(caps.flotel||0)+(caps.fieldBoat||0))||0}
+                    </div>
+                  </div>
                 </div>
-              ))}
+              ); })}
             </div>
           )}
           <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:4 }}>

@@ -27,3 +27,20 @@ export function loadVisibility() {
   } catch { return defaultVisibility; }
 }
 export function saveVisibility(v) { try { localStorage.setItem(visibilityKey, JSON.stringify(v)); } catch {} }
+
+// Fire passive AI events (lazy import to avoid hard dependency at module load)
+function emitPassive(name, meta) {
+  try {
+    // dynamic import so this util can load before ai modules
+    import('../ai/eventBus.js').then(m=> m.emitEvent && m.emitEvent(name, { type:name, ts:Date.now(), brief:name, meta })).catch(()=>{});
+  } catch {/* ignore */}
+}
+
+// Wrap original save functions to emit events (non-breaking, preserving exports)
+const _origSaveLayout = saveLayout;
+export function saveLayoutWithEvent(l){ _origSaveLayout(l); emitPassive('WIDGET_MOVED', { ids:Object.keys(l||{}) }); }
+export { saveLayoutWithEvent as saveLayout }; // re-export overriding name
+
+const _origSaveVisibility = saveVisibility;
+export function saveVisibilityWithEvent(v){ _origSaveVisibility(v); emitPassive('VISIBILITY_CHANGED', { visible: v }); }
+export { saveVisibilityWithEvent as saveVisibility };

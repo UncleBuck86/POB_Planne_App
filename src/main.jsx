@@ -83,9 +83,14 @@ function NavShell({ page, content }) {
 	// Passive AI init (once)
 	useEffect(()=>{
 		initPassiveAI();
-		registerContextProvider('page', ()=> ({ page }));
+		registerContextProvider('page', ()=> ({ page, hash: window.location.hash }));
+		registerContextProvider('window', ()=> ({ w: window.innerWidth, h: window.innerHeight }));
+		const onResize = () => { /* force snapshot by emitting synthetic event */ window.dispatchEvent(new CustomEvent('passiveWindowResize')); };
+		window.addEventListener('resize', onResize);
 		setPassiveAIEnabled(passiveAI);
 		setPassiveDebug(passiveDebug);
+		return ()=> window.removeEventListener('resize', onResize);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	},[]);
 	useEffect(()=>{ try { localStorage.setItem('buckPassiveAI', passiveAI? 'true':'false'); } catch {} setPassiveAIEnabled(passiveAI); }, [passiveAI]);
 	useEffect(()=>{ try { localStorage.setItem('buckPassiveDebug', passiveDebug? 'true':'false'); } catch {} setPassiveDebug(passiveDebug); }, [passiveDebug]);

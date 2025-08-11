@@ -50,7 +50,9 @@ export default function CommentsRow({ dates, comments, lastSavedComments, manual
             }}
             onDoubleClick={() => {
               const key = `comment-${d.date}`;
-              manualHighlights[key] = !manualHighlights[key]; // Toggle highlight
+                  if (typeof setManualHighlights === 'function') {
+                    setManualHighlights(prev => ({ ...prev, [key]: !prev[key] }));
+                  }
             }}
           />
         </td>

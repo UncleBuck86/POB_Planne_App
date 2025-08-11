@@ -6,31 +6,49 @@ import Dashboard from './pages/Dashboard.jsx';
 import Personnel from './pages/Personnel.jsx';
 import Logistics from './pages/Logistics.jsx';
 import POBPage from './pages/POB.jsx';
-import AdminPage from './pages/Admin.jsx';
-import { isAdmin as checkAdmin } from './pages/Admin.jsx';
+import AdminPage, { isAdmin as checkAdmin } from './pages/Admin.jsx';
+import FlightsPage from './pages/Flights.jsx';
+import FlightManifestView from './pages/FlightManifestView.jsx';
+import FlightManifestTemplate from './pages/FlightManifestTemplate.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug, setPassiveInterval, triggerPassiveNow, setPassiveSystemPrompt, setPassiveRedaction } from './ai/passiveAI.js';
 import { emitDomain } from './ai/eventBus.js';
 import { ToastProvider } from './alerts/ToastProvider.jsx';
 
 function RootRouter() {
-	const [page, setPage] = useState(window.location.hash.replace('#','') || 'dashboard');
+	const [hash, setHash] = useState(window.location.hash.replace('#','') || 'dashboard');
 	React.useEffect(() => {
-		const onHash = () => setPage(window.location.hash.replace('#','') || 'dashboard');
+		const onHash = () => setHash(window.location.hash.replace('#','') || 'dashboard');
 		window.addEventListener('hashchange', onHash);
 		return () => window.removeEventListener('hashchange', onHash);
 	}, []);
 	let content = null;
-	if (page === 'planner') content = <App />;
-	else if (page === 'personnel') content = <Personnel />;
-	else if (page === 'admin') content = checkAdmin() ? <AdminPage /> : <Dashboard />;
-	else if (page.startsWith('logistics')) content = <Logistics />;
-	else if (page === 'pob') content = <POBPage />;
+	if (hash.startsWith('logistics/manifest-view/')) {
+		content = <FlightManifestView />;
+	} else if (hash === 'logistics/manifest') {
+		content = <FlightManifestTemplate />;
+	} else if (hash.startsWith('logistics/flights')) {
+		content = <FlightsPage />;
+	} else if (hash.startsWith('logistics/boats')) {
+		// Add boats page/component if exists
+		content = <div style={{padding:24}}><h2>Boats Logistics</h2><p>Boats page placeholder.</p></div>;
+	} else if (hash.startsWith('logistics/other')) {
+		// Add other logistics page/component if exists
+		content = <div style={{padding:24}}><h2>Other Logistics</h2><p>Other logistics page placeholder.</p></div>;
+	} else if (hash.startsWith('logistics')) {
+		// Only render Logistics if not manifest or manifest-view
+		if (hash !== 'logistics/manifest' && !hash.startsWith('logistics/manifest-view/')) {
+			content = <Logistics />;
+		}
+	} else if (hash === 'planner') content = <App />;
+	else if (hash === 'personnel') content = <Personnel />;
+	else if (hash === 'admin') content = checkAdmin() ? <AdminPage /> : <Dashboard />;
+	else if (hash === 'pob') content = <POBPage />;
 	else content = <Dashboard />;
 	return (
 		<ThemeProvider>
 			<ToastProvider>
-				<NavShell page={page} content={content} />
+				<NavShell page={hash.split('/')[0]} content={content} />
 			</ToastProvider>
 		</ThemeProvider>
 	);

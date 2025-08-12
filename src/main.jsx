@@ -61,6 +61,7 @@ function RootRouter() {
 function NavShell({ page, content }) {
 	const { theme, team, changeTheme, density, changeDensity, readOnly, changeReadOnly } = useTheme();
 	const [open, setOpen] = useState(false);
+	const [localInfoOpen, setLocalInfoOpen] = useState(false);
 	// Global AI sidebar state & suggestion
 	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
 	const [aiSuggestion, setAISuggestion] = useState('');
@@ -320,7 +321,7 @@ function NavShell({ page, content }) {
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>AI Settings</div>
 														<div style={{ fontSize:10, color:'#f3d9a4', background:'#3a2e14', border:'1px solid #6b4e16', padding:'6px 8px', borderRadius:6, margin:'0 0 8px' }}>
-															Privacy: This app saves planner, manifest, and personnel data locally in your browser. Nothing is sent to external services.
+														Privacy: This app saves planner, manifest, and personnel data locally in your browser. Nothing is sent to external services. <button onClick={(e)=>{ e.stopPropagation(); setLocalInfoOpen(true); }} style={{ marginLeft:6, background:'transparent', color:'#f3d9a4', border:'1px solid #6b4e16', padding:'2px 6px', borderRadius:6, fontSize:10, cursor:'pointer' }}>What’s saved?</button>
 														</div>
 							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 6px' }}>
 								<input id="toggle-passive-ai" type="checkbox" checked={passiveAI} onChange={e=> setPassiveAI(e.target.checked)} />
@@ -358,6 +359,38 @@ function NavShell({ page, content }) {
 				</div>
 			</nav>
 			{content}
+			{localInfoOpen && (
+				<div role="dialog" aria-modal="true" aria-label="Saved Local Data" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 20px' }} onClick={e=>{ if(e.target===e.currentTarget) setLocalInfoOpen(false); }}>
+					<div style={{ background: theme.surface, color: theme.text, width:'min(760px,100%)', maxHeight:'85vh', overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#555':'#444'), borderRadius:12, padding:'16px 18px 18px', boxShadow:'0 8px 24px rgba(0,0,0,0.45)' }}>
+						<div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+							<h3 style={{ margin:0, fontSize:16 }}>What’s saved locally?</h3>
+							<button onClick={()=> setLocalInfoOpen(false)} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Close</button>
+						</div>
+						<p style={{ fontSize:12, opacity:.85, marginTop:0 }}>This app stores your data in your browser so it’s available offline and on refresh. Clearing site data will remove the items below. To export a backup, use Admin ▶ Export Config/Data.</p>
+						<div style={{ display:'grid', gap:10 }}>
+							{[
+								{ title:'Appearance & Preferences', keys:['pobTheme','pobDensity','pobDateFormat','pobReadOnly','pobToastDisabled'] },
+								{ title:'Planner', keys:['pobPlannerData','pobPlannerComments','pobPlannerLocation'] },
+								{ title:'Dashboard', keys:['dashboardWidgetLayoutV1','dashboardWidgetVisibilityV1','dashboardWidgetColorsV1','pobUserLocation'] },
+								{ title:'Flights & Manifests', keys:['flightManifestTemplateV1','flightManifestCatalogV1','flightManifestVisibleFields','flightManifestLocations','flightManifestAircraftTypes','manifestViewShowWeights','manifestSelectedPersonnel','manifestGenerateDates'] },
+								{ title:'Personnel', keys:['personnelRecords','personnelContactOnlyRecords','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','personnelLocationFilter','personnelContactViewMode'] },
+								{ title:'POB & Bunks', keys:['pobBunkConfig','pobBunkAssignments'] },
+								{ title:'AI Settings', keys:['buckPassiveAI','buckPassiveDebug','buckPassiveInterval','buckPassiveSystemPrompt','buckPassiveRedaction'] },
+								{ title:'Admin & Limits', keys:['pobIsAdmin','pob_admin','pobLocationCaps'] }
+							].map((section,i)=> (
+								<div key={i} style={{ border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, padding:'10px 12px', background: theme.name==='Dark'? '#2a3035':'#f4f7fa' }}>
+									<div style={{ fontSize:12, fontWeight:800, marginBottom:6 }}>{section.title}</div>
+									<div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+										{section.keys.map(k=> (
+											<span key={k} style={{ fontSize:11, padding:'3px 6px', borderRadius:14, background: theme.name==='Dark'? '#3a4046':'#e8edf2', border:'1px solid '+(theme.name==='Dark'? '#555':'#b8c2cc') }}>{k}</span>
+										))}
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

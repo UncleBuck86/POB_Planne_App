@@ -2,7 +2,7 @@
 // Simple modal to control table defaults
 import React from 'react';
 
-export default function TableConfigModal({ open, onClose, includeHiddenInTotals, setIncludeHiddenInTotals }) {
+export default function TableConfigModal({ open, onClose, includeHiddenInTotals, setIncludeHiddenInTotals, showArrows, setShowArrows }) {
   if (!open) return null;
   return (
     <div role="dialog" aria-modal="true" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', zIndex:1000 }} onClick={(e)=>{ if(e.target===e.currentTarget) onClose(); }}>
@@ -19,6 +19,14 @@ export default function TableConfigModal({ open, onClose, includeHiddenInTotals,
               onChange={e=> setIncludeHiddenInTotals(e.target.checked)}
             />
             Include hidden rows in totals
+          </label>
+          <label style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <input
+              type="checkbox"
+              checked={!!showArrows}
+              onChange={e=> setShowArrows(e.target.checked)}
+            />
+            Show number input arrows
           </label>
           {/* Future defaults can be added here */}
         </div>

@@ -6,9 +6,10 @@ export default function CompanyRowDirect({ row, idx, dates, hiddenRows, lastSave
   const { theme } = useTheme();
   if (hiddenRows.includes(row.id)) return null;
   const borderColor = theme.name === 'Dark' ? '#bfc4ca66' : '#444';
+  const zebraBg = idx % 2 === 1 ? (theme.name === 'Dark' ? '#3d4146' : '#f6f8f9') : theme.surface;
   return (
     <tr>
-      <td style={{ width:160, minWidth:160, maxWidth:160, textAlign:'left', position:'sticky', left:0, background:theme.surface, color:theme.text, zIndex:3, borderRight:`1px solid ${borderColor.replace('40','')}`, borderLeft:`1px solid ${borderColor.replace('40','')}`, borderBottom:`1px solid ${borderColor}`, borderTop:`1px solid ${borderColor}`, padding:'4px 6px', boxSizing:'border-box', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</td>
+      <td style={{ width:160, minWidth:160, maxWidth:160, textAlign:'left', position:'sticky', left:0, background:zebraBg, color:theme.text, zIndex:3, borderRight:`1px solid ${borderColor.replace('40','')}`, borderLeft:`1px solid ${borderColor.replace('40','')}`, borderBottom:`1px solid ${borderColor}`, borderTop:`1px solid ${borderColor}`, padding:'4px 6px', boxSizing:'border-box', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.company}</td>
       {dates.map((d,colIdx)=>{
         const lastSavedRow = lastSavedById[row.id] || {};
         const lastSavedVal = lastSavedRow[d.date] ?? '';
@@ -16,7 +17,7 @@ export default function CompanyRowDirect({ row, idx, dates, hiddenRows, lastSave
         const changed = String(currVal) !== String(lastSavedVal);
         const cellKey = `${row.id}-${d.date}`;
         const manuallyHighlighted = manualHighlights[cellKey];
-        let bg = theme.surface;
+        let bg = zebraBg;
         if (manuallyHighlighted) bg = '#b3e5fc';
         else if (changed) bg = '#ffeeba';
         const isDark = theme.name === 'Dark';

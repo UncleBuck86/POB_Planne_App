@@ -84,6 +84,11 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     try { return localStorage.getItem('pobIncludeHiddenInTotals') === 'true'; } catch { return false; }
   });
   useEffect(()=>{ try { localStorage.setItem('pobIncludeHiddenInTotals', includeHiddenInTotals ? 'true':'false'); } catch {} }, [includeHiddenInTotals]);
+  // Toggle for number input arrows (spinners); default off
+  const [showArrows, setShowArrows] = useState(() => {
+    try { return localStorage.getItem('pobShowNumberArrows') === 'true'; } catch { return false; }
+  });
+  useEffect(()=>{ try { localStorage.setItem('pobShowNumberArrows', showArrows ? 'true':'false'); } catch {} }, [showArrows]);
 
   // auto-fit logic removed
 
@@ -123,6 +128,9 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const inputRefs = useRef([]); // Refs for table cell inputs
   const unifiedScrollRef = useRef(null); // Horizontal scroll container
   const tbodyRef = useRef(null);
+  // Hover/active cell tracking for row/column highlights
+  const [hoverCell, setHoverCell] = useState({ r: null, c: null });
+  const [activeCell, setActiveCell] = useState({ r: null, c: null });
 
   // Apply auto-hide logic: if autoHide is selected, hide companies with no numbers in the dates shown; if not, show all companies
   const datesToShow = effectiveDates;
@@ -411,14 +419,37 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               margin: 0
             }}
           >
+            {/* Hide number input spinners when showArrows is false (default) */}
+            {!showArrows && (
+              <style>{`
+                /* Chrome, Safari, Edge, Opera */
+                input[type=number]::-webkit-outer-spin-button,
+                input[type=number]::-webkit-inner-spin-button {
+                  -webkit-appearance: none;
+                  margin: 0;
+                }
+                /* Firefox */
+                input[type=number] { -moz-appearance: textfield; }
+              `}</style>
+            )}
             <colgroup>
               <col style={{ width: 160 }} />
               {effectiveDates.map(d => (
                 <col key={d.date} style={{ width: 80 }} />
               ))}
             </colgroup>
-            <CompanyTableHeader dates={effectiveDates} todayKey={todayKey} todayColumnRef={todayColumnRef} />
-            <tbody ref={tbodyRef}>
+            <CompanyTableHeader
+              dates={effectiveDates}
+              todayKey={todayKey}
+              todayColumnRef={todayColumnRef}
+              hoverCell={hoverCell}
+              activeCell={activeCell}
+              setHoverCell={setHoverCell}
+            />
+            <tbody
+              ref={tbodyRef}
+              onMouseLeave={() => setHoverCell({ r: null, c: null })}
+            >
               {sortedRows.map((row, idx) => (
                 <CompanyRow
                   key={row.id}
@@ -433,6 +464,10 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                   pushUndo={pushUndo}
                   setRowData={setRowData}
                   focusCell={focusCell}
+                  hoverCell={hoverCell}
+                  activeCell={activeCell}
+                  setHoverCell={setHoverCell}
+                  setActiveCell={setActiveCell}
                 />
               ))}
               <TotalsRow rowData={rowsForTotals} dates={effectiveDates} />
@@ -473,6 +508,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         onClose={()=> setConfigOpen(false)}
         includeHiddenInTotals={includeHiddenInTotals}
         setIncludeHiddenInTotals={setIncludeHiddenInTotals}
+        showArrows={showArrows}
+        setShowArrows={setShowArrows}
       />
     </div>
   );

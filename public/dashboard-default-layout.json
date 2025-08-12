@@ -1,0 +1,18 @@
+{
+  "layout": {
+    "nav": { "x": 20, "y": 20 },
+    "forecast": { "x": 20, "y": 120 },
+    "flightForecast": { "x": 20, "y": 360 },
+    "onboard": { "x": 20, "y": 560 },
+    "pobCompanies": { "x": 20, "y": 900 },
+    "pobCompaniesForecast": { "x": 20, "y": 1100 },
+    "weather": { "x": 20, "y": 1320 },
+    "flightStatus": { "x": 20, "y": 1480 },
+    "crewCountdown": { "x": 20, "y": 1640 },
+    "pobTrend": { "x": 20, "y": 1820 },
+    "alerts": { "x": 20, "y": 2080 },
+    "quickActions": { "x": 20, "y": 2220 },
+    "contractorMix": { "x": 20, "y": 2380 },
+    "map": { "x": 20, "y": 2560 }
+  }
+}

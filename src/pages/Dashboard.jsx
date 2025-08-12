@@ -6,7 +6,7 @@ import { emitEvent } from '../ai/eventBus.js';
 import { getAIResponse } from '../ai/client.js';
 import { getNextNDays } from '../utils/dateRanges.js';
 import { generateFlightDeltas } from '../utils/flightDeltas.js';
-import { GRID_SIZE, loadLayout, saveLayout, loadVisibility, saveVisibility, defaultLayout } from '../utils/widgetLayout.js';
+import { GRID_SIZE, loadLayout, saveLayout, loadVisibility, saveVisibility, defaultLayout, getDefaultLayout, saveCustomDefaultLayout, clearCustomDefaultLayout } from '../utils/widgetLayout.js';
 import { loadWidgetColors, saveWidgetColors, widgetColorTheme } from '../utils/widgetColors.js';
 import { thStyle, tdStyle, tdLeft, onCell } from '../utils/dashboardStyles.js';
 import { useToast } from '../alerts/ToastProvider.jsx';
@@ -294,10 +294,34 @@ function Dashboard() {
               </button>
               <button onClick={() => {
                 if (!window.confirm('Reset widget positions to defaults? This will not affect visibility or colors.')) return;
-                setLayout({ ...defaultLayout });
+                setLayout({ ...getDefaultLayout() });
               }}
                 style={{ background:'#78350f', color:'#fff', border:'1px solid #4a2c0a', padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
                 Reset Layout (Positions)
+              </button>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={() => { saveCustomDefaultLayout(layout); alert('Saved current positions as default.'); }}
+                  style={{ background: theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%' }}>
+                  Save Current as Default
+                </button>
+                <button onClick={() => { if (!window.confirm('Clear custom default and revert to app defaults?')) return; clearCustomDefaultLayout(); alert('Custom default cleared.'); }}
+                  style={{ background: '#2e2e2e', color:'#fff', border:'1px solid #111', padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%' }}>
+                  Clear Custom Default
+                </button>
+              </div>
+              <button onClick={() => {
+                try {
+                  const data = { layout };
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = 'dashboard-default-layout.json';
+                  document.body.appendChild(a); a.click(); a.remove();
+                  setTimeout(()=> URL.revokeObjectURL(a.href), 5000);
+                } catch (e) { console.error(e); }
+              }}
+                style={{ marginTop:8, background: theme.secondary, color: theme.text, border:'1px solid '+theme.primary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%' }}>
+                Export Current Layout JSON
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:220, overflowY:'auto' }}>
                 {['nav','forecast','flightForecast','onboard','pobCompanies','pobCompaniesForecast','weather','flightStatus','crewCountdown','pobTrend','alerts','quickActions','contractorMix','map'].map(id => (

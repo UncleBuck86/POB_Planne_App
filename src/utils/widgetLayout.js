@@ -2,6 +2,7 @@ import { storage } from './storageAdapter';
 export const GRID_SIZE = 20;
 export const layoutKey = 'dashboardWidgetLayoutV1';
 export const visibilityKey = 'dashboardWidgetVisibilityV1';
+export const customDefaultKey = 'dashboardCustomDefaultLayoutV1';
 
 export const defaultLayout = {
   // Left column stack to avoid horizontal overlap on typical screens
@@ -43,10 +44,27 @@ export const defaultVisibility = {
   map: false
 };
 
+// Effective default: allow user-saved custom default to override positions
+export function getDefaultLayout() {
+  try {
+    // Prefer system default injected at startup (from public/dashboard-default-layout.json)
+    if (typeof window !== 'undefined' && window.__dashboardDefaultLayout) {
+      const sys = window.__dashboardDefaultLayout.layout || window.__dashboardDefaultLayout;
+      if (sys && typeof sys === 'object') return { ...defaultLayout, ...sys };
+    }
+    const custom = storage.getJSON(customDefaultKey);
+    if (custom && typeof custom === 'object') {
+      return { ...defaultLayout, ...custom };
+    }
+  } catch { /* ignore */ }
+  return defaultLayout;
+}
+
 export function loadLayout() {
   try {
-    const stored = storage.getJSON(layoutKey);
-    return stored ? { ...defaultLayout, ...stored } : defaultLayout;
+  const baseDefault = getDefaultLayout();
+  const stored = storage.getJSON(layoutKey);
+  return stored ? { ...baseDefault, ...stored } : baseDefault;
   } catch { return defaultLayout; }
 }
 export function saveLayout(layout) {
@@ -63,6 +81,14 @@ export function loadVisibility() {
 export function saveVisibility(v) {
   try { storage.setJSON(visibilityKey, v); } catch {}
   emitPassive('VISIBILITY_CHANGED', { visible: v });
+}
+
+export function saveCustomDefaultLayout(layout) {
+  try { storage.setJSON(customDefaultKey, layout); } catch {}
+}
+
+export function clearCustomDefaultLayout() {
+  try { storage.remove(customDefaultKey); } catch {}
 }
 
 // Fire passive AI events (lazy import to avoid hard dependency at module load)

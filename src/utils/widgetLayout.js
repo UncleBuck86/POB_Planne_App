@@ -4,13 +4,17 @@ export const layoutKey = 'dashboardWidgetLayoutV1';
 export const visibilityKey = 'dashboardWidgetVisibilityV1';
 
 export const defaultLayout = {
+  // Left column stack to avoid horizontal overlap on typical screens
   nav: { x: 20, y: 20 },
-  forecast: { x: 20, y: 160 },
-  flightForecast: { x: 340, y: 160 },
-  onboard: { x: 20, y: 360 },
-  pobCompanies: { x: 340, y: 360 },
-  // Place the snapshot table below main blocks, left column, to avoid overlap by default
-  pobCompaniesForecast: { x: 20, y: 560 }
+  forecast: { x: 20, y: 120 },
+  // Place Flight Forecast below POB Forecast to avoid overlapping widths
+  flightForecast: { x: 20, y: 360 },
+  // Onboard below forecasts
+  onboard: { x: 20, y: 560 },
+  // Crew/company counts below onboard to avoid overlap
+  pobCompanies: { x: 20, y: 900 },
+  // Snapshot table at the bottom of the stack by default
+  pobCompaniesForecast: { x: 20, y: 1100 }
 };
 
 export const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true, pobCompanies: true, pobCompaniesForecast: false };

@@ -6,7 +6,7 @@ import { emitEvent } from '../ai/eventBus.js';
 import { getAIResponse } from '../ai/client.js';
 import { getNextNDays } from '../utils/dateRanges.js';
 import { generateFlightDeltas } from '../utils/flightDeltas.js';
-import { GRID_SIZE, loadLayout, saveLayout, loadVisibility, saveVisibility } from '../utils/widgetLayout.js';
+import { GRID_SIZE, loadLayout, saveLayout, loadVisibility, saveVisibility, defaultLayout } from '../utils/widgetLayout.js';
 import { loadWidgetColors, saveWidgetColors, widgetColorTheme } from '../utils/widgetColors.js';
 import { thStyle, tdStyle, tdLeft, onCell } from '../utils/dashboardStyles.js';
 import { useToast } from '../alerts/ToastProvider.jsx';
@@ -207,7 +207,7 @@ function Dashboard() {
     // Backfill any missing defaults for newly added widgets
     const ids = ['nav','forecast','flightForecast','onboard','pobCompanies','pobCompaniesForecast'];
     const filled = { ...base };
-    ids.forEach(id => { if (!filled[id]) filled[id] = { x: 20, y: 20 }; });
+  ids.forEach(id => { if (!filled[id]) filled[id] = { ...(defaultLayout[id] || { x: 20, y: 20 }) }; });
     return filled;
   });
   useEffect(()=> { saveLayout(layout); }, [layout]);
@@ -291,6 +291,13 @@ function Dashboard() {
                 });
               }} style={{ background: editLayout ? theme.secondary : theme.primary, color: theme.text, border:'1px solid '+theme.secondary, padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
                 {editLayout ? 'Finish Layout' : 'Edit Layout'}
+              </button>
+              <button onClick={() => {
+                if (!window.confirm('Reset widget positions to defaults? This will not affect visibility or colors.')) return;
+                setLayout({ ...defaultLayout });
+              }}
+                style={{ background:'#78350f', color:'#fff', border:'1px solid #4a2c0a', padding:'4px 8px', borderRadius:6, cursor:'pointer', fontWeight:'bold', fontSize:11, width:'100%', marginBottom:8 }}>
+                Reset Layout (Positions)
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
                 {['nav','forecast','flightForecast','onboard','pobCompanies','pobCompaniesForecast'].map(id => (

@@ -462,6 +462,27 @@ export default function FlightManifestTemplate() {
     w.document.write(html); w.document.close(); w.print();
   };
 
+  const csvEscape = (v='') => {
+    const s = String(v??'');
+    if (/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+    return s;
+  };
+  const exportCSV = (dir) => {
+    const list = (dir==='outbound'? (data.outbound||[]) : (data.inbound||[]));
+    const isOB = dir==='outbound';
+    const headers = ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination','Comments'];
+    const rows = list.map((p,i)=>{
+      const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; const tot = bw + gw;
+      const origin = p.origin || (isOB? data.meta.departure : data.meta.arrival) || '';
+      const dest = p.destination || (isOB? data.meta.arrival : data.meta.departure) || '';
+      return [i+1, p.name||'', p.company||'', p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot? tot.toFixed(1):'', origin, dest, p.comments||'']
+        .map(csvEscape).join(',');
+    });
+    const content = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([content], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}-${isOB? 'outbound':'inbound'}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
+
   return (
   <div className="manifest-root" style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
       <style>{`
@@ -751,6 +772,8 @@ export default function FlightManifestTemplate() {
         <div style={sectionHeader(theme)}>Actions & Totals</div>
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export JSON</button>
+          <button onClick={()=>exportCSV('outbound')} style={actionBtn(theme)}>Export OB CSV</button>
+          <button onClick={()=>exportCSV('inbound')} style={actionBtn(theme)}>Export IB CSV</button>
           <button onClick={copyJSON} style={actionBtn(theme)}>Copy JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
           <button onClick={()=>saveToCatalog(false)} style={actionBtn(theme)} disabled={locked || !isDirtyRelativeToCatalog}>Save{currentCatalogId && !isDirtyRelativeToCatalog? ' (Saved)':''}</button>

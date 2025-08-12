@@ -76,6 +76,27 @@ export default function FlightManifestView() {
       }
     } catch {/* ignore */}
   };
+  const csvEscape = (v='') => {
+    const s = String(v??'');
+    if (/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+    return s;
+  };
+  const exportCSV = (dir) => {
+    if(!entry) return;
+    const list = (dir==='outbound'? (entry.outbound||[]) : (entry.inbound||[]));
+    const isOB = dir==='outbound';
+    const headers = ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination','Comments'];
+    const rows = list.map((p,i)=>{
+      const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; const tot = bw + gw;
+      const origin = p.origin || (isOB? entry.meta.departure : entry.meta.arrival) || '';
+      const dest = p.destination || (isOB? entry.meta.arrival : entry.meta.departure) || '';
+      return [i+1, p.name||'', p.company||'', p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot? tot.toFixed(1):'', origin, dest, p.comments||'']
+        .map(csvEscape).join(',');
+    });
+    const content = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([content], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`manifest-${entry.meta.flightNumber||'saved'}-${isOB? 'outbound':'inbound'}.csv`; a.click(); URL.revokeObjectURL(url);
+  };
   const printManifest = () => {
     const w = window.open('', '_blank'); if(!w) return;
     const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #444;padding:4px 6px;} th{background:#ddd;}`;
@@ -113,6 +134,8 @@ export default function FlightManifestView() {
           <button onClick={()=> setShowWeights(w=>!w)} style={actionBtn(theme)}>{showWeights? 'Hide Wt':'Show Wt'}</button>
           <button onClick={printManifest} style={actionBtn(theme)}>Print</button>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export</button>
+          <button onClick={()=>exportCSV('outbound')} style={actionBtn(theme)}>Export OB CSV</button>
+          <button onClick={()=>exportCSV('inbound')} style={actionBtn(theme)}>Export IB CSV</button>
           <button onClick={copyJSON} style={actionBtn(theme)}>Copy</button>
           <button onClick={duplicateManifest} style={actionBtn(theme)}>Duplicate</button>
           <button onClick={deleteManifest} style={{ ...actionBtn(theme), background:'#922' }}>Delete</button>

@@ -30,3 +30,9 @@ jobs:
           SMOKE_HOST: 127.0.0.1
           SMOKE_PORT: 5180
           SMOKE_TIMEOUT_MS: 30000
+
+      - name: Unit tests
+        run: npm test -- --runInBand
+
+      - name: Route smoke
+        run: npm run smoke:routes

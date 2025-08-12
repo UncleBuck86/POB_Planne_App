@@ -9,8 +9,10 @@
     "build": "vite build",
   "preview": "vite preview",
   "smoke": "node ./scripts/smoke-test.mjs",
+  "smoke:routes": "node ./scripts/route-smoke.mjs",
   "build:smoke": "npm run build && npm run smoke",
-  "ci:smoke": "npm ci && npm run build:smoke"
+  "ci:smoke": "npm ci && npm run build:smoke && npm run smoke:routes",
+  "test": "jest --ci"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

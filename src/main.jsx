@@ -96,6 +96,17 @@ function NavShell({ page, content }) {
 	}, []);
 	const ref = useRef(null);
 	const gearRef = useRef(null);
+	// Catalog of local data sections and keys (used by info modal and copy actions)
+	const localDataSections = [
+		{ title:'Appearance & Preferences', keys:['pobTheme','pobDensity','pobDateFormat','pobReadOnly','pobToastDisabled'] },
+		{ title:'Planner', keys:['pobPlannerData','pobPlannerComments','pobPlannerLocation'] },
+		{ title:'Dashboard', keys:['dashboardWidgetLayoutV1','dashboardWidgetVisibilityV1','dashboardWidgetColorsV1','pobUserLocation'] },
+		{ title:'Flights & Manifests', keys:['flightManifestTemplateV1','flightManifestCatalogV1','flightManifestVisibleFields','flightManifestLocations','flightManifestAircraftTypes','manifestViewShowWeights','manifestSelectedPersonnel','manifestGenerateDates'] },
+		{ title:'Personnel', keys:['personnelRecords','personnelContactOnlyRecords','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','personnelLocationFilter','personnelContactViewMode'] },
+		{ title:'POB & Bunks', keys:['pobBunkConfig','pobBunkAssignments'] },
+		{ title:'AI Settings', keys:['buckPassiveAI','buckPassiveDebug','buckPassiveInterval','buckPassiveSystemPrompt','buckPassiveRedaction'] },
+		{ title:'Admin & Limits', keys:['pobIsAdmin','pob_admin','pobLocationCaps'] }
+	];
 	useEffect(()=>{
 		if(!open) return; const handler = (e)=>{ const m=ref.current; const g=gearRef.current; if(m && (m.contains(e.target)||g?.contains(e.target))) return; setOpen(false); }; const key=(e)=>{ if(e.key==='Escape') setOpen(false);};
 		window.addEventListener('mousedown',handler); window.addEventListener('touchstart',handler); window.addEventListener('keydown',key);
@@ -364,20 +375,35 @@ function NavShell({ page, content }) {
 					<div style={{ background: theme.surface, color: theme.text, width:'min(760px,100%)', maxHeight:'85vh', overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#555':'#444'), borderRadius:12, padding:'16px 18px 18px', boxShadow:'0 8px 24px rgba(0,0,0,0.45)' }}>
 						<div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
 							<h3 style={{ margin:0, fontSize:16 }}>What’s saved locally?</h3>
-							<button onClick={()=> setLocalInfoOpen(false)} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Close</button>
+							<div style={{ display:'flex', gap:6, alignItems:'center' }}>
+								<button onClick={async ()=>{
+									try{
+										const keys = localDataSections.flatMap(s=> s.keys);
+										await navigator.clipboard.writeText(keys.join('\n'));
+										alert('Keys copied to clipboard');
+									}catch{ alert('Copy failed'); }
+								}} style={{ background: theme.name==='Dark'? '#2d3237':'#e6ebef', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#aaa'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Copy keys</button>
+								<button onClick={async ()=>{
+									try{
+										const keys = localDataSections.flatMap(s=> s.keys);
+										const out = {};
+										keys.forEach(k=>{
+											try {
+												// Prefer JSON if parseable, else raw string
+												const val = storage.getJSON(k, undefined);
+												if (val !== undefined) out[k] = val; else out[k] = storage.get(k) ?? null;
+											} catch { out[k] = storage.get(k) ?? null; }
+										});
+										await navigator.clipboard.writeText(JSON.stringify(out,null,2));
+										alert('JSON copied to clipboard');
+									}catch{ alert('Copy failed'); }
+								}} style={{ background: theme.name==='Dark'? '#2d3237':'#e6ebef', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#aaa'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Copy JSON</button>
+								<button onClick={()=> setLocalInfoOpen(false)} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Close</button>
+							</div>
 						</div>
 						<p style={{ fontSize:12, opacity:.85, marginTop:0 }}>This app stores your data in your browser so it’s available offline and on refresh. Clearing site data will remove the items below. To export a backup, use Admin ▶ Export Config/Data.</p>
 						<div style={{ display:'grid', gap:10 }}>
-							{[
-								{ title:'Appearance & Preferences', keys:['pobTheme','pobDensity','pobDateFormat','pobReadOnly','pobToastDisabled'] },
-								{ title:'Planner', keys:['pobPlannerData','pobPlannerComments','pobPlannerLocation'] },
-								{ title:'Dashboard', keys:['dashboardWidgetLayoutV1','dashboardWidgetVisibilityV1','dashboardWidgetColorsV1','pobUserLocation'] },
-								{ title:'Flights & Manifests', keys:['flightManifestTemplateV1','flightManifestCatalogV1','flightManifestVisibleFields','flightManifestLocations','flightManifestAircraftTypes','manifestViewShowWeights','manifestSelectedPersonnel','manifestGenerateDates'] },
-								{ title:'Personnel', keys:['personnelRecords','personnelContactOnlyRecords','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','personnelLocationFilter','personnelContactViewMode'] },
-								{ title:'POB & Bunks', keys:['pobBunkConfig','pobBunkAssignments'] },
-								{ title:'AI Settings', keys:['buckPassiveAI','buckPassiveDebug','buckPassiveInterval','buckPassiveSystemPrompt','buckPassiveRedaction'] },
-								{ title:'Admin & Limits', keys:['pobIsAdmin','pob_admin','pobLocationCaps'] }
-							].map((section,i)=> (
+							{localDataSections.map((section,i)=> (
 								<div key={i} style={{ border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, padding:'10px 12px', background: theme.name==='Dark'? '#2a3035':'#f4f7fa' }}>
 									<div style={{ fontSize:12, fontWeight:800, marginBottom:6 }}>{section.title}</div>
 									<div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
@@ -386,7 +412,7 @@ function NavShell({ page, content }) {
 										))}
 									</div>
 								</div>
-							))}
+								))}
 						</div>
 					</div>
 				</div>

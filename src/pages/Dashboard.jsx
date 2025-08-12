@@ -62,11 +62,11 @@ function Dashboard() {
   }, []);
   useEffect(() => { try { localStorage.setItem(userLocKey, userLocation); } catch {} }, [userLocation]);
   // Load stored planner data (non-editable view)
-  const rowData = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem('pobPlannerData')) || []; } catch { return []; }
-  }, []);
-  const comments = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem('pobPlannerComments')) || {}; } catch { return {}; }
+  const [rowData, setRowData] = useState([]);
+  const [comments, setComments] = useState({});
+  useEffect(() => {
+    try { setRowData(JSON.parse(localStorage.getItem('pobPlannerData')) || []); } catch { setRowData([]); }
+    try { setComments(JSON.parse(localStorage.getItem('pobPlannerComments')) || {}); } catch { setComments({}); }
   }, []);
   // Load personnel records (snapshot + optional manual refresh)
   const [personnelSnapshot, setPersonnelSnapshot] = useState(() => {
@@ -270,17 +270,17 @@ function Dashboard() {
                 {editLayout ? 'Finish Layout' : 'Edit Layout'}
               </button>
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {['nav','forecast','flightForecast','onboard','pobCompanies'].map(id => (
+                {['nav','forecast','flightForecast','onboard','pobCompanies','pobCompaniesForecast'].map(id => (
                   <label key={id} style={{ display:'flex', alignItems:'center', gap:6 }}>
                     <input type="checkbox" checked={visible[id]} onChange={e => { setVisible(v => ({ ...v, [id]: e.target.checked })); if (!editLayout) setSettingsOpen(false); }} />
-                    <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : id === 'onboard' ? 'POB Onboard' : 'POB Companies'}</span>
+                    <span>{id === 'nav' ? 'Navigation' : id === 'forecast' ? 'POB Forecast' : id === 'flightForecast' ? 'Flight Forecast' : id === 'onboard' ? 'POB Onboard' : id === 'pobCompanies' ? 'POB Companies' : 'POB Companies Forecast'}</span>
                   </label>
                 ))}
               </div>
               {editLayout && (
                 <div style={{ marginTop:10 }}>
                   <div style={{ fontWeight:'bold', marginBottom:4 }}>Widget Colors (mini theme)</div>
-                  {['nav','forecast','flightForecast','onboard','pobCompanies'].map(id => {
+                  {['nav','forecast','flightForecast','onboard','pobCompanies','pobCompaniesForecast'].map(id => {
                     const c = widgetColors[id] || '';
                     return (
                       <div key={id} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
@@ -303,7 +303,26 @@ function Dashboard() {
           </Dropdown>
         )}
   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
-    <h2 style={{ margin:'0 0 4px', color: team === 'dark' ? theme.text : theme.primary }}>Dashboard</h2>
+    {(() => {
+      // Try to get username from personnelSnapshot or localStorage
+      let username = '';
+      if (personnelSnapshot && personnelSnapshot.length > 0) {
+        // Use first onboard user, fallback to first user
+        const onboardUser = personnelSnapshot.find(p => p.status === 'Onboard');
+        if (onboardUser && onboardUser.firstName) {
+          username = onboardUser.firstName + (onboardUser.lastName ? ' ' + onboardUser.lastName : '');
+        } else if (personnelSnapshot[0].firstName) {
+          username = personnelSnapshot[0].firstName + (personnelSnapshot[0].lastName ? ' ' + personnelSnapshot[0].lastName : '');
+        }
+      }
+      if (!username) {
+        // Try localStorage fallback
+        try {
+          username = localStorage.getItem('username') || '';
+        } catch {}
+      }
+      return <h2 style={{ margin:'0 0 4px', color: team === 'dark' ? theme.text : theme.primary }}>Welcome{username ? `, ${username}` : ''}!</h2>;
+    })()}
     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
       <label htmlFor="user-location-select" style={{ fontSize:12, opacity:0.8 }}>Location:</label>
       <select
@@ -340,6 +359,105 @@ function Dashboard() {
     {editLayout && (
       <div style={{ position:'absolute', inset:0, background: `repeating-linear-gradient(to right, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px), repeating-linear-gradient(to bottom, transparent, transparent ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE-1}px, ${(theme.name==='Dark')?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'} ${GRID_SIZE}px)`, pointerEvents:'none', zIndex:0 }} />
     )}
+    {/* POB Companies Forecast Widget (week view, company breakdown) */}
+    {visible.pobCompaniesForecast && (() => {
+      const wc = getWC('pobCompaniesForecast');
+      // Only show companies with at least one non-zero value in the displayed dates
+      const filteredCompanies = visibleCompanies.filter(c =>
+        next7.some(d => parseInt(c[d.key], 10) > 0)
+      );
+      const companyRows = filteredCompanies.map(companyObj => (
+        <tr key={companyObj.company}>
+          <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left', minWidth:120 }}>{companyObj.company}</td>
+          {next7.map((d,i) => {
+            const val = parseInt(companyObj[d.key], 10) || '';
+            const ch = forecastColCharWidths[i] || 10;
+            return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:12, width: ch + 'ch', textAlign:'center' }}>{val}</td>;
+          })}
+        </tr>
+      ));
+
+      // Total row
+      const totalRow = (
+        <tr key="total-row" style={{ background: theme.background }}>
+          <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12, textAlign:'left' }}>Total POB</td>
+          {next7.map((d,i) => {
+            const total = filteredCompanies.reduce((sum, c) => sum + (parseInt(c[d.key], 10) || 0), 0);
+            const ch = forecastColCharWidths[i] || 10;
+            return <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12, width: ch + 'ch', textAlign:'center' }}>{total}</td>;
+          })}
+        </tr>
+      );
+
+      // Flights Out row
+      const flightsOutRow = (
+        <tr key="flights-out-row">
+          <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left' }}>Flights Out (+)</td>
+          {next7.map((d,i) => {
+            const arr = (flightDeltas.out[d.key]||[]).filter(Boolean);
+            const val = arr.join('\n');
+            const ch = forecastColCharWidths[i] || 10;
+            return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, whiteSpace:'pre-line', width: ch + 'ch' }}>{val}</td>;
+          })}
+        </tr>
+      );
+
+      // Flights In row
+      const flightsInRow = (
+        <tr key="flights-in-row">
+          <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left' }}>Flights In (-)</td>
+          {next7.map((d,i) => {
+            const arr = (flightDeltas.in[d.key]||[]).filter(Boolean);
+            const val = arr.join('\n');
+            const ch = forecastColCharWidths[i] || 10;
+            return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, whiteSpace:'pre-line', width: ch + 'ch' }}>{val}</td>;
+          })}
+        </tr>
+      );
+
+      // Comments row
+      const commentsRow = (
+        <tr key="comments-row">
+          <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:10, textAlign:'left' }}>Comments</td>
+          {next7.map((d,i) => {
+            const ch = forecastColCharWidths[i] || 10;
+            return (
+              <td key={d.key} style={{ ...tdStyle(theme, wc), fontStyle: 'italic', whiteSpace: 'pre-line', fontSize: 10, width: ch + 'ch' }} title="Flight / Planner Comments">{comments[d.key] || ''}</td>
+            );
+          })}
+        </tr>
+      );
+
+      return (
+        <section
+          onPointerDown={e => onPointerDown(e,'pobCompaniesForecast')}
+          style={{ position:'absolute', left:(layout.pobCompaniesForecast?.x||340), top:(layout.pobCompaniesForecast?.y||520), padding: '6px 8px', background: wc.base||theme.surface, border: '1px solid '+(wc.border||widgetBorderColor), borderRadius: 8, display:'inline-block', cursor: editLayout ? 'grab' : 'default', boxShadow: editLayout ? '0 0 0 2px rgba(255,255,0,0.3)' : 'none', color: wc.text||theme.text }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16, background: wc.header||'transparent', padding: wc.header?'4px 6px':0, borderRadius:4, color: wc.text||theme.text }}>POB Snap Shot</h3>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ borderCollapse:'collapse', width:'auto', tableLayout:'auto', fontSize:12 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle(theme, hasComments, wc), position:'sticky', left:0 }}>Company</th>
+                  {next7.map((d,i) => {
+                    const header = `${d.dow} ${d.label}`;
+                    const ch = forecastColCharWidths[i] || 10;
+                    return <th key={d.key} style={{ ...thStyle(theme, hasComments, wc), width: ch + 'ch' }} title={d.key}>{header}</th>;
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {companyRows}
+                {totalRow}
+                {flightsOutRow}
+                {flightsInRow}
+                {commentsRow}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Company breakdown for the week (read-only snapshot).</div>
+        </section>
+      );
+    })()}
   {/* Navigation Widget */}
   {visible.nav && (() => { const wc = getWC('nav'); return (
     <div
@@ -376,32 +494,6 @@ function Dashboard() {
             <tbody>
               {(() => {
                 const rows = [];
-                // Total POB row (first)
-                // Max POB row (regulatory limit)
-                rows.push(
-                  <tr key="max-pob" style={{ background: theme.background }}>
-                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:10, textAlign:'left' }}>Max POB</td>
-                    {next7.map(d => {
-                      const caps = locationCaps[userLocation] || {};
-                      const max = parseInt(caps.max,10)||'';
-                      return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, fontWeight:'bold', opacity:max?1:.4 }}>{max!==''? max: ''}</td>;
-                    })}
-                  </tr>
-                );
-                // Effective capacity row (max + contingencies)
-                rows.push(
-                  <tr key="effective-pob" style={{ background: theme.background }}>
-                    <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:10, textAlign:'left' }}>Effective Cap</td>
-                    {next7.map(d => {
-                      const caps = locationCaps[userLocation] || {};
-                      const max = parseInt(caps.max,10)||0;
-                      const flotel = parseInt(caps.flotel,10)||0;
-                      const fieldBoat = parseInt(caps.fieldBoat,10)||0;
-                      const eff = (max+flotel+fieldBoat)||'';
-                      return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:10, opacity: eff?1:.4 }} title={eff?`Max ${max} + Flotel ${flotel} + Field Boat ${fieldBoat}`:''}>{eff||''}</td>;
-                    })}
-                  </tr>
-                );
                 // Total POB row with highlighting
                 rows.push(
                   <tr key="total-pob" style={{ background: theme.background }}>

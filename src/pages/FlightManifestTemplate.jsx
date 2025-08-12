@@ -39,7 +39,7 @@ function buildAutoFlightNumber(location, isoDate, index){
 const AUTO_FLIGHT_REGEX = /^[A-Z0-9]+-\d{6}-flight \d+$/;
 
 export default function FlightManifestTemplate() {
-  const { theme } = useTheme();
+  const { theme } = useTheme(); // Always get latest theme
   const [data, setData] = useState(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));

@@ -140,7 +140,7 @@ export default function POBPage(){
   }, [onboard.length, initialBunks.length, assignmentsVersion]);
 
   return (
-    <div style={{ padding:'24px 26px 80px', background: theme.background, color: theme.text, minHeight:'100vh' }}>
+    <div key={theme.name} style={{ padding:'24px 26px 80px', background: theme.background, color: theme.text, minHeight:'100vh' }}>
       <h2 style={{ margin:'0 0 14px' }}>POB Overview</h2>
       <div style={{ fontSize:13, opacity:.75, marginBottom:24 }}>Current onboard personnel & bunk assignment snapshot. Future iterations will allow drag/drop reassign, history, and occupancy reports.</div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:32 }}>

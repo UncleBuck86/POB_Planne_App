@@ -416,6 +416,15 @@ export default function FlightManifestTemplate() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}.json`; a.click(); URL.revokeObjectURL(url);
   };
+  const copyJSON = () => {
+    try {
+      const txt = JSON.stringify(data, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
+      else {
+        const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      }
+    } catch {/* ignore */}
+  };
   const printView = () => {
     const w = window.open('', '_blank'); if (!w) return;
     const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} h2{margin-top:0;} table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #444;padding:4px 6px;} th{background:#ddd;} .section{margin-bottom:18px;}`;
@@ -742,6 +751,7 @@ export default function FlightManifestTemplate() {
         <div style={sectionHeader(theme)}>Actions & Totals</div>
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export JSON</button>
+          <button onClick={copyJSON} style={actionBtn(theme)}>Copy JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
           <button onClick={()=>saveToCatalog(false)} style={actionBtn(theme)} disabled={locked || !isDirtyRelativeToCatalog}>Save{currentCatalogId && !isDirtyRelativeToCatalog? ' (Saved)':''}</button>
           <button onClick={()=>saveToCatalog(true)} style={actionBtn(theme)} disabled={locked}>Save As New</button>

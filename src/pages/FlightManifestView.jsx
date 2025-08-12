@@ -67,6 +67,15 @@ export default function FlightManifestView() {
       const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`manifest-${entry.meta.flightNumber||'saved'}.json`; a.click(); URL.revokeObjectURL(url);
     } catch {/* ignore */}
   };
+  const copyJSON = () => {
+    try {
+      const txt = JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
+      else {
+        const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      }
+    } catch {/* ignore */}
+  };
   const printManifest = () => {
     const w = window.open('', '_blank'); if(!w) return;
     const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #444;padding:4px 6px;} th{background:#ddd;}`;
@@ -104,6 +113,7 @@ export default function FlightManifestView() {
           <button onClick={()=> setShowWeights(w=>!w)} style={actionBtn(theme)}>{showWeights? 'Hide Wt':'Show Wt'}</button>
           <button onClick={printManifest} style={actionBtn(theme)}>Print</button>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export</button>
+          <button onClick={copyJSON} style={actionBtn(theme)}>Copy</button>
           <button onClick={duplicateManifest} style={actionBtn(theme)}>Duplicate</button>
           <button onClick={deleteManifest} style={{ ...actionBtn(theme), background:'#922' }}>Delete</button>
           <button onClick={editManifest} style={{ ...actionBtn(theme), background:'#2d6cdf' }}>Edit</button>

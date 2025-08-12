@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 import CompanyRowDirect from './CompanyTable/CompanyRowDirect.jsx';
-import { getAllDates } from '../utils/dateUtils';
+import { getAllDates, formatMMDDYY } from '../utils/dateUtils';
 
 export default function CompanyTableDirect() {
   const { theme } = useTheme();
@@ -91,7 +91,7 @@ export default function CompanyTableDirect() {
             <tr>
               <th style={{ width:160, minWidth:160, maxWidth:160, position:'sticky', top:0, left:0, zIndex:6, background:theme.surface, color:theme.text, padding:'4px 6px', textAlign:'left', border:`1px solid ${borderCore}`, whiteSpace:'nowrap' }}>Company</th>
               {visibleDates.map(d => (
-                <th key={d.date} style={{ width:80, minWidth:80, maxWidth:80, position:'sticky', top:0, zIndex:5, background:theme.surface, color:theme.text, padding:'4px 4px', textAlign:'center', border:`1px solid ${borderColor}`, whiteSpace:'nowrap' }}>{d.labelShort || d.label || d.date}</th>
+                <th key={d.date} style={{ width:80, minWidth:80, maxWidth:80, position:'sticky', top:0, zIndex:5, background:theme.surface, color:theme.text, padding:'4px 4px', textAlign:'center', border:`1px solid ${borderColor}`, whiteSpace:'nowrap' }}>{formatMMDDYY(d.date)}</th>
               ))}
             </tr>
           </thead>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatMMDDYY } from '../utils/dateUtils.js';
 
 export default function FlightRows({ flightsOut, flightsIn, dates }) {
   return (
@@ -8,7 +9,7 @@ export default function FlightRows({ flightsOut, flightsIn, dates }) {
         <thead>
           <tr>
             {dates.map(d => (
-              <th key={d.date}>{d.date}</th>
+              <th key={d.date}>{formatMMDDYY(d.date)}</th>
             ))}
           </tr>
         </thead>
@@ -26,7 +27,7 @@ export default function FlightRows({ flightsOut, flightsIn, dates }) {
         <thead>
           <tr>
             {dates.map(d => (
-              <th key={d.date}>{d.date}</th>
+              <th key={d.date}>{formatMMDDYY(d.date)}</th>
             ))}
           </tr>
         </thead>

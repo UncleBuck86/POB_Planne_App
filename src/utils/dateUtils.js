@@ -9,6 +9,16 @@ export function formatDate(date) {
   return d.toISOString().split('T')[0];
 }
 
+// Format a date (Date or parseable string) as MM/DD/YY
+export function formatMMDDYY(date) {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date || '');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${mm}/${dd}/${yy}`;
+}
+
 // Example: Get the day of week for a date
 export function getDayOfWeek(date) {
   // Returns the day of week (e.g., 'Mon', 'Tue') for a given date
@@ -30,8 +40,8 @@ export function getAllDates(year) {
     const dateStr = (d.getMonth() + 1) + '/' + d.getDate() + '/' + d.getFullYear();
     // Gets the abbreviated day of the week (e.g., 'Mon', 'Tue')
     const dayStr = d.toLocaleDateString('en-US', { weekday: 'short' });
-    // Adds an object with the date and day to the dates array
-    dates.push({ date: dateStr, day: dayStr });
+  // Adds an object with the date and day to the dates array; include a display label (MM/DD/YY)
+  dates.push({ date: dateStr, day: dayStr, label: formatMMDDYY(d) });
   }
   // Returns the array of date objects
   return dates;

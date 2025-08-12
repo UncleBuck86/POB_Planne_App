@@ -9,14 +9,33 @@ export function formatDate(date) {
   return d.toISOString().split('T')[0];
 }
 
+// Internal: format pieces with 2-digit month/day and 2-digit year
+function mmddyyParts(d) {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return { mm, dd, yy };
+}
+
 // Format a date (Date or parseable string) as MM/DD/YY
 export function formatMMDDYY(date) {
   const d = new Date(date);
   if (isNaN(d.getTime())) return String(date || '');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const yy = String(d.getFullYear()).slice(-2);
+  const { mm, dd, yy } = mmddyyParts(d);
   return `${mm}/${dd}/${yy}`;
+}
+
+// Format a date (Date or parseable string) as DD/MM/YY
+export function formatDDMMYY(date) {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date || '');
+  const { mm, dd, yy } = mmddyyParts(d);
+  return `${dd}/${mm}/${yy}`;
+}
+
+// Format using global preference (fmt: 'mdy' | 'dmy') default 'mdy'
+export function formatByPreference(date, fmt = 'mdy') {
+  return fmt === 'dmy' ? formatDDMMYY(date) : formatMMDDYY(date);
 }
 
 // Example: Get the day of week for a date

@@ -17,6 +17,10 @@ export function ThemeProvider({ children }) {
     try { return localStorage.getItem('pobDensity') || 'comfort'; } catch { return 'comfort'; }
   })();
   const [density, setDensity] = useState(initialDensity);
+  const initialDateFormat = (() => {
+    try { return localStorage.getItem('pobDateFormat') || 'mdy'; } catch { return 'mdy'; }
+  })();
+  const [dateFormat, setDateFormat] = useState(initialDateFormat);
 
   const changeTheme = (themeName) => {
     const next = themePresets[themeName] ? themeName : 'light';
@@ -31,6 +35,12 @@ export function ThemeProvider({ children }) {
     try { localStorage.setItem('pobDensity', next); } catch {/* ignore */}
   };
 
+  const changeDateFormat = (fmt) => {
+    const next = (fmt === 'dmy' || fmt === 'mdy') ? fmt : 'mdy';
+    setDateFormat(next);
+    try { localStorage.setItem('pobDateFormat', next); } catch {/* ignore */}
+  };
+
   // Keep localStorage in sync if team changes from elsewhere
   useEffect(() => {
     try { localStorage.setItem('pobTheme', team); } catch {/* ignore */}
@@ -41,8 +51,13 @@ export function ThemeProvider({ children }) {
     try { localStorage.setItem('pobDensity', density); } catch {/* ignore */}
   }, [density]);
 
+  // Keep dateFormat in sync
+  useEffect(() => {
+    try { localStorage.setItem('pobDateFormat', dateFormat); } catch {/* ignore */}
+  }, [dateFormat]);
+
   return (
-    <ThemeContext.Provider value={{ theme, team, changeTheme, density, changeDensity }}>
+    <ThemeContext.Provider value={{ theme, team, changeTheme, density, changeDensity, dateFormat, changeDateFormat }}>
       {children}
     </ThemeContext.Provider>
   );

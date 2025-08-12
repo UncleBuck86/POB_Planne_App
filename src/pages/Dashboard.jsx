@@ -23,6 +23,24 @@ const Dropdown = styled.div`
   position: fixed; top: 54px; right: 16px; background: ${({ theme }) => theme.background || '#fff'}; color: ${({ theme }) => theme.text || '#222'}; border: 1px solid ${({ theme }) => theme.primary}; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); min-width: 200px; padding: 14px 16px 16px; z-index: 210;
 `;
 
+function DateFormatPicker() {
+  const { dateFormat, changeDateFormat, theme } = useTheme();
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+      <label htmlFor="date-format-select" style={{ fontSize:12 }}>Date Format:</label>
+      <select
+        id="date-format-select"
+        value={dateFormat}
+        onChange={e => changeDateFormat(e.target.value)}
+        style={{ padding:'6px 8px', border:'1px solid '+(theme.name==='Dark' ? '#666':'#888'), background: theme.surface, color: theme.text, borderRadius:6, fontSize:12 }}
+      >
+        <option value="mdy">MM/DD/YY</option>
+        <option value="dmy">DD/MM/YY</option>
+      </select>
+    </div>
+  );
+}
+
 function Dashboard() {
   // Add autoHide state for widget logic
   const [autoHide, setAutoHide] = useState(true);
@@ -301,6 +319,10 @@ function Dashboard() {
               )}
               {editLayout && <div style={{ marginTop:6, fontSize:10, opacity:0.7 }}>Drag to reposition (grid {GRID_SIZE}px)</div>}
               {editLayout && <div style={{ marginTop:4, fontSize:10, opacity:0.55 }}>Toggle checkboxes to show / hide widgets.</div>}
+              <div style={{ marginTop:12, paddingTop:10, borderTop: '1px solid ' + (theme.name==='Dark' ? '#bfc4ca40':'#ccc') }}>
+                <div style={{ fontWeight:'bold', marginBottom:6 }}>Formatting</div>
+                <DateFormatPicker />
+              </div>
             </div>
           </Dropdown>
         )}

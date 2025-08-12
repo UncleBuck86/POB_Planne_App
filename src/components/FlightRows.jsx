@@ -1,7 +1,9 @@
 import React from 'react';
-import { formatMMDDYY } from '../utils/dateUtils.js';
+import { formatByPreference } from '../utils/dateUtils.js';
+import { useTheme } from '../ThemeContext.jsx';
 
 export default function FlightRows({ flightsOut, flightsIn, dates }) {
+  const { dateFormat } = useTheme();
   return (
     <div style={{ marginTop: 20 }}>
       <h3>Flights: Personnel Out</h3>
@@ -9,7 +11,7 @@ export default function FlightRows({ flightsOut, flightsIn, dates }) {
         <thead>
           <tr>
             {dates.map(d => (
-              <th key={d.date}>{formatMMDDYY(d.date)}</th>
+              <th key={d.date}>{formatByPreference(d.date, dateFormat)}</th>
             ))}
           </tr>
         </thead>
@@ -27,7 +29,7 @@ export default function FlightRows({ flightsOut, flightsIn, dates }) {
         <thead>
           <tr>
             {dates.map(d => (
-              <th key={d.date}>{formatMMDDYY(d.date)}</th>
+              <th key={d.date}>{formatByPreference(d.date, dateFormat)}</th>
             ))}
           </tr>
         </thead>

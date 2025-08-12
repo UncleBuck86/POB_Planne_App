@@ -2,11 +2,11 @@
 // Renders the header row for the company table (dates and company label)
 
 import React from 'react';
-import { formatMMDDYY } from '../../utils/dateUtils.js';
+import { formatByPreference } from '../../utils/dateUtils.js';
 import { useTheme } from '../../ThemeContext.jsx';
 
 export default function CompanyTableHeader({ dates, todayKey, todayColumnRef, hoverCell, activeCell, setHoverCell }) {
-  const { theme } = useTheme();
+  const { theme, dateFormat } = useTheme();
   const headerBg = theme.headerBg || theme.surface;
   const headerText = theme.headerText || theme.text;
   const borderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
@@ -42,7 +42,7 @@ export default function CompanyTableHeader({ dates, todayKey, todayColumnRef, ho
                 boxShadow: colOn(colIdx) ? (theme.name==='Dark' ? 'inset 0 -4px 0 #3b82f6, inset 0 0 0 9999px #3b82f612' : 'inset 0 -4px 0 #2563eb, inset 0 0 0 9999px #60a5fa12') : 'none'
               }}
             >
-              {formatMMDDYY(d.date)}<br /><span style={{ fontSize: 'smaller' }}>{d.day}</span>
+              {formatByPreference(d.date, dateFormat)}<br /><span style={{ fontSize: 'smaller' }}>{d.day}</span>
             </th>
           );
         })}

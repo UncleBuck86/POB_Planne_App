@@ -34,7 +34,7 @@ function formatDateCompact(isoDate){
 function buildAutoFlightNumber(location, isoDate, index){
   const loc = (location||'LOC').replace(/\s+/g,'').toUpperCase();
   const datePart = formatDateCompact(isoDate|| new Date().toISOString().slice(0,10));
-  return `${loc}-${datePart}-flight ${index||1}`;
+  return `${loc}-${datePart}-${index||1}`;
 }
 const AUTO_FLIGHT_REGEX = /^[A-Z0-9]+-\d{6}-flight \d+$/;
 
@@ -61,19 +61,44 @@ export default function FlightManifestTemplate() {
   const [currentCatalogId, setCurrentCatalogId] = useState(null); // which catalog entry is loaded (if any)
   useEffect(()=>{ try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch {/*ignore*/} }, [catalog]);
   const saveToCatalog = (asNew=false) => {
-    const snapshot = JSON.parse(JSON.stringify({
-      meta: data.meta,
-      outbound: data.outbound,
-      inbound: data.inbound
-    }));
-    if(!asNew && currentCatalogId) {
-      setCatalog(list=> list.map(e=> e.id===currentCatalogId ? { ...e, ...snapshot, date: snapshot.meta.date, flightNumber: snapshot.meta.flightNumber, updatedAt: new Date().toISOString() } : e));
-    } else {
+    // Determine number of flight pairs
+    const outLen = outboundFlights.length;
+    const inLen = inboundFlights.length;
+    const maxPairs = Math.max(outLen, inLen);
+    // If only one flight, save as usual
+    if (maxPairs <= 1) {
+      const snapshot = JSON.parse(JSON.stringify({
+        meta: data.meta,
+        outbound: data.outbound,
+        inbound: data.inbound
+      }));
       const id = crypto.randomUUID();
       const entry = { id, date: snapshot.meta.date, flightNumber: snapshot.meta.flightNumber, savedAt: new Date().toISOString(), ...snapshot };
       setCatalog(list=> [entry, ...list]);
       setCurrentCatalogId(id);
+      window.location.hash = '#logistics/manifest-view/' + id;
+      return;
     }
+    // Otherwise, save a manifest for each flight pair
+    let newIds = [];
+    for (let i = 0; i < maxPairs; i++) {
+      const outbound = outboundFlights[i] ? outboundFlights[i].passengers : [];
+      const inbound = inboundFlights[i] ? inboundFlights[i].passengers : [];
+      // Build flight number with index
+      const baseFlightNum = buildAutoFlightNumber(data.meta.departure, data.meta.date, i+1);
+      const snapshot = JSON.parse(JSON.stringify({
+        meta: { ...data.meta, flightNumber: baseFlightNum },
+        outbound,
+        inbound
+      }));
+      const id = crypto.randomUUID();
+      newIds.push(id);
+      const entry = { id, date: snapshot.meta.date, flightNumber: snapshot.meta.flightNumber, savedAt: new Date().toISOString(), ...snapshot };
+      setCatalog(list=> [entry, ...list]);
+    }
+    // Show the first manifest after save
+    setCurrentCatalogId(newIds[0]);
+    window.location.hash = '#logistics/manifest-view/' + newIds[0];
   };
   const loadFromCatalog = (id) => {
     const entry = catalog.find(e=>e.id===id); if(!entry) return;
@@ -82,6 +107,19 @@ export default function FlightManifestTemplate() {
     setCurrentCatalogId(id);
     setCatalogOpen(false);
   };
+
+  // When opening the template, always clear currentCatalogId
+  useEffect(() => {
+    const clearCatalogIdOnTemplate = () => {
+      if (window.location.hash === '#logistics/manifest' || window.location.hash === '#logistics/flights/manifest') {
+        setCurrentCatalogId(null);
+      }
+    };
+    window.addEventListener('hashchange', clearCatalogIdOnTemplate);
+    // Run once on mount in case already at template
+    clearCatalogIdOnTemplate();
+    return () => window.removeEventListener('hashchange', clearCatalogIdOnTemplate);
+  }, []);
   const deleteFromCatalog = (id) => {
     if(!confirm('Delete saved manifest?')) return;
     setCatalog(list=> list.filter(e=> e.id!==id));
@@ -213,7 +251,11 @@ export default function FlightManifestTemplate() {
       const current = d.meta.flightNumber||'';
       const shouldAuto = !current || AUTO_FLIGHT_REGEX.test(current);
       if(!shouldAuto) return d;
-      const next = buildAutoFlightNumber(d.meta.departure, d.meta.date, 1);
+      // Use user profile location from Dashboard if available
+      let userLocation = '';
+      try { userLocation = localStorage.getItem('pobUserLocation') || ''; } catch {}
+      const locationForFlight = userLocation || d.meta.departure;
+      const next = buildAutoFlightNumber(locationForFlight, d.meta.date, 1);
       if(next===current) return d;
       return { ...d, meta: { ...d.meta, flightNumber: next } };
     });
@@ -246,77 +288,7 @@ export default function FlightManifestTemplate() {
   }); };
   const removePassenger = (dir, id) => { if(locked) return; setData(d => ({ ...d, [dir]: d[dir].filter(p => p.id !== id) })); };
   const clearAll = () => { if(locked) return; if (confirm('Clear all manifest data?')) setData(defaultData); };
-  // If navigated from Flights page with selected dates, attempt to pre-fill notes with movement summary once (idempotent)
-  useEffect(()=>{
-    try {
-      const raw = localStorage.getItem('manifestGenerateDates');
-      if(!raw) return;
-      const dates = JSON.parse(raw)||[]; if(!Array.isArray(dates) || !dates.length) return;
-      localStorage.removeItem('manifestGenerateDates');
-      // build summary based on flight movement comments util if available in storage
-      const planner = JSON.parse(localStorage.getItem('pobPlannerData'))||[];
-      // Re-run comment generation for needed window (include one day prior if possible)
-      const parseMDY = str => new Date(str);
-      const sorted = [...dates].sort((a,b)=> new Date(a)-new Date(b));
-      const first = new Date(sorted[0]); const prev = new Date(first); prev.setDate(prev.getDate()-1);
-      const dateObjs = [prev, ...sorted.map(d=> new Date(d))].map(d=> ({ date: (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear() }));
-      // inline simple diff (avoid circular import)
-      const flightsOutTmp = {}; const flightsInTmp = {};
-      for(let i=1;i<dateObjs.length;i++){ const prevKey=dateObjs[i-1].date; const curKey=dateObjs[i].date; const out=[]; const inn=[]; planner.forEach(row=>{ const pv=Number(row[prevKey])||0; const cv=Number(row[curKey])||0; if(cv>pv) out.push(`${cv-pv}-${row.company}`); else if(cv<pv) inn.push(`${pv-cv}-${row.company}`); }); flightsOutTmp[curKey]=out; flightsInTmp[curKey]=inn; }
-      flightsOutTmp[dateObjs[0].date]=[]; flightsInTmp[dateObjs[0].date]=[];
-      // Create summary lines for selected dates
-      const lines = sorted.map(k=> {
-        const outs = flightsOutTmp[k]||[]; const ins = flightsInTmp[k]||[];
-        const totalOut = outs.reduce((s,v)=> s + (parseInt(String(v).split('-')[0],10)||0),0);
-        const totalIn = ins.reduce((s,v)=> s + (parseInt(String(v).split('-')[0],10)||0),0);
-        return `${k}: Out +${totalOut||0}${outs.length? ' ['+outs.join(', ')+']':''} | In -${totalIn||0}${ins.length? ' ['+ins.join(', ')+']':''}`;
-      });
-      // Determine primary manifest date (use last selected date assuming that's target flight).
-      const mainDateKey = sorted[sorted.length-1];
-      // Convert M/D/YYYY -> YYYY-MM-DD
-      const [m,dD,y] = mainDateKey.split('/');
-      const isoDate = y+'-'+String(m).padStart(2,'0')+'-'+String(dD).padStart(2,'0');
-      // Build passenger placeholder lists for main date diffs if manifest sections empty.
-      const outDiffs = flightsOutTmp[mainDateKey]||[];
-      const inDiffs = flightsInTmp[mainDateKey]||[];
-      const buildPassengers = (arr, direction) => {
-        const pax = [];
-        arr.forEach(entry => {
-          const dash = entry.indexOf('-');
-          if(dash===-1) return;
-          const num = parseInt(entry.slice(0,dash),10) || 0;
-            const company = entry.slice(dash+1);
-          for(let i=0;i<num;i++) {
-            pax.push({
-              id: crypto.randomUUID(),
-              name:'',
-              company,
-              bodyWeight:'', bagWeight:'', bagCount:'',
-              comments:`Auto from planner (${direction} ${num > 1 ? '+'+num : '+1'} ${company} ${mainDateKey})`,
-              // origin/destination will be applied in a later effect based on meta; mark auto flags
-              origin:'', destination:'', originAuto:true, destinationAuto:true
-            });
-          }
-        });
-        return pax;
-      };
-      // We will assign origin/destination after building lists using meta values later
-      setData(d=> {
-        const newOutbound = d.outbound && d.outbound.length ? d.outbound : buildPassengers(outDiffs, 'OUT');
-        const newInbound = d.inbound && d.inbound.length ? d.inbound : buildPassengers(inDiffs, 'IN');
-        return {
-          ...d,
-          meta:{
-            ...d.meta,
-            date: d.meta.date && d.meta.date !== new Date().toISOString().slice(0,10) ? d.meta.date : isoDate,
-            notes: (d.meta.notes? d.meta.notes+'\n':'') + 'Flight movements selected:\n'+lines.join('\n')
-          },
-          outbound: newOutbound,
-          inbound: newInbound
-        };
-      });
-    } catch {/* ignore */}
-  }, []);
+  // If navigated from Flights page with selected dates, do not pre-fill notes with movement summary. Only set Outbound/Inbound summary boxes.
   // Ingest selected personnel passed from Flights page (one-time)
   useEffect(()=>{
     try {
@@ -338,7 +310,7 @@ export default function FlightManifestTemplate() {
             bodyWeight: p.bodyWeight||'',
             bagWeight: p.bagWeight||'',
             bagCount: p.bagCount||'',
-            comments: 'Imported from movement widget ('+p.source+')',
+              comments: '',
             origin:'', destination:'', originAuto:true, destinationAuto:true
           };
           const key = mkKey(pax);
@@ -460,7 +432,7 @@ export default function FlightManifestTemplate() {
           maxInboundWeight!=null?`Inbound Wt ${totalWeightInbound.toFixed(1)}/${maxInboundWeight}`:null
         ].filter(Boolean).join(' | ')+`</div>`;
     }
-    const html = `<!DOCTYPE html><html><head><title>Flight Manifest</title><style>${css}</style></head><body>`+
+  const html = `<!DOCTYPE html><html><head><title>Flight Manifest</title><style>${css}</style></head><body>`+
       `<h2>Flight Manifest ${data.meta.flightNumber? ' - '+data.meta.flightNumber:''}</h2>`+
       `<div class='section'><strong>Date:</strong> ${data.meta.date||''} &nbsp; <strong>Route:</strong> ${data.meta.departure||'???'} → ${data.meta.arrival||'???'} &nbsp; <strong>ETD:</strong> ${data.meta.departureTime||''} &nbsp; <strong>ETA:</strong> ${data.meta.arrivalTime||''}</div>`+
       `<div class='section'><strong>Aircraft:</strong> ${data.meta.aircraftType||''} ${data.meta.tailNumber||''} &nbsp; <strong>Captain:</strong> ${data.meta.captain||''} &nbsp; <strong>Co-Pilot:</strong> ${data.meta.coPilot||''} &nbsp; <strong>Dispatcher:</strong> ${data.meta.dispatcher||''}</div>`+
@@ -508,7 +480,10 @@ export default function FlightManifestTemplate() {
       `}</style>
   <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
     <button onClick={()=> window.location.hash = '#logistics/flights'} style={{ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>← Flights</button>
-    <h2 style={{ marginTop:0 }}>Flight Manifest Template {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}</h2>
+    <h2 style={{ marginTop:0 }}>
+      {isAdmin() ? 'Flight Manifest Template' : 'New Manifest'}
+      {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}
+    </h2>
   </div>
       <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
@@ -650,11 +625,28 @@ export default function FlightManifestTemplate() {
             {visibleFields.coPilot && <Labeled label="Co-Pilot"><input disabled={locked} value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}
             {visibleFields.dispatcher && <Labeled label="Dispatcher"><input disabled={locked} value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Labeled>}
         </div>
-        {visibleFields.notes && (
-          <Labeled label="Notes" full>
-            <textarea disabled={locked} rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
-          </Labeled>
-        )}
+        <div style={{ display:'flex', gap:24, alignItems:'flex-start', marginTop:24 }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700, fontSize:15, marginBottom:8 }}>Summary</div>
+            <div style={{ display:'flex', gap:16 }}>
+              <div style={{ flex:1, background: theme.name==='Dark' ? '#23272b' : '#f5f7fa', border:'1px solid '+(theme.primary||'#267'), borderRadius:8, padding:12 }}>
+                <div style={{ fontWeight:600, marginBottom:6 }}>Outbound Summary</div>
+                <pre style={{ fontSize:13, margin:0, whiteSpace:'pre-wrap' }}>{data._outboundSummary || ''}</pre>
+              </div>
+              <div style={{ flex:1, background: theme.name==='Dark' ? '#23272b' : '#f5f7fa', border:'1px solid '+(theme.primary||'#267'), borderRadius:8, padding:12 }}>
+                <div style={{ fontWeight:600, marginBottom:6 }}>Inbound Summary</div>
+                <pre style={{ fontSize:13, margin:0, whiteSpace:'pre-wrap' }}>{data._inboundSummary || ''}</pre>
+              </div>
+            </div>
+          </div>
+          {visibleFields.notes && (
+            <div style={{ flex:1 }}>
+              <Labeled label="Notes" full>
+                <textarea disabled={locked} rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
+              </Labeled>
+            </div>
+          )}
+        </div>
         <div style={{ fontSize:11, opacity:.6, marginTop:6 }}>{autoSaveState}</div>
   {dedupeNotice && <div style={{ fontSize:11, marginTop:4, color: theme.name==='Dark'? '#7be49c':'#0a5c24' }}>{dedupeNotice}</div>}
       </section>
@@ -784,7 +776,9 @@ export default function FlightManifestTemplate() {
                   <div style={{ fontSize:11, opacity:.7 }}>Outbound {e.outbound.length} / Inbound {e.inbound.length} &nbsp; Saved {new Date(e.savedAt||e.updatedAt).toLocaleString()}</div>
                 </div>
                 <button style={smallBtn(theme)} onClick={()=>loadFromCatalog(e.id)}>Load</button>
-                <button style={smallBtn(theme)} onClick={()=>deleteFromCatalog(e.id)}>Del</button>
+                {e.date > todayIso && (
+                  <button style={smallBtn(theme)} onClick={()=>deleteFromCatalog(e.id)}>Delete</button>
+                )}
               </div>
             ))}
           </div>

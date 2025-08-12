@@ -25,7 +25,7 @@ function RootRouter() {
 	let content = null;
 	if (hash.startsWith('logistics/manifest-view/')) {
 		content = <FlightManifestView />;
-	} else if (hash === 'logistics/manifest') {
+	} else if (hash === 'logistics/manifest' || hash === 'logistics/flights/manifest') {
 		content = <FlightManifestTemplate />;
 	} else if (hash.startsWith('logistics/flights')) {
 		content = <FlightsPage />;

@@ -11,9 +11,10 @@ import { thStyle, tdStyle, tdLeft, onCell } from '../utils/dashboardStyles.js';
 import { useToast } from '../alerts/ToastProvider.jsx';
 import { explainError } from '../alerts/errorExplain.js';
 import styled, { ThemeProvider as StyledThemeProvider, createGlobalStyle } from 'styled-components';
-
+// ...existing code...
 // Reuse theming like planner page
 const GlobalStyle = createGlobalStyle`
+}
   body { background: ${({ theme }) => theme.background}; color: ${({ theme }) => theme.text}; transition: background 0.3s, color 0.3s; }
   * { font-family: 'Segoe UI', Arial, sans-serif; }
 `;
@@ -412,14 +413,7 @@ function Dashboard() {
                       const flotel = parseInt(caps.flotel,10)||0;
                       const fieldBoat = parseInt(caps.fieldBoat,10)||0;
                       const effective = max + flotel + fieldBoat;
-                      if (userLocation && max>0 && total>max && total<=effective) {
-                        const info = explainError('POB_OVER_MAX', { total, max, effective, date:d.key, location:userLocation });
-                        addToast({ type:'warn', ...info, dedupeKey:`POB_OVER_MAX_${userLocation}_${d.key}`, link:'#admin' });
-                      }
-                      if (userLocation && effective>0 && total>effective) {
-                        const info = explainError('POB_OVER_EFFECTIVE', { total, max, effective, date:d.key, location:userLocation, flotel, fieldBoat });
-                        addToast({ type:'error', ...info, dedupeKey:`POB_OVER_EFFECTIVE_${userLocation}_${d.key}`, link:'#admin' });
-                      }
+                      // Toast logic moved to useEffect below
                       let bg = wc.base || 'transparent';
                       let color = wc.text || theme.text;
                       if (max>0 && total>max) {

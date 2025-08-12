@@ -14,10 +14,34 @@ export const defaultLayout = {
   // Crew/company counts below onboard to avoid overlap
   pobCompanies: { x: 20, y: 900 },
   // Snapshot table at the bottom of the stack by default
-  pobCompaniesForecast: { x: 20, y: 1100 }
+  pobCompaniesForecast: { x: 20, y: 1100 },
+  // New widgets stacked further down
+  weather: { x: 20, y: 1320 },
+  flightStatus: { x: 20, y: 1480 },
+  crewCountdown: { x: 20, y: 1640 },
+  pobTrend: { x: 20, y: 1820 },
+  alerts: { x: 20, y: 2080 },
+  quickActions: { x: 20, y: 2220 },
+  contractorMix: { x: 20, y: 2380 },
+  map: { x: 20, y: 2560 }
 };
 
-export const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true, pobCompanies: true, pobCompaniesForecast: false };
+export const defaultVisibility = {
+  nav: true,
+  forecast: true,
+  flightForecast: true,
+  onboard: true,
+  pobCompanies: true,
+  pobCompaniesForecast: false,
+  weather: true,
+  flightStatus: false,
+  crewCountdown: true,
+  pobTrend: true,
+  alerts: true,
+  quickActions: true,
+  contractorMix: true,
+  map: false
+};
 
 export function loadLayout() {
   try {

@@ -17,8 +17,8 @@ export default function POBPage(){
   const today = new Date();
   const allDates = getAllDates(today.getFullYear());
   const todayKey = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear();
-  const defaultStart = new Date(today); defaultStart.setDate(defaultStart.getDate() - 7);
-  const defaultEnd = new Date(today); defaultEnd.setDate(defaultEnd.getDate() + 28);
+  const defaultStart = new Date(today); // start at today
+  const defaultEnd = new Date(today); defaultEnd.setDate(defaultEnd.getDate() + 28); // end at today+28
   const [viewStart, setViewStart] = useState(defaultStart.toISOString().split('T')[0]);
   const [viewEnd, setViewEnd] = useState(defaultEnd.toISOString().split('T')[0]);
   const visibleDates = useMemo(()=> allDates.filter(d => {

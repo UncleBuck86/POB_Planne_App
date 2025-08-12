@@ -12,10 +12,8 @@ const allDates = getAllDates(today.getFullYear());
 const todayStr = formatDate(today); // YYYY-MM-DD
 const todayKey = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear(); // matches table date keys
 
-const defaultStart = new Date(today);
-defaultStart.setDate(defaultStart.getDate() - 7);
-
-const defaultEnd = new Date(today);
+const defaultStart = new Date(today); // start at today
+const defaultEnd = new Date(today);   // end at today + 28
 defaultEnd.setDate(defaultEnd.getDate() + 28);
 
 const defaultStartStr = defaultStart.toISOString().split('T')[0];

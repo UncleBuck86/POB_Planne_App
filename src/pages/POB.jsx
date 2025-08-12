@@ -5,6 +5,7 @@ import CompanyTable from '../components/CompanyTable';
 import { getAllDates } from '../services/dateService';
 import { formatDate } from '../helpers/dateHelpers';
 import { initialPobData, initialPobComments } from '../data/seed.js';
+import { storage } from '../utils/storageAdapter.js';
 
 // POB (Persons On Board) Landing Page
 // Shows: Current Onboard Roster (derived from personnel records) & Bunk Assignments (editable placeholder)
@@ -27,8 +28,8 @@ export default function POBPage(){
     return dt >= new Date(viewStart) && dt <= new Date(viewEnd);
   }), [allDates, viewStart, viewEnd]);
   const todayColumnRef = useRef(null);
-  const [rowData, setRowData] = useState(()=>{ try { const s=localStorage.getItem('pobPlannerData'); return s? JSON.parse(s): initialPobData; } catch { return initialPobData; } });
-  const [comments, setComments] = useState(()=>{ try { const s=localStorage.getItem('pobPlannerComments'); return s? JSON.parse(s): initialPobComments; } catch { return initialPobComments; } });
+  const [rowData, setRowData] = useState(() => storage.getJSON('pobPlannerData', initialPobData) || initialPobData);
+  const [comments, setComments] = useState(() => storage.getJSON('pobPlannerComments', initialPobComments) || initialPobComments);
   const [editingCompanies, setEditingCompanies] = useState(false);
   // Allow gear menu to open Edit Companies on POB page
   useEffect(()=>{
@@ -41,7 +42,7 @@ export default function POBPage(){
     setViewEnd(defaultEnd.toISOString().split('T')[0]);
   };
   const todayIso = new Date().toISOString().slice(0,10);
-  const personnel = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
+  const personnel = useMemo(() => storage.getJSON('personnelRecords', []) || [], []);
   // Determine onboard: arrivalDate <= today && (no departureDate or departureDate >= today)
   const onboard = personnel.filter(p=> {
     if(!p.arrivalDate) return false;
@@ -51,7 +52,7 @@ export default function POBPage(){
   });
   // Bunk assignment storage
   let initialBunks = [];
-  try { initialBunks = JSON.parse(localStorage.getItem('pobBunkConfig'))||[]; } catch { initialBunks=[]; }
+  try { initialBunks = storage.getJSON('pobBunkConfig', []) || []; } catch { initialBunks=[]; }
   // default example bunks if none
   if(!initialBunks.length){
     initialBunks = [
@@ -61,14 +62,14 @@ export default function POBPage(){
       { id:'B1', floor:'1', section:'B', capacity:1 },
       { id:'B2', floor:'1', section:'B', capacity:1 }
     ];
-    try { localStorage.setItem('pobBunkConfig', JSON.stringify(initialBunks)); } catch {}
+  try { storage.setJSON('pobBunkConfig', initialBunks); } catch {}
   }
   // Migration: ensure floor & capacity=1
   let migrated = false;
   initialBunks = initialBunks.map(b=>{ let changed=false; const next={ ...b }; if(!('floor' in next)) { next.floor='1'; changed=true; } if(next.capacity!==1){ next.capacity=1; changed=true; } if(changed) migrated=true; return next; });
-  if(migrated){ try { localStorage.setItem('pobBunkConfig', JSON.stringify(initialBunks)); } catch {} }
+  if(migrated){ try { storage.setJSON('pobBunkConfig', initialBunks); } catch {} }
   let assignmentsStore = {};
-  try { assignmentsStore = JSON.parse(localStorage.getItem('pobBunkAssignments'))||{}; } catch { assignmentsStore={}; }
+  try { assignmentsStore = storage.getJSON('pobBunkAssignments', {}) || {}; } catch { assignmentsStore={}; }
   // Migration: convert legacy { personId } to { personIds: [] }
   Object.keys(assignmentsStore).forEach(k=>{
     const v = assignmentsStore[k];
@@ -77,7 +78,7 @@ export default function POBPage(){
   });
   // local state to trigger re-render on assignment changes
   const [assignmentsVersion, setAssignmentsVersion] = useState(0);
-  const saveAssignments = (next, meta={}) => { try { localStorage.setItem('pobBunkAssignments', JSON.stringify(next)); } catch{} assignmentsStore = next; setAssignmentsVersion(v=>v+1); if(meta && meta.event){ emitDomain(meta.event, meta.payload||{}, meta.brief); } };
+  const saveAssignments = (next, meta={}) => { try { storage.setJSON('pobBunkAssignments', next); } catch{} assignmentsStore = next; setAssignmentsVersion(v=>v+1); if(meta && meta.event){ emitDomain(meta.event, meta.payload||{}, meta.brief); } };
   const bunkMap = new Map(initialBunks.map(b=> [b.id, b]));
   const bunkToPersons = {}; Object.entries(assignmentsStore).forEach(([bid,val])=> { if(val && Array.isArray(val.personIds)) bunkToPersons[bid]=val.personIds; });
   const assignedRoster = onboard.reduce((acc,p)=>{

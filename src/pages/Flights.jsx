@@ -4,35 +4,36 @@ import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../utils/generateFlightComment.js';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
+import { storage } from '../utils/storageAdapter.js';
 
 // Format date into planner key (M/D/YYYY)
 const keyForDate = (d) => (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
 
 export default function FlightsPage() {
   const { theme } = useTheme();
-  const rowData = useMemo(() => { try { return JSON.parse(localStorage.getItem('pobPlannerData')) || []; } catch { return []; } }, []);
+  const rowData = useMemo(() => storage.getJSON('pobPlannerData', []) || [], []);
   const today = new Date();
   const [displayMonth, setDisplayMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const [largeCalendar, setLargeCalendar] = useState(()=>{ try { return localStorage.getItem('pobLargeCalendar')==='true'; } catch { return false; } });
-  useEffect(()=>{ try { localStorage.setItem('pobLargeCalendar', largeCalendar?'true':'false'); } catch{} }, [largeCalendar]);
+  const [largeCalendar, setLargeCalendar] = useState(() => storage.getBool('pobLargeCalendar', false));
+  useEffect(() => { storage.setBool('pobLargeCalendar', largeCalendar); }, [largeCalendar]);
   const [selectedDates, setSelectedDates] = useState([]);
-    const [hideNoMovement, setHideNoMovement] = useState(()=> { try { return localStorage.getItem('pobHideNoMovement')==='true'; } catch { return false; } });
-    useEffect(()=>{ try { localStorage.setItem('pobHideNoMovement', hideNoMovement?'true':'false'); } catch {/* ignore */} }, [hideNoMovement]);
+    const [hideNoMovement, setHideNoMovement] = useState(() => storage.getBool('pobHideNoMovement', false));
+    useEffect(() => { storage.setBool('pobHideNoMovement', hideNoMovement); }, [hideNoMovement]);
   // Removed manifestOpen popup; movement widget + direct manifest link replaces it
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const catalog = useMemo(()=>{ try { return JSON.parse(localStorage.getItem('flightManifestCatalogV1'))||[]; } catch { return []; } }, []);
+  const catalog = useMemo(() => storage.getJSON('flightManifestCatalogV1', []) || [], []);
   const openCatalogManifest = (entry) => {
     try {
       const d = new Date(entry.meta.date || entry.date);
       const key = keyForDate(d);
-      localStorage.setItem('manifestGenerateDates', JSON.stringify([key]));
+      storage.setJSON('manifestGenerateDates', [key]);
     } catch {/* ignore */}
   window.location.hash = '#logistics/manifest-view/'+entry.id;
   };
   const openManifestTemplate = () => {
     try {
       const keys = selectedDates.map(d=> keyForDate(d));
-      localStorage.setItem('manifestGenerateDates', JSON.stringify(keys));
+      storage.setJSON('manifestGenerateDates', keys);
     } catch {}
   window.location.hash = '#logistics/manifest';
   };
@@ -63,7 +64,7 @@ export default function FlightsPage() {
     const parseEntries = (arr) => arr.reduce((sum, e)=>{ const dash=e.indexOf('-'); if(dash===-1) return sum; const num=parseInt(e.slice(0,dash),10); return sum + (isNaN(num)?0:num); },0);
     const isoFromKey = (k)=>{ try { const [m,d,y]=k.split('/'); return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); } catch { return null; } };
     // load aircraft type limits for capacity error detection
-    let aircraftTypes=[]; try { aircraftTypes = JSON.parse(localStorage.getItem('flightManifestAircraftTypes'))||[]; } catch { aircraftTypes=[]; }
+  let aircraftTypes = storage.getJSON('flightManifestAircraftTypes', []) || [];
     allDatesForMonth.forEach(d=>{
       const k=keyForDate(d); const iso=isoFromKey(k);
       const plannerOutboundCount = parseEntries(flightsOut[k]||[]);
@@ -118,7 +119,7 @@ export default function FlightsPage() {
   const [popup, setPopup] = useState(null);
   const clearSelection = () => { setSelectedDates([]); };
   // Personnel movement widget data (combines personnel database and planner delta logic)
-  const personnelRecords = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
+  const personnelRecords = useMemo(() => storage.getJSON('personnelRecords', []) || [], []);
   const plannerRows = rowData; // existing rowData from planner
   // Track selected personnel from movement widgets to send to manifest
   const [selectedPeople, setSelectedPeople] = useState({}); // key -> person payload
@@ -126,7 +127,7 @@ export default function FlightsPage() {
   const manifestPassengersSet = useMemo(()=>{
     const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
     try {
-      const raw = JSON.parse(localStorage.getItem('flightManifestTemplateV1'));
+      const raw = storage.getJSON('flightManifestTemplateV1', null);
       if(!raw) return new Set();
       const collect = [];
       ['outbound','inbound'].forEach(dir=>{
@@ -176,7 +177,7 @@ export default function FlightsPage() {
   const sendSelectedToManifest = () => {
     try {
       const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
-      const existingRaw = JSON.parse(localStorage.getItem('flightManifestTemplateV1')||'{}');
+      const existingRaw = storage.getJSON('flightManifestTemplateV1', {}) || {};
       const mkKey = (f,l,c) => ((f||'').trim().toLowerCase()+' '+(l||'').trim().toLowerCase()).trim()+'|'+(c||'').trim().toLowerCase();
       const existingOutbound = new Set((existingRaw.outbound||[]).map(p=>mkKey(...((p.name||'').split(' ')).slice(0,1), (p.name||'').split(' ').slice(1).join(' '), p.company))); // simplified but will be refined below
       const existingInbound = new Set((existingRaw.inbound||[]).map(p=>mkKey(...((p.name||'').split(' ')).slice(0,1), (p.name||'').split(' ').slice(1).join(' '), p.company)));
@@ -187,7 +188,7 @@ export default function FlightsPage() {
         if(p.direction==='inbound') return !existingInbound.has(key);
         return true;
       });
-      localStorage.setItem('manifestSelectedPersonnel', JSON.stringify(payload));
+      storage.setJSON('manifestSelectedPersonnel', payload);
   } catch {/* ignore */}
   emitDomain('MANIFEST_TEMPLATE_CHANGED', { added: Object.keys(selectedPeople).length }, 'Selected personnel staged for manifest');
     // Check catalog for existing manifest on target date (use last selected date or today fallback)
@@ -204,7 +205,7 @@ export default function FlightsPage() {
           const load = window.confirm('A saved manifest already exists for '+targetIso+' (Flight # '+(existing.meta.flightNumber||'N/A')+').\nLoad it before adding selected personnel?');
           if(load){
             try {
-              localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound }));
+              storage.setJSON('flightManifestTemplateV1', { meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound });
             } catch {/* ignore */}
             emitDomain('MANIFEST_TEMPLATE_CHANGED', { loadedExisting:true, date: targetIso }, 'Loaded existing manifest '+targetIso);
           }
@@ -234,7 +235,7 @@ export default function FlightsPage() {
   // Open manifest for a specific planner date key (M/D/YYYY)
   const openManifestForDate = (mdyKey) => {
     try {
-      localStorage.setItem('manifestGenerateDates', JSON.stringify([mdyKey]));
+    storage.setJSON('manifestGenerateDates', [mdyKey]);
       const [m,d,y] = mdyKey.split('/');
       const iso = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const existing = catalog.find(c=> c.meta && c.meta.date === iso);
@@ -244,9 +245,9 @@ export default function FlightsPage() {
         return;
       } else {
         try {
-          const prev = JSON.parse(localStorage.getItem('flightManifestTemplateV1'))||{};
+      const prev = storage.getJSON('flightManifestTemplateV1', {}) || {};
           const meta = { ...(prev.meta||{}), date: iso };
-          localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta, outbound: [], inbound: [] }));
+      storage.setJSON('flightManifestTemplateV1', { meta, outbound: [], inbound: [] });
         } catch {/* ignore */}
         emitDomain('MANIFEST_TEMPLATE_CHANGED', { date: iso, newTemplate:true }, 'Started new manifest '+iso);
       }

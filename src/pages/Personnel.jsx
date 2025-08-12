@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
+import { storage } from '../utils/storageAdapter';
 
 /* Personnel record shape (persisted in localStorage under 'personnelRecords')
 {
@@ -26,13 +27,13 @@ const STORAGE_KEY = 'personnelRecords';
 const CONTACTS_KEY = 'personnelContactOnlyRecords';
 
 function loadRecords() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+  try { return storage.getJSON(STORAGE_KEY, []) || []; } catch { return []; }
 }
-function saveRecords(recs) { localStorage.setItem(STORAGE_KEY, JSON.stringify(recs)); }
+function saveRecords(recs) { storage.setJSON(STORAGE_KEY, recs); }
 function loadContactOnly() {
-  try { return JSON.parse(localStorage.getItem(CONTACTS_KEY)) || []; } catch { return []; }
+  try { return storage.getJSON(CONTACTS_KEY, []) || []; } catch { return []; }
 }
-function saveContactOnly(recs) { localStorage.setItem(CONTACTS_KEY, JSON.stringify(recs)); }
+function saveContactOnly(recs) { storage.setJSON(CONTACTS_KEY, recs); }
 
 const blank = () => ({
   id: 'p_' + Math.random().toString(36).slice(2,9),
@@ -66,7 +67,7 @@ export default function Personnel() {
   const [search, setSearch] = useState('');
   // Persistent location filter
   const initialLocFilter = (() => {
-    try { return localStorage.getItem('personnelLocationFilter') || 'all'; } catch { return 'all'; }
+    try { return storage.get('personnelLocationFilter') || 'all'; } catch { return 'all'; }
   })();
   const [locationFilter, setLocationFilter] = useState(initialLocFilter);
   const [editingId, setEditingId] = useState(null);
@@ -75,13 +76,13 @@ export default function Personnel() {
   // Company options sourced automatically from POB planner companies
   const [companyOptions, setCompanyOptions] = useState(() => {
     try {
-      const data = JSON.parse(localStorage.getItem('pobPlannerData')) || [];
+      const data = storage.getJSON('pobPlannerData', []) || [];
       return [...new Set(data.map(r => (r.company || '').trim()).filter(Boolean))].sort();
     } catch { return []; }
   });
   // Admin-managed option lists
   const loadList = (key) => {
-    try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
+    try { return storage.getJSON(key, []) || []; } catch { return []; }
   };
   const [crewOptions, setCrewOptions] = useState(() => loadList('personnelCrewOptions'));
   const [locationOptions, setLocationOptions] = useState(() => loadList('personnelLocationOptions'));
@@ -97,24 +98,24 @@ export default function Personnel() {
 
   useEffect(() => { saveRecords(records); }, [records]);
   useEffect(() => { saveContactOnly(contactOnlyRecords); }, [contactOnlyRecords]);
-  useEffect(() => { localStorage.setItem('personnelCrewOptions', JSON.stringify(crewOptions)); }, [crewOptions]);
-  useEffect(() => { localStorage.setItem('personnelLocationOptions', JSON.stringify(locationOptions)); }, [locationOptions]);
-  useEffect(() => { localStorage.setItem('personnelRotationOptions', JSON.stringify(rotationOptions)); }, [rotationOptions]);
+  useEffect(() => { storage.setJSON('personnelCrewOptions', crewOptions); }, [crewOptions]);
+  useEffect(() => { storage.setJSON('personnelLocationOptions', locationOptions); }, [locationOptions]);
+  useEffect(() => { storage.setJSON('personnelRotationOptions', rotationOptions); }, [rotationOptions]);
   // Keep textareas in sync if lists change externally
   useEffect(() => { setCrewOptionsText(crewOptions.join('\n')); }, [crewOptions]);
   useEffect(() => { setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
   useEffect(() => { setRotationOptionsText(rotationOptions.join('\n')); }, [rotationOptions]);
-  useEffect(() => { localStorage.setItem('personnelLocationFilter', locationFilter); }, [locationFilter]);
+  useEffect(() => { storage.set('personnelLocationFilter', locationFilter); }, [locationFilter]);
   // Refresh company options when storage changes (other tab) or periodically while on page
   useEffect(() => {
     const load = () => {
       try {
-        const data = JSON.parse(localStorage.getItem('pobPlannerData')) || [];
+        const data = storage.getJSON('pobPlannerData', []) || [];
         const opts = [...new Set(data.map(r => (r.company || '').trim()).filter(Boolean))].sort();
         setCompanyOptions(opts);
       } catch { /* ignore */ }
     };
-    const onStorage = (e) => { if (e.key === 'pobPlannerData') load(); };
+  const onStorage = (e) => { if (e.key === 'pobPlannerData') load(); };
     window.addEventListener('storage', onStorage);
     // Also poll lightly in-case same-tab edits happen without route change
     const interval = setInterval(load, 5000);
@@ -307,9 +308,9 @@ export default function Personnel() {
   }, [records, crewOptions]);
   const [crewViewMode, setCrewViewMode] = useState('cards'); // 'cards' | 'table'
   const [contactViewMode, setContactViewMode] = useState(() => { // 'cards' | 'table'
-    try { return localStorage.getItem('personnelContactViewMode') || 'cards'; } catch { return 'cards'; }
+    try { return storage.get('personnelContactViewMode') || 'cards'; } catch { return 'cards'; }
   });
-  useEffect(()=> { try { localStorage.setItem('personnelContactViewMode', contactViewMode); } catch {} }, [contactViewMode]);
+  useEffect(()=> { try { storage.set('personnelContactViewMode', contactViewMode); } catch {} }, [contactViewMode]);
   // --- Crew Drag & Drop State ---
   const [dragCrewPersonId, setDragCrewPersonId] = useState(null);
   const [dragOverCrew, setDragOverCrew] = useState(null);

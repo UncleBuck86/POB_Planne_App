@@ -16,6 +16,8 @@ const Base = createGlobalStyle`
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  background: ${(props) => (props.theme && props.theme.background) || 'transparent'};
+  color: ${(props) => (props.theme && props.theme.text) || 'inherit'};
   }
   *:focus-visible {
     outline: 3px solid var(--focus-ring);
@@ -26,6 +28,17 @@ const Base = createGlobalStyle`
   }
   button, input, select, textarea { line-height: calc(1.2 * var(--density)); }
   button, input, select { padding: calc(8px * var(--density)) calc(10px * var(--density)); }
+  /* Subtle cards/panels */
+  .card, .panel {
+    background: ${(props) => (props.theme && props.theme.surface) || '#fff'};
+    border: 1px solid ${(props) => (props.theme && props.theme.border) || '#e5e7eb'};
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  /* Muted table headers */
+  th {
+    background: ${(props) => (props.theme && props.theme.surface) || '#f9fafb'};
+  }
 `;
 
 export default function GlobalStyle() {

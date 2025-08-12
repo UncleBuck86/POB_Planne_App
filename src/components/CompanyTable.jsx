@@ -5,6 +5,7 @@ import { storage } from '../utils/storageAdapter';
 import TableControlsBar from './CompanyTable/TableControlsBar';
 import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../helpers/commentHelpers';
+import { useToast } from '../alerts/ToastProvider.jsx';
 // Import subcomponents for modular table rendering
 import CompanyTableHeader from './CompanyTable/CompanyTableHeader';
 import CompanyRow from './CompanyTable/CompanyRow';
@@ -70,6 +71,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [autosave, setAutosave] = useState(true); // Autosave toggle
   // Track unsaved changes (compares to lastSavedData/Comments)
   const [unsaved, setUnsaved] = useState(false);
+  const { addToast } = useToast();
+  const lastAutoToastRef = useRef(0);
   // Ensure each company row has a stable id
   const generateId = () => 'cmp_' + Math.random().toString(36).slice(2, 10);
   useEffect(() => {
@@ -196,6 +199,12 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
       setLastSavedData(rowData);
       setLastSavedComments(localComments);
       setUnsaved(false);
+      // Throttled autosave toast (no spam)
+      const now = Date.now();
+      if (now - (lastAutoToastRef.current || 0) > 15000) {
+        lastAutoToastRef.current = now;
+        try { addToast({ type:'info', title:'Saved', message:'Autosaved changes', timeout:2000, dedupeKey: undefined }); } catch {/* ignore */}
+      }
     }
   }, [rowData, localComments, autosave]);
 
@@ -274,6 +283,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     setSaveMsg('Saved!');
     setTimeout(() => setSaveMsg(''), 2000);
     setUnsaved(false);
+  try { addToast({ type:'info', title:'Saved', message:'Your changes have been saved', timeout:2000 }); } catch {/* ignore */}
   };
 
   // Keyboard shortcut: Ctrl/Cmd+S to save when autosave is off

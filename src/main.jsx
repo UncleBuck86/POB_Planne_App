@@ -279,7 +279,7 @@ function NavShell({ page, content }) {
 									</select>
 								</div>
 							)}
-							{page==='planner' && (
+							{(page==='planner' || page==='pob') && (
 								<button onClick={()=>{ window.dispatchEvent(new Event('openPlannerEditCompanies')); setOpen(false); }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginBottom:10 }}>Edit Companies</button>
 							)}
 							{page==='dashboard' && (

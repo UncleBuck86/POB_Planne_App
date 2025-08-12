@@ -146,6 +146,9 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     });
   }, [filteredRows, pinnedCompanies]);
 
+  // Visible rows exclude manually hidden rows
+  const visibleRows = useMemo(() => sortedRows.filter(r => !hiddenRows.includes(r.id)), [sortedRows, hiddenRows]);
+
   // toggleAutoFit removed
   // (Removed separate horizontal sync; unified scroll container will handle alignment)
 
@@ -215,10 +218,17 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     setEditCompanies(prev => [...prev, { id, company: '' }]);
     setRowData(prev => [...prev, { id, company: '' }]);
   };
-  const removeCompany = idx => {
-    setEditCompanies(prev => prev.filter((_, i) => i !== idx));
-    // Do not remove from rowData until save? We'll mirror immediate removal:
-    setRowData(prev => prev.filter((_, i) => i !== idx));
+  const removeCompany = (idOrIdx) => {
+    // Accept legacy index but prefer id string
+    if (typeof idOrIdx === 'string') {
+      const rid = idOrIdx;
+      setEditCompanies(prev => prev.filter(c => c.id !== rid));
+      setRowData(prev => prev.filter(r => r.id !== rid));
+    } else {
+      const idx = idOrIdx;
+      setEditCompanies(prev => prev.filter((_, i) => i !== idx));
+      setRowData(prev => prev.filter((_, i) => i !== idx));
+    }
   };
   const saveCompanies = () => {
     setRowData(prev => editCompanies.map(ec => {
@@ -409,7 +419,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                   focusCell={focusCell}
                 />
               ))}
-              <TotalsRow rowData={rowData} dates={effectiveDates} />
+              <TotalsRow rowData={visibleRows} dates={effectiveDates} />
               <FlightsRow type="Flights Out" dates={effectiveDates} flights={flightsOut} />
               <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
               <CommentsRow

@@ -1,6 +1,9 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
+import CompanyTable from '../components/CompanyTable';
+import { getAllDates } from '../services/dateService';
+import { formatDate } from '../helpers/dateHelpers';
 
 // POB (Persons On Board) Landing Page
 // Shows: Current Onboard Roster (derived from personnel records) & Bunk Assignments (editable placeholder)
@@ -10,6 +13,32 @@ import { useTheme } from '../ThemeContext.jsx';
 
 export default function POBPage(){
   const { theme } = useTheme();
+  // ---- POB Table Editor state (dates, data, comments) ----
+  const today = new Date();
+  const allDates = getAllDates(today.getFullYear());
+  const todayKey = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear();
+  const defaultStart = new Date(today); defaultStart.setDate(defaultStart.getDate() - 7);
+  const defaultEnd = new Date(today); defaultEnd.setDate(defaultEnd.getDate() + 28);
+  const [viewStart, setViewStart] = useState(defaultStart.toISOString().split('T')[0]);
+  const [viewEnd, setViewEnd] = useState(defaultEnd.toISOString().split('T')[0]);
+  const visibleDates = useMemo(()=> allDates.filter(d => {
+    const dt = new Date(d.date);
+    return dt >= new Date(viewStart) && dt <= new Date(viewEnd);
+  }), [allDates, viewStart, viewEnd]);
+  const todayColumnRef = useRef(null);
+  const [rowData, setRowData] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobPlannerData'))||[]; } catch { return []; } });
+  const [comments, setComments] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobPlannerComments'))||{}; } catch { return {}; } });
+  const [editingCompanies, setEditingCompanies] = useState(false);
+  // Allow gear menu to open Edit Companies on POB page
+  useEffect(()=>{
+    const open = () => setEditingCompanies(true);
+    window.addEventListener('openPlannerEditCompanies', open);
+    return () => window.removeEventListener('openPlannerEditCompanies', open);
+  },[]);
+  const handleResetRange = () => {
+    setViewStart(defaultStart.toISOString().split('T')[0]);
+    setViewEnd(defaultEnd.toISOString().split('T')[0]);
+  };
   const todayIso = new Date().toISOString().slice(0,10);
   const personnel = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
   // Determine onboard: arrivalDate <= today && (no departureDate or departureDate >= today)
@@ -255,6 +284,30 @@ export default function POBPage(){
           </div>
           <div style={{ marginTop:10, fontSize:11, opacity:.65 }}>Drag names between beds or to the Unassign box. Click a bed for detailed modal view.</div>
         </section>
+      </div>
+      {/* ---- POB Table Editor ---- */}
+      <div style={{ marginTop: 28 }}>
+        <h2 style={{ margin:'0 0 10px' }}>POB Table Editor</h2>
+        <div style={{ display:'flex', gap:12, alignItems:'center', margin:'0 0 12px', flexWrap:'wrap' }}>
+          <label style={{ fontSize:12 }}>Start</label>
+          <input type="date" value={viewStart} onChange={e=> setViewStart(e.target.value)} />
+          <label style={{ fontSize:12 }}>End</label>
+          <input type="date" value={viewEnd} onChange={e=> setViewEnd(e.target.value)} />
+          <button onClick={handleResetRange} style={{ padding:'4px 10px', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#333'), borderRadius:6, fontSize:12, fontWeight:700 }}>Reset</button>
+        </div>
+        <CompanyTable
+          rowData={rowData}
+          setRowData={setRowData}
+          dates={visibleDates}
+          comments={comments}
+          setComments={setComments}
+          todayColumnRef={todayColumnRef}
+          todayKey={todayKey}
+          viewStart={viewStart}
+          viewEnd={viewEnd}
+          editing={editingCompanies}
+          setEditing={setEditingCompanies}
+        />
       </div>
       {activeBunk && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', overflowY:'auto', padding:'60px 20px', zIndex:900 }} onClick={e=> { if(e.target===e.currentTarget) closeAssign(); }}>

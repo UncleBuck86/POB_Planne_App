@@ -132,7 +132,7 @@ export default function EditCompaniesModal({ editing, editCompanies, setEditComp
                 ), background: duplicateNames.includes((c.company||'').toLowerCase()) ? '#ffebee' : (fuzzySet.has((c.company||'').toLowerCase()) ? '#fff3e0':'#fff') }}
                 title={duplicateNames.includes((c.company||'').toLowerCase()) ? 'Exact duplicate' : (fuzzySet.has((c.company||'').toLowerCase()) ? 'Possible duplicate (similar name)' : '')}
               />
-              <button onClick={() => removeCompany(idx)} style={{ fontSize: '0.65em', padding: '2px 6px', background: '#eee', border: '1px solid #bbb', borderRadius: 4 }}>Remove</button>
+              <button onClick={() => removeCompany(c.id)} style={{ fontSize: '0.65em', padding: '2px 6px', background: '#eee', border: '1px solid #bbb', borderRadius: 4 }}>Remove</button>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <button
                   onClick={() => {

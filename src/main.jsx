@@ -99,6 +99,7 @@ function RootRouter() {
 function NavShell({ page, content }) {
 	const { theme, team, changeTheme, density, changeDensity, readOnly, changeReadOnly } = useTheme();
 	const { addToast } = useToast();
+	const { state: authState } = useAuth();
 	const [open, setOpen] = useState(false);
 	const [localEnabled, setLocalEnabled] = useState(() => storage.isLocalEnabled());
 	const [localInfoOpen, setLocalInfoOpen] = useState(false);
@@ -258,6 +259,12 @@ function NavShell({ page, content }) {
 				})}
 				</div>
 				<div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, position:'relative' }}>
+					{authState?.isAuthenticated && (
+						<>
+							<span title="Signed in user" style={{ color:'#fff', background:'#1f2937', border:'1px solid #0b1220', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>User: {authState.username}</span>
+							<a href="#/logout" style={{ textDecoration:'none', color:'#fff', background:'#7c2d12', border:'1px solid #4a1d0f', padding:'4px 10px', borderRadius:6, fontSize:12, fontWeight:800 }}>Logout</a>
+						</>
+					)}
 					{!localEnabled && (
 						<span title="Local storage disabled for this session" style={{ color:'#fff', background:'#92400e', border:'1px solid #111', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>LOCAL OFF</span>
 					)}

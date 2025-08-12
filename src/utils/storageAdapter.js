@@ -3,34 +3,47 @@
 
 const memoryStore = new Map();
 
-function safeGet(key) {
+// Global toggle: if false, adapter will not touch localStorage and will use in-memory store only.
+// Stored outside adapter getters to avoid recursion; read directly from window.localStorage.
+function isLocalEnabled() {
   try {
-    return window?.localStorage?.getItem(key);
+    const v = window?.localStorage?.getItem('pobLocalStorageEnabled');
+    // Default to enabled if unset
+    return v !== 'false';
   } catch {
-    return memoryStore.has(key) ? memoryStore.get(key) : null;
+    // If storage is unavailable, treat as disabled and rely on memory store
+    return false;
   }
+}
+
+function safeGet(key) {
+  if (isLocalEnabled()) {
+    try { return window?.localStorage?.getItem(key); } catch { /* fall through */ }
+  }
+  return memoryStore.has(key) ? memoryStore.get(key) : null;
 }
 
 function safeSet(key, value) {
-  try {
-    window?.localStorage?.setItem(key, value);
-  } catch {
-    memoryStore.set(key, value);
+  if (isLocalEnabled()) {
+    try { window?.localStorage?.setItem(key, value); return; } catch { /* fall through */ }
   }
+  memoryStore.set(key, value);
 }
 
 function safeRemove(key) {
-  try {
-    window?.localStorage?.removeItem(key);
-  } catch {
-    memoryStore.delete(key);
+  if (isLocalEnabled()) {
+    try { window?.localStorage?.removeItem(key); return; } catch { /* fall through */ }
   }
+  memoryStore.delete(key);
 }
 
 export const storage = {
   get(key) { return safeGet(key); },
   set(key, value) { safeSet(key, String(value)); },
   remove(key) { safeRemove(key); },
+  // Toggle helpers
+  isLocalEnabled,
+  setLocalEnabled(val) { try { window?.localStorage?.setItem('pobLocalStorageEnabled', val ? 'true' : 'false'); } catch { /* ignore */ } },
   getJSON(key, fallback) {
     const raw = safeGet(key);
     if (raw == null) return fallback;

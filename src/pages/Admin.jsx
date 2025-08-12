@@ -18,6 +18,8 @@ export default function AdminPage() {
   // Manage manifest locations list
   const [locations, setLocations] = useState(() => storage.getJSON('flightManifestLocations', []));
   const [newLoc, setNewLoc] = useState('');
+  // Add Local Storage toggle state
+  const [localEnabled, setLocalEnabled] = useState(() => storage.isLocalEnabled());
   // Location POB caps & contingencies
   const CAPS_KEY = 'pobLocationCaps';
   const [locationCaps, setLocationCaps] = useState(()=> storage.getJSON(CAPS_KEY, {}));
@@ -168,6 +170,12 @@ export default function AdminPage() {
     <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 60px' }}>
       <h2 style={{ marginTop:0 }}>Admin Panel</h2>
   <div style={{ fontSize:12, opacity:.75, marginBottom:18 }}>Centralized application configuration. Changes are saved locally in this browser and affect anyone using this browser profile on this device.</div>
+      {/* Local Storage Toggle */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, margin:'8px 0 16px', padding:'8px 10px', border:'1px dashed '+(theme.primary||'#555'), borderRadius:8, background: theme.name==='Dark'? '#23272c':'#f6f7f9' }}>
+        <input id="toggle-local-admin" type="checkbox" checked={!!localEnabled} onChange={e=>{ const v=!!e.target.checked; setLocalEnabled(v); storage.setLocalEnabled(v); }} />
+        <label htmlFor="toggle-local-admin" style={{ fontSize:12, fontWeight:700 }}>Enable Local Storage</label>
+        <span style={{ fontSize:12, opacity:.8 }}>(controls whether data is persisted to this device’s browser storage)</span>
+      </div>
       {/* Section quick access buttons */}
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginBottom:24 }}>
         <button onClick={()=> { toggleSection('flight'); if(activeSection!=='flight') setTimeout(()=> document.getElementById('admin-flight')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#2d6cdf', activeSection==='flight')}>{activeSection==='flight' ? '✕ Flight & Planner' : 'Flight & Planner'}</button>

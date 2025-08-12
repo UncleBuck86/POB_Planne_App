@@ -62,6 +62,7 @@ function NavShell({ page, content }) {
 	const { theme, team, changeTheme, density, changeDensity, readOnly, changeReadOnly } = useTheme();
 	const { addToast } = useToast();
 	const [open, setOpen] = useState(false);
+	const [localEnabled, setLocalEnabled] = useState(() => storage.isLocalEnabled());
 	const [localInfoOpen, setLocalInfoOpen] = useState(false);
 	// Global AI sidebar state & suggestion
 	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
@@ -219,6 +220,9 @@ function NavShell({ page, content }) {
 				})}
 				</div>
 				<div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, position:'relative' }}>
+					{!localEnabled && (
+						<span title="Local storage disabled for this session" style={{ color:'#fff', background:'#92400e', border:'1px solid #111', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>LOCAL OFF</span>
+					)}
 					{readOnly && (
 						<span title="Read-only mode" style={{ color:'#fff', background:'#6b7280', border:'1px solid #111', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>READ-ONLY</span>
 					)}
@@ -305,6 +309,10 @@ function NavShell({ page, content }) {
 					{open && (
 						<div ref={ref} style={{ position:'absolute', top:40, right:0, background: theme.surface, color: theme.text, border:'1px solid '+(theme.primary||'#444'), borderRadius:10, padding:'12px 14px 14px', boxShadow:'0 4px 14px rgba(0,0,0,0.4)', minWidth:220, zIndex:200 }}>
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:13 }}>Settings</div>
+							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 10px' }}>
+								<input id="toggle-local" type="checkbox" checked={!!localEnabled} onChange={e=>{ const val = !!e.target.checked; setLocalEnabled(val); storage.setLocalEnabled(val); }} />
+								<label htmlFor="toggle-local" style={{ fontSize:11 }}>Enable Local Storage (saves data on this device)</label>
+							</div>
 							<label style={{ fontSize:11, opacity:.7 }}>Theme:</label>
 							<select value={team} onChange={e=>{ changeTheme(e.target.value); setOpen(false); }} style={{ width:'100%', marginBottom:10 }}>
 								<option value='light'>Light</option>
@@ -340,9 +348,9 @@ function NavShell({ page, content }) {
 							</div>
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>AI Settings</div>
-														<div style={{ fontSize:10, color:'#f3d9a4', background:'#3a2e14', border:'1px solid #6b4e16', padding:'6px 8px', borderRadius:6, margin:'0 0 8px' }}>
-														Privacy: This app saves planner, manifest, and personnel data locally in your browser. Nothing is sent to external services. <button onClick={(e)=>{ e.stopPropagation(); setLocalInfoOpen(true); }} style={{ marginLeft:6, background:'transparent', color:'#f3d9a4', border:'1px solid #6b4e16', padding:'2px 6px', borderRadius:6, fontSize:10, cursor:'pointer' }}>What’s saved?</button>
-														</div>
+							<div style={{ fontSize:10, color:'#f3d9a4', background:'#3a2e14', border:'1px solid #6b4e16', padding:'6px 8px', borderRadius:6, margin:'0 0 8px' }}>
+								Privacy: This app stores planner, manifest, and personnel data locally when Local Storage is enabled. Nothing is sent to external services in this build. <button onClick={(e)=>{ e.stopPropagation(); setLocalInfoOpen(true); }} style={{ marginLeft:6, background:'transparent', color:'#f3d9a4', border:'1px solid #6b4e16', padding:'2px 6px', borderRadius:6, fontSize:10, cursor:'pointer' }}>What’s saved?</button>
+							</div>
 							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 6px' }}>
 								<input id="toggle-passive-ai" type="checkbox" checked={passiveAI} onChange={e=> setPassiveAI(e.target.checked)} />
 								<label htmlFor="toggle-passive-ai" style={{ fontSize:11 }}>Passive Suggestions</label>

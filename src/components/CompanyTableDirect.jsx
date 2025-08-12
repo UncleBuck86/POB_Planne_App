@@ -91,13 +91,7 @@ export default function CompanyTableDirect() {
             <tr>
               <th style={{ width:160, minWidth:160, maxWidth:160, position:'sticky', top:0, left:0, zIndex:6, background:theme.surface, color:theme.text, padding:'4px 6px', textAlign:'left', border:`1px solid ${borderCore}`, whiteSpace:'nowrap' }}>Company</th>
               {visibleDates.map(d => (
-                <th key={d.date} style={{ width:80, minWidth:80, maxWidth:80, height:84, position:'sticky', top:0, zIndex:5, background:theme.surface, color:theme.text, padding:0, textAlign:'center', border:`1px solid ${borderColor}`, whiteSpace:'nowrap' }}>
-                  <div style={{ position:'relative', width:'100%', height:'84px' }} title={d.label || d.date}>
-                    <div style={{ position:'absolute', bottom:8, left:10, transform:'rotate(-45deg)', transformOrigin:'bottom left', whiteSpace:'nowrap', lineHeight:1, fontSize:12, color:theme.text }}>
-                      <span>{d.labelShort || d.label || d.date}</span>
-                    </div>
-                  </div>
-                </th>
+                <th key={d.date} style={{ width:80, minWidth:80, maxWidth:80, position:'sticky', top:0, zIndex:5, background:theme.surface, color:theme.text, padding:'4px 4px', textAlign:'center', border:`1px solid ${borderColor}`, whiteSpace:'nowrap' }}>{d.labelShort || d.label || d.date}</th>
               ))}
             </tr>
           </thead>

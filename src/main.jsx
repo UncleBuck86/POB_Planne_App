@@ -58,7 +58,7 @@ function RootRouter() {
 }
 
 function NavShell({ page, content }) {
-	const { theme, team, changeTheme } = useTheme();
+	const { theme, team, changeTheme, density, changeDensity } = useTheme();
 	const [open, setOpen] = useState(false);
 	// Global AI sidebar state & suggestion
 	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
@@ -290,6 +290,11 @@ function NavShell({ page, content }) {
 							<select value={team} onChange={e=>{ changeTheme(e.target.value); setOpen(false); }} style={{ width:'100%', marginBottom:10 }}>
 								<option value='light'>Light</option>
 								<option value='dark'>Dark</option>
+							</select>
+							<label style={{ fontSize:11, opacity:.7 }}>Density:</label>
+							<select value={density} onChange={e=>{ changeDensity(e.target.value); setOpen(false); }} style={{ width:'100%', marginBottom:10 }}>
+								<option value='comfort'>Comfort</option>
+								<option value='compact'>Compact</option>
 							</select>
 							{page==='planner' && (
 								<div style={{ marginBottom:10 }}>

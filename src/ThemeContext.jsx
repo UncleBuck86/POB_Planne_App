@@ -13,6 +13,10 @@ export function ThemeProvider({ children }) {
   })();
   const [team, setTeam] = useState(initialTeam);
   const [theme, setTheme] = useState(themePresets[initialTeam] || themePresets['light']);
+  const initialDensity = (() => {
+    try { return localStorage.getItem('pobDensity') || 'comfort'; } catch { return 'comfort'; }
+  })();
+  const [density, setDensity] = useState(initialDensity);
 
   const changeTheme = (themeName) => {
     const next = themePresets[themeName] ? themeName : 'light';
@@ -21,13 +25,24 @@ export function ThemeProvider({ children }) {
     try { localStorage.setItem('pobTheme', next); } catch {/* ignore */}
   };
 
+  const changeDensity = (d) => {
+    const next = (d === 'compact' || d === 'comfort') ? d : 'comfort';
+    setDensity(next);
+    try { localStorage.setItem('pobDensity', next); } catch {/* ignore */}
+  };
+
   // Keep localStorage in sync if team changes from elsewhere
   useEffect(() => {
     try { localStorage.setItem('pobTheme', team); } catch {/* ignore */}
   }, [team]);
 
+  // Keep density in sync
+  useEffect(() => {
+    try { localStorage.setItem('pobDensity', density); } catch {/* ignore */}
+  }, [density]);
+
   return (
-    <ThemeContext.Provider value={{ theme, team, changeTheme }}>
+    <ThemeContext.Provider value={{ theme, team, changeTheme, density, changeDensity }}>
       {children}
     </ThemeContext.Provider>
   );

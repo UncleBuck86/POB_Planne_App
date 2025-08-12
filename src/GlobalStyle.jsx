@@ -7,6 +7,7 @@ const Base = createGlobalStyle`
     --focus-ring: #2d6cdf;
     --focus-ring-dark: #9ec1ff;
     --font-body: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --density: ${props => props.$density === 'compact' ? 0.9 : 1};
   }
   html { font-size: 16px; }
   body {
@@ -23,10 +24,11 @@ const Base = createGlobalStyle`
   @media (prefers-color-scheme: dark){
     *:focus-visible { outline-color: var(--focus-ring-dark); }
   }
+  button, input, select, textarea { line-height: calc(1.2 * var(--density)); }
+  button, input, select { padding: calc(8px * var(--density)) calc(10px * var(--density)); }
 `;
 
 export default function GlobalStyle() {
-  // Could adapt CSS vars by theme if needed later
-  useTheme();
-  return <Base />;
+  const { density } = useTheme() || { density: 'comfort' };
+  return <Base $density={density} />;
 }

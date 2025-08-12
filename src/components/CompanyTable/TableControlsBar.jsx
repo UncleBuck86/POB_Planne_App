@@ -19,13 +19,9 @@ export default function TableControlsBar({
   localComments,
   setRowData,
   setLocalComments,
-  zoom,
-  setZoom,
-  minZoom,
-  maxZoom = 1,
-  resetZoom,
+  // zoom slider removed
   scrollTable,
-  onBulkImport
+  // onBulkImport removed
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }} role="toolbar" aria-label="Table controls">
@@ -64,26 +60,10 @@ export default function TableControlsBar({
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1em' }} title="When enabled, hides all dates prior to today so the view starts at today's column.">
           <input type="checkbox" checked={autoHide} onChange={e => setAutoHide(e.target.checked)} /> Auto Hide
         </label>
-        <button
-          onClick={onBulkImport}
-          style={{ padding: '6px 10px', background: theme.secondary || theme.primary, color: theme.buttonText || theme.text, border: '1px solid '+(theme.primary), borderRadius:4, fontSize:'0.85em', fontWeight:'bold' }}
-          title="Paste spreadsheet rows to add/update companies"
-        >Bulk Import</button>
+  {/* Bulk Import button removed from planner controls */}
         <span role="img" aria-label="Undo" title="Undo" style={{ cursor: undoStack.length ? 'pointer' : 'not-allowed', fontSize: '1.5em', opacity: undoStack.length ? 1 : 0.5 }} onClick={() => { if (undoStack.length > 0) { const last = undoStack[undoStack.length - 1]; setRedoStack(prev => [ ...prev, { rowData: JSON.parse(JSON.stringify(rowData)), localComments: { ...localComments } } ]); setRowData(last.rowData); setLocalComments(last.localComments); setUndoStack(prev => prev.slice(0, -1)); } }}>↩️</span>
         <span role="img" aria-label="Redo" title="Redo" style={{ cursor: redoStack.length ? 'pointer' : 'not-allowed', fontSize: '1.5em', opacity: redoStack.length ? 1 : 0.5 }} onClick={() => { if (redoStack.length > 0) { const last = redoStack[redoStack.length - 1]; setUndoStack(prev => [ ...prev, { rowData: JSON.parse(JSON.stringify(rowData)), localComments: { ...localComments } } ]); setRowData(last.rowData); setLocalComments(last.localComments); setRedoStack(prev => prev.slice(0, -1)); } }}>↪️</span>
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 24 }}>
-          <label style={{ fontWeight: 'bold', marginRight: 8 }}>Zoom:</label>
-          <input
-            type="range"
-            min={minZoom}
-            max={maxZoom}
-            step={0.01}
-            value={zoom}
-            onChange={e => setZoom(Number(e.target.value))}
-            style={{ width: 140 }}
-          />
-          <span style={{ marginLeft: 8 }}>{Math.round(zoom * 100)}%</span>
-        </div>
+  {/* Zoom slider removed */}
       </div>
     </div>
   );

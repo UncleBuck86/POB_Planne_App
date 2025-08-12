@@ -111,6 +111,56 @@ export default function AdminPage() {
     window.__buckAdminCtx = () => ({ locations: locations.length, crews: crewOptions.length, rotations: rotationOptions.length });
     return ()=> { delete window.__buckAdminCtx; };
   }, [locations, crewOptions, rotationOptions]);
+  // Bulk import logic
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkPreview, setBulkPreview] = useState([]);
+  const parseBulk = (txt) => {
+    const lines = txt.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+    if(!lines.length) return [];
+    const splitLine = (l) => l.includes('\t') ? l.split('\t') : l.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/);
+    const header = splitLine(lines[0]).map(h=>h.trim());
+    const dateCols = header.slice(1);
+    const normDate = (dstr) => {
+      if(!dstr) return null;
+      const m = dstr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if(!m) return null; return parseInt(m[1])+'/'+parseInt(m[2])+'/'+m[3];
+    };
+    const mappedDates = dateCols.map(normDate);
+    const out = [];
+    for(let i=1;i<lines.length;i++){
+      const cols = splitLine(lines[i]);
+      if(!cols.length) continue; const company = (cols[0]||'').trim(); if(!company) continue;
+      const rowVals = {};
+      mappedDates.forEach((dk, idx)=>{
+        if(!dk) return; const raw = (cols[idx+1]||'').trim(); if(!raw) return; const num = parseInt(raw,10); if(!isNaN(num)) rowVals[dk]=num; });
+      out.push({ company, values: rowVals });
+    }
+    return out;
+  };
+  useEffect(()=>{ setBulkPreview(parseBulk(bulkText)); }, [bulkText]);
+  const applyBulk = () => {
+    if(!bulkPreview.length) { setBulkOpen(false); return; }
+    let prev = [];
+    try { prev = JSON.parse(localStorage.getItem('pobPlannerData')) || []; } catch {}
+    const map = new Map(prev.map(r=> [ (r.company||'').toLowerCase(), r ]));
+    const next = [...prev];
+    bulkPreview.forEach(br => {
+      const key = br.company.toLowerCase();
+      let row = map.get(key);
+      if(!row){
+        row = { id: 'cmp_' + Math.random().toString(36).slice(2, 10), company: br.company };
+        map.set(key, row);
+        next.push(row);
+      }
+      Object.entries(br.values).forEach(([k,v])=>{ row[k]=v; });
+    });
+    localStorage.setItem('pobPlannerData', JSON.stringify(next));
+    setBulkOpen(false);
+  };
+  const bpTh = { padding:'4px 6px', border:'1px solid #999', background:'#f0f3f6', position:'sticky', top:0 };
+  const bpTd = { padding:'4px 6px', border:'1px solid #ccc', verticalAlign:'top' };
+
   return (
     <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 60px' }}>
       <h2 style={{ marginTop:0 }}>Admin Panel</h2>
@@ -238,6 +288,43 @@ export default function AdminPage() {
   )}
     {/* POB / Bunk Designer */}
   {activeSection==='pob' && <BunkDesigner theme={theme} />}
+    {/* Bulk Import Modal */}
+    {bulkOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:1200, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 20px' }} onClick={e=> { if(e.target===e.currentTarget) setBulkOpen(false); }}>
+          <div style={{ background:'#fff', color:'#222', width:'min(780px,100%)', maxHeight:'90vh', overflowY:'auto', borderRadius:14, padding:24, boxShadow:'0 8px 24px rgba(0,0,0,0.4)', position:'relative' }}>
+            <h3 style={{ marginTop:0 }}>Bulk Import Companies</h3>
+            <p style={{ fontSize:12, lineHeight:1.4 }}>
+              Paste rows from a spreadsheet (first row header). First column must be Company. Subsequent headers should be dates (M/D/YYYY). Cells with numbers will be imported. Blank cells ignored.
+              <br/>Example (Tab separated):
+              <br/>Company\t8/10/2025\t8/11/2025
+              <br/>ACME\t3\t4
+            </p>
+            <textarea value={bulkText} onChange={e=> setBulkText(e.target.value)} placeholder={'Company\t8/10/2025\t8/11/2025\nACME\t3\t4'} style={{ width:'100%', minHeight:160, fontFamily:'monospace', fontSize:12, padding:10, border:'1px solid #888', borderRadius:8, resize:'vertical' }} />
+            <div style={{ marginTop:14, fontSize:12 }}>
+              <strong>Preview ({bulkPreview.length} rows)</strong>
+              {bulkPreview.length>0 ? (
+                <div style={{ marginTop:8, maxHeight:200, overflowY:'auto', border:'1px solid #ccc', borderRadius:8 }}>
+                  <table style={{ borderCollapse:'collapse', width:'100%', fontSize:11 }}>
+                    <thead><tr><th style={bpTh}>Company</th><th style={bpTh}>Dates & Values</th></tr></thead>
+                    <tbody>
+                      {bulkPreview.map((r,i)=> (
+                        <tr key={i}>
+                          <td style={bpTd}>{r.company}</td>
+                          <td style={bpTd}>{Object.entries(r.values).map(([k,v])=> k+':'+v).join(', ')||'(no values)'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <div style={{ marginTop:4, fontStyle:'italic', opacity:.6 }}>No parsable rows yet.</div>}
+            </div>
+            <div style={{ marginTop:16, display:'flex', justifyContent:'flex-end', gap:8 }}>
+              <button onClick={()=>setBulkOpen(false)} style={{ padding:'6px 14px', background:'#bbb', border:'1px solid #999', borderRadius:8, cursor:'pointer' }}>Cancel</button>
+              <button disabled={!bulkPreview.length} onClick={applyBulk} style={{ padding:'6px 14px', background: bulkPreview.length? '#388e3c':'#888', color:'#fff', border:'1px solid '+(bulkPreview.length? '#2e7030':'#666'), borderRadius:8, cursor: bulkPreview.length? 'pointer':'not-allowed', fontWeight:'bold' }}>Apply Import</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

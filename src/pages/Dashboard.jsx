@@ -362,14 +362,15 @@ function Dashboard() {
     {/* POB Companies Forecast Widget (week view, company breakdown) */}
     {visible.pobCompaniesForecast && (() => {
       const wc = getWC('pobCompaniesForecast');
-      // Only show companies with at least one non-zero value in the displayed dates
-      const filteredCompanies = visibleCompanies.filter(c =>
-        next7.some(d => parseInt(c[d.key], 10) > 0)
-      );
-      const companyRows = filteredCompanies.map(companyObj => (
+      // Respect autoHide: if selected, hide companies with no numbers in the dates shown; if not, show all companies and all dates
+      const datesToShow = autoHide ? next7 : dates;
+      const companiesToShow = autoHide
+        ? visibleCompanies.filter(c => datesToShow.some(d => parseInt(c[d.key], 10) > 0))
+        : visibleCompanies;
+      const companyRows = companiesToShow.map(companyObj => (
         <tr key={companyObj.company}>
           <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left', minWidth:120 }}>{companyObj.company}</td>
-          {next7.map((d,i) => {
+          {datesToShow.map((d,i) => {
             const val = parseInt(companyObj[d.key], 10) || '';
             const ch = forecastColCharWidths[i] || 10;
             return <td key={d.key} style={{ ...tdStyle(theme, wc), fontSize:12, width: ch + 'ch', textAlign:'center' }}>{val}</td>;
@@ -381,8 +382,8 @@ function Dashboard() {
       const totalRow = (
         <tr key="total-row" style={{ background: theme.background }}>
           <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12, textAlign:'left' }}>Total POB</td>
-          {next7.map((d,i) => {
-            const total = filteredCompanies.reduce((sum, c) => sum + (parseInt(c[d.key], 10) || 0), 0);
+          {datesToShow.map((d,i) => {
+            const total = companiesToShow.reduce((sum, c) => sum + (parseInt(c[d.key], 10) || 0), 0);
             const ch = forecastColCharWidths[i] || 10;
             return <td key={d.key} style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:12, width: ch + 'ch', textAlign:'center' }}>{total}</td>;
           })}
@@ -393,7 +394,7 @@ function Dashboard() {
       const flightsOutRow = (
         <tr key="flights-out-row">
           <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left' }}>Flights Out (+)</td>
-          {next7.map((d,i) => {
+          {datesToShow.map((d,i) => {
             const arr = (flightDeltas.out[d.key]||[]).filter(Boolean);
             const val = arr.join('\n');
             const ch = forecastColCharWidths[i] || 10;
@@ -406,7 +407,7 @@ function Dashboard() {
       const flightsInRow = (
         <tr key="flights-in-row">
           <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', textAlign:'left' }}>Flights In (-)</td>
-          {next7.map((d,i) => {
+          {datesToShow.map((d,i) => {
             const arr = (flightDeltas.in[d.key]||[]).filter(Boolean);
             const val = arr.join('\n');
             const ch = forecastColCharWidths[i] || 10;
@@ -419,7 +420,7 @@ function Dashboard() {
       const commentsRow = (
         <tr key="comments-row">
           <td style={{ ...tdStyle(theme, wc), fontWeight:'bold', fontSize:10, textAlign:'left' }}>Comments</td>
-          {next7.map((d,i) => {
+          {datesToShow.map((d,i) => {
             const ch = forecastColCharWidths[i] || 10;
             return (
               <td key={d.key} style={{ ...tdStyle(theme, wc), fontStyle: 'italic', whiteSpace: 'pre-line', fontSize: 10, width: ch + 'ch' }} title="Flight / Planner Comments">{comments[d.key] || ''}</td>

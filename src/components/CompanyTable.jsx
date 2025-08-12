@@ -22,7 +22,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const maxZoom = 1.6;   // allow enlargement
   // Add missing resetZoom function
   const resetZoom = () => setZoom(1);
-  // Add missing onBulkImport function
+  // Remove bulk import from planner table
   const onBulkImport = () => {};
   // Removed frame height & auto-fit (direct table layout)
   // autoFit removed
@@ -113,11 +113,20 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const unifiedScrollRef = useRef(null); // Horizontal scroll container
   const tbodyRef = useRef(null);
 
+  // Apply auto-hide logic: if autoHide is selected, hide companies with no numbers in the dates shown; if not, show all companies
+  const datesToShow = effectiveDates;
+  const filteredRows = useMemo(() => {
+    if (!autoHide) return rowData;
+    return rowData.filter(row =>
+      datesToShow.some(d => parseInt(row[d.date], 10) > 0)
+    );
+  }, [rowData, autoHide, datesToShow]);
+
   // Derived sorted list (no mutation; prevents bouncing)
   const sortedRows = useMemo(() => {
     const pinnedOrder = pinnedCompanies;
     const pinnedSet = new Set(pinnedOrder);
-    return [...rowData].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       const aPinned = pinnedSet.has(a.id);
       const bPinned = pinnedSet.has(b.id);
       if (aPinned && bPinned) {
@@ -135,7 +144,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
       // Tie-breaker for stable sorting
       return (a.id || '').localeCompare(b.id || '');
     });
-  }, [rowData, pinnedCompanies]);
+  }, [filteredRows, pinnedCompanies]);
 
   // toggleAutoFit removed
   // (Removed separate horizontal sync; unified scroll container will handle alignment)
@@ -336,7 +345,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
           AI features are currently disabled. <button aria-label="Dismiss AI notice" style={{ marginLeft: 16, background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontWeight: 600 }} onClick={() => setShowAIBanner(false)}>Dismiss</button>
         </div>
       )}
-      {/* Controls bar: scroll, save, autosave, auto-hide, undo/redo, zoom slider */}
+      {/* Controls bar: scroll, save, autosave, auto-hide, undo/redo */}
       <TableControlsBar
         theme={themeOverride}
         autosave={autosave}
@@ -354,11 +363,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         localComments={localComments}
         setRowData={setRowData}
         setLocalComments={setLocalComments}
-        zoom={zoom}
-        setZoom={setZoom}
-        minZoom={minZoom}
-        maxZoom={maxZoom}
-        resetZoom={resetZoom}
         scrollTable={scrollTable}
         onBulkImport={onBulkImport}
       />
@@ -438,42 +442,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         saveCompanies={saveCompanies}
         setEditing={setEditing}
       />
-      {bulkOpen && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:1200, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 20px' }} onClick={e=> { if(e.target===e.currentTarget) closeBulk(); }}>
-          <div style={{ background:'#fff', color:'#222', width:'min(780px,100%)', maxHeight:'90vh', overflowY:'auto', borderRadius:14, padding:24, boxShadow:'0 8px 24px rgba(0,0,0,0.4)', position:'relative' }}>
-            <h3 style={{ marginTop:0 }}>Bulk Import Companies</h3>
-            <p style={{ fontSize:12, lineHeight:1.4 }}>
-              Paste rows from a spreadsheet (first row header). First column must be Company. Subsequent headers should be dates (M/D/YYYY). Cells with numbers will be imported. Blank cells ignored.
-              <br/>Example (Tab separated):
-              <br/>Company	8/10/2025	8/11/2025
-              <br/>ACME	3	4
-            </p>
-            <textarea value={bulkText} onChange={e=> setBulkText(e.target.value)} placeholder={'Company\t8/10/2025\t8/11/2025\nACME\t3\t4'} style={{ width:'100%', minHeight:160, fontFamily:'monospace', fontSize:12, padding:10, border:'1px solid #888', borderRadius:8, resize:'vertical' }} />
-            <div style={{ marginTop:14, fontSize:12 }}>
-              <strong>Preview ({bulkPreview.length} rows)</strong>
-              {bulkPreview.length>0 ? (
-                <div style={{ marginTop:8, maxHeight:200, overflowY:'auto', border:'1px solid #ccc', borderRadius:8 }}>
-                  <table style={{ borderCollapse:'collapse', width:'100%', fontSize:11 }}>
-                    <thead><tr><th style={bpTh}>Company</th><th style={bpTh}>Dates & Values</th></tr></thead>
-                    <tbody>
-                      {bulkPreview.map((r,i)=> (
-                        <tr key={i}>
-                          <td style={bpTd}>{r.company}</td>
-                          <td style={bpTd}>{Object.entries(r.values).map(([k,v])=> k+':'+v).join(', ')||'(no values)'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <div style={{ marginTop:4, fontStyle:'italic', opacity:.6 }}>No parsable rows yet.</div>}
-            </div>
-            <div style={{ marginTop:16, display:'flex', justifyContent:'flex-end', gap:8 }}>
-              <button onClick={closeBulk} style={{ padding:'6px 14px', background:'#bbb', border:'1px solid #999', borderRadius:8, cursor:'pointer' }}>Cancel</button>
-              <button disabled={!bulkPreview.length} onClick={applyBulk} style={{ padding:'6px 14px', background: bulkPreview.length? '#388e3c':'#888', color:'#fff', border:'1px solid '+(bulkPreview.length? '#2e7030':'#666'), borderRadius:8, cursor: bulkPreview.length? 'pointer':'not-allowed', fontWeight:'bold' }}>Apply Import</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

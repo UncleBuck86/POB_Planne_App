@@ -5,7 +5,7 @@ import { useTheme } from '../../ThemeContext.jsx';
 
 export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById, manualHighlights, setManualHighlights, inputRefs, pushUndo, setRowData, focusCell, hoverCell, activeCell, setHoverCell, setActiveCell }) {
   if (hiddenRows.includes(row.id)) return null; // Skip hidden rows by id
-  const { theme } = useTheme();
+  const { theme, readOnly } = useTheme();
   const borderColor = theme.name === 'Dark' ? '#bfc4ca66' : '#444';
   // Zebra banding base background for this row
   const zebraBg = idx % 2 === 1 ? (theme.name === 'Dark' ? '#3d4146' : '#f6f8f9') : theme.surface;
@@ -60,17 +60,20 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById,
               type="number"
               value={currVal === 0 ? '' : currVal}
               min={0}
-              style={{ width: '100%', maxWidth:'60px', textAlign: 'center', background: bgColor, color: textColor, border: 'none', outline: 'none', boxShadow: activeShadow, borderRadius: 4 }}
+              disabled={!!readOnly}
+              style={{ width: '100%', maxWidth:'60px', textAlign: 'center', background: bgColor, color: textColor, border: 'none', outline: 'none', boxShadow: activeShadow, borderRadius: 4, cursor: readOnly ? 'not-allowed' : 'text', opacity: readOnly ? .6 : 1 }}
               ref={el => {
                 if (!inputRefs.current[idx]) inputRefs.current[idx] = [];
                 inputRefs.current[idx][colIdx] = el;
               }}
               onChange={e => {
+                if (readOnly) return;
                 pushUndo();
                 const newValue = e.target.value === '' ? '' : Number(e.target.value);
                 setRowData(prev => prev.map(r => (r.id === row.id ? { ...r, [d.date]: newValue } : r)));
               }}
               onKeyDown={e => {
+                if (readOnly) return;
                 // Keyboard navigation between cells
                 if (e.key === 'ArrowRight') {
                   e.preventDefault();

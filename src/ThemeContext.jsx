@@ -21,6 +21,10 @@ export function ThemeProvider({ children }) {
     try { return localStorage.getItem('pobDateFormat') || 'mdy'; } catch { return 'mdy'; }
   })();
   const [dateFormat, setDateFormat] = useState(initialDateFormat);
+  const initialReadOnly = (() => {
+    try { return localStorage.getItem('pobReadOnly') === 'true'; } catch { return false; }
+  })();
+  const [readOnly, setReadOnly] = useState(initialReadOnly);
 
   const changeTheme = (themeName) => {
     const next = themePresets[themeName] ? themeName : 'light';
@@ -41,6 +45,12 @@ export function ThemeProvider({ children }) {
     try { localStorage.setItem('pobDateFormat', next); } catch {/* ignore */}
   };
 
+  const changeReadOnly = (val) => {
+    const next = !!val;
+    setReadOnly(next);
+    try { localStorage.setItem('pobReadOnly', next ? 'true' : 'false'); } catch {/* ignore */}
+  };
+
   // Keep localStorage in sync if team changes from elsewhere
   useEffect(() => {
     try { localStorage.setItem('pobTheme', team); } catch {/* ignore */}
@@ -56,8 +66,13 @@ export function ThemeProvider({ children }) {
     try { localStorage.setItem('pobDateFormat', dateFormat); } catch {/* ignore */}
   }, [dateFormat]);
 
+  // Keep readOnly in sync
+  useEffect(() => {
+    try { localStorage.setItem('pobReadOnly', readOnly ? 'true' : 'false'); } catch {/* ignore */}
+  }, [readOnly]);
+
   return (
-    <ThemeContext.Provider value={{ theme, team, changeTheme, density, changeDensity, dateFormat, changeDateFormat }}>
+  <ThemeContext.Provider value={{ theme, team, changeTheme, density, changeDensity, dateFormat, changeDateFormat, readOnly, changeReadOnly }}>
       {children}
     </ThemeContext.Provider>
   );

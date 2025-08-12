@@ -3,7 +3,7 @@ import React from 'react';
 import { useTheme } from '../../ThemeContext.jsx';
 
 export default function CompanyRowDirect({ row, idx, dates, hiddenRows, lastSavedById, manualHighlights, setManualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
-  const { theme } = useTheme();
+  const { theme, readOnly } = useTheme();
   if (hiddenRows.includes(row.id)) return null;
   const borderColor = theme.name === 'Dark' ? '#bfc4ca66' : '#444';
   const zebraBg = idx % 2 === 1 ? (theme.name === 'Dark' ? '#3d4146' : '#f6f8f9') : theme.surface;
@@ -28,10 +28,10 @@ export default function CompanyRowDirect({ row, idx, dates, hiddenRows, lastSave
               setManualHighlights(prev=>{ const next={...prev}; next[cellKey]=!next[cellKey]; return next; });
             }}
           >
-            <input type="number" value={currVal} min={0} style={{ width:'100%', background:bg, color:textColor, border:'none', outline:'none', textAlign:'center' }}
+            <input type="number" value={currVal} min={0} disabled={!!readOnly} style={{ width:'100%', background:bg, color:textColor, border:'none', outline:'none', textAlign:'center', cursor: readOnly? 'not-allowed':'text', opacity: readOnly? .6:1 }}
               ref={el=>{ if(!inputRefs.current[idx]) inputRefs.current[idx]=[]; inputRefs.current[idx][colIdx]=el; }}
-              onChange={e=>{ pushUndo(); const newValue = e.target.value===''? '' : Number(e.target.value); setRowData(prev=> prev.map(r=> r.id===row.id ? { ...r, [d.date]: newValue } : r)); }}
-              onKeyDown={e=>{ if(e.key==='ArrowRight'){ e.preventDefault(); focusCell(idx,colIdx+1);} else if(e.key==='ArrowLeft'){ e.preventDefault(); focusCell(idx,colIdx-1);} else if(e.key==='ArrowDown'){ e.preventDefault(); focusCell(idx+1,colIdx);} else if(e.key==='ArrowUp'){ e.preventDefault(); focusCell(idx-1,colIdx);} }}
+              onChange={e=>{ if (readOnly) return; pushUndo(); const newValue = e.target.value===''? '' : Number(e.target.value); setRowData(prev=> prev.map(r=> r.id===row.id ? { ...r, [d.date]: newValue } : r)); }}
+              onKeyDown={e=>{ if (readOnly) return; if(e.key==='ArrowRight'){ e.preventDefault(); focusCell(idx,colIdx+1);} else if(e.key==='ArrowLeft'){ e.preventDefault(); focusCell(idx,colIdx-1);} else if(e.key==='ArrowDown'){ e.preventDefault(); focusCell(idx+1,colIdx);} else if(e.key==='ArrowUp'){ e.preventDefault(); focusCell(idx-1,colIdx);} }}
             />
           </td>
         );

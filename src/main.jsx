@@ -58,7 +58,7 @@ function RootRouter() {
 }
 
 function NavShell({ page, content }) {
-	const { theme, team, changeTheme, density, changeDensity } = useTheme();
+	const { theme, team, changeTheme, density, changeDensity, readOnly, changeReadOnly } = useTheme();
 	const [open, setOpen] = useState(false);
 	// Global AI sidebar state & suggestion
 	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
@@ -203,6 +203,9 @@ function NavShell({ page, content }) {
 				})}
 				</div>
 				<div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, position:'relative' }}>
+					{readOnly && (
+						<span title="Read-only mode" style={{ color:'#fff', background:'#6b7280', border:'1px solid #111', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>READ-ONLY</span>
+					)}
 					{isOpenAI && (
 					<button
 						onClick={()=>{ window.dispatchEvent(new CustomEvent('openAISidebar')); }}
@@ -296,6 +299,10 @@ function NavShell({ page, content }) {
 								<option value='comfort'>Comfort</option>
 								<option value='compact'>Compact</option>
 							</select>
+							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 10px' }}>
+								<input id="toggle-readonly" type="checkbox" checked={!!readOnly} onChange={e=> changeReadOnly(e.target.checked)} />
+								<label htmlFor="toggle-readonly" style={{ fontSize:11 }}>Enable Read-only Mode</label>
+							</div>
 							{page==='planner' && (
 								<div style={{ marginBottom:10 }}>
 									<label style={{ fontSize:11, opacity:.7 }}>Planner Location:</label>

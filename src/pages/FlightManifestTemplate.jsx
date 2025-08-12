@@ -40,7 +40,7 @@ function buildAutoFlightNumber(location, isoDate, index){
 const AUTO_FLIGHT_REGEX = /^[A-Z0-9]+-\d{6}-flight \d+$/;
 
 export default function FlightManifestTemplate() {
-  const { theme } = useTheme(); // Always get latest theme
+  const { theme, readOnly } = useTheme(); // Always get latest theme
   const [data, setData] = useState(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -181,7 +181,7 @@ export default function FlightManifestTemplate() {
   useEffect(()=>{ const int = setInterval(()=> setTodayIso(localToday()), 60*1000); return ()=> clearInterval(int); }, []);
   const baseLocked = useMemo(()=>{ try { return data.meta.date && data.meta.date < todayIso; } catch { return false; } }, [data.meta.date, todayIso]);
   const [overrideUnlock, setOverrideUnlock] = useState(false); // admin temporary unlock
-  const locked = baseLocked && !overrideUnlock;
+  const locked = (baseLocked && !overrideUnlock) || !!readOnly;
   const saveTimer = useRef();
   // Personnel database cache for outbound lookup
   const [personnelRecords, setPersonnelRecords] = useState(()=>{ try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } });

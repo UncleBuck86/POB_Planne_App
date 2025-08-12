@@ -24,15 +24,34 @@ export default function CompanyTableHeader({ dates, todayKey, todayColumnRef }) 
               style={{
                 minWidth: 80,
                 width: 80,
+                height: 84,
                 position: 'sticky',
                 top: 0,
                 background: headerBg,
                 color: headerText,
                 zIndex: 2,
-                border: `1px solid ${borderColor}`
+                border: `1px solid ${borderColor}`,
+                padding: 0
               }}
             >
-              {d.date}<br /><span style={{ fontSize: 'smaller' }}>{d.day}</span>
+              <div style={{ position:'relative', width: '100%', height: '84px' }} title={`${d.date}${d.day ? ' • '+d.day : ''}`}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 8,
+                    left: 10,
+                    transform: 'rotate(-45deg)',
+                    transformOrigin: 'bottom left',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1,
+                    fontSize: 12,
+                    color: headerText
+                  }}
+                >
+                  <span>{d.date}</span>
+                  {d.day ? <span style={{ opacity: 0.8, marginLeft: 6, fontSize: 11 }}>{d.day}</span> : null}
+                </div>
+              </div>
             </th>
           );
         })}

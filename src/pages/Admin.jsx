@@ -4,7 +4,11 @@ import { useTheme } from '../ThemeContext.jsx';
 
 const ADMIN_KEY = 'pobIsAdmin';
 export const isAdmin = () => {
-  try { return localStorage.getItem(ADMIN_KEY) === 'true'; } catch { return false; }
+  try {
+    const a = localStorage.getItem(ADMIN_KEY);
+    const b = localStorage.getItem('pob_admin');
+    return a === 'true' || a === '1' || b === 'true' || b === '1';
+  } catch { return false; }
 };
 
 export default function AdminPage() {

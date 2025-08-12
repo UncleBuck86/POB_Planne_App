@@ -74,6 +74,33 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById,
               }}
               onKeyDown={e => {
                 if (readOnly) return;
+                // Shift + Arrow behaviors: increment/decrement and Excel-like fill copy
+                if (e.shiftKey) {
+                  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    pushUndo();
+                    setRowData(prev => prev.map(r => {
+                      if (r.id !== row.id) return r;
+                      const curr = r[d.date];
+                      const base = (curr === '' || curr == null) ? 0 : Number(curr) || 0;
+                      const next = e.key === 'ArrowUp' ? base + 1 : Math.max(0, base - 1);
+                      return { ...r, [d.date]: next };
+                    }));
+                    return;
+                  }
+                  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    const targetCol = e.key === 'ArrowRight' ? colIdx + 1 : colIdx - 1;
+                    if (targetCol < 0 || targetCol >= dates.length) return; // out of bounds
+                    const targetDate = dates[targetCol].date;
+                    const sourceVal = row[d.date];
+                    pushUndo();
+                    setRowData(prev => prev.map(r => (r.id === row.id ? { ...r, [targetDate]: sourceVal } : r)));
+                    // Move focus to the neighbor cell after fill
+                    focusCell(idx, targetCol);
+                    return;
+                  }
+                }
                 // Keyboard navigation between cells
                 if (e.key === 'ArrowRight') {
                   e.preventDefault();

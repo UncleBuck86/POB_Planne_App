@@ -17,6 +17,11 @@ import { emitDomain } from './ai/eventBus.js';
 import { isOpenAI } from './ai/client.js';
 import { ToastProvider, useToast } from './alerts/ToastProvider.jsx';
 import { storage } from './utils/storageAdapter';
+// Auth and Router (bridge): enable router hooks for TSX login while keeping hash routing
+import { HashRouter } from 'react-router-dom';
+import { AuthProvider, useAuth } from './auth/AuthContext';
+import LoginPage from './pages/LoginPage.tsx';
+import AccessDeniedPage from './pages/AccessDeniedPage.tsx';
 
 function RootRouter() {
 	const [hash, setHash] = useState(window.location.hash.replace('#','') || 'dashboard');
@@ -25,6 +30,39 @@ function RootRouter() {
 		window.addEventListener('hashchange', onHash);
 		return () => window.removeEventListener('hashchange', onHash);
 	}, []);
+	const { state, logout } = useAuth();
+	const path = (hash.startsWith('/') ? hash : ('/'+hash)).replace(/^\/+/, '');
+	// Handle auth-specific routes first
+	if (path.startsWith('logout')) {
+		try { logout?.(); } catch {}
+		window.location.hash = '#/login';
+		return null;
+	}
+	if (path.startsWith('login')) {
+		return (
+			<ThemeProvider>
+				<GlobalStyle />
+				<ToastProvider>
+					<LoginPage />
+				</ToastProvider>
+			</ThemeProvider>
+		);
+	}
+	if (path.startsWith('access-denied')) {
+		return (
+			<ThemeProvider>
+				<GlobalStyle />
+				<ToastProvider>
+					<AccessDeniedPage />
+				</ToastProvider>
+			</ThemeProvider>
+		);
+	}
+	// If not authenticated, send to login (except when already there handled above)
+	if (!state?.isAuthenticated) {
+		window.location.hash = '#/login';
+		return null;
+	}
 	let content = null;
 	if (hash.startsWith('logistics/manifest-view/')) {
 		content = <FlightManifestView />;
@@ -439,4 +477,10 @@ function NavShell({ page, content }) {
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<RootRouter />);
+root.render(
+	<HashRouter>
+		<AuthProvider>
+			<RootRouter />
+		</AuthProvider>
+	</HashRouter>
+);

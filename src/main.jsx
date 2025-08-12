@@ -13,6 +13,7 @@ import FlightManifestTemplate from './pages/FlightManifestTemplate.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
 import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug, setPassiveInterval, triggerPassiveNow, setPassiveSystemPrompt, setPassiveRedaction } from './ai/passiveAI.js';
 import { emitDomain } from './ai/eventBus.js';
+import { isOpenAI } from './ai/client.js';
 import { ToastProvider } from './alerts/ToastProvider.jsx';
 
 function RootRouter() {
@@ -141,6 +142,7 @@ function NavShell({ page, content }) {
 	useEffect(()=>{ try { localStorage.setItem('buckPassiveRedaction', redaction? 'true':'false'); } catch {} setPassiveRedaction(redaction); }, [redaction]);
 	// Listen for global AI events
 	useEffect(()=>{
+		if (!isOpenAI) return; // AI disabled: do not wire events
 		const openEvt = () => setAISidebarOpen(true);
 		const setSuggestionEvt = (e) => { if (typeof e.detail === 'string') setAISuggestion(e.detail); };
 		window.addEventListener('openAISidebar', openEvt);
@@ -199,6 +201,7 @@ function NavShell({ page, content }) {
 				})}
 				</div>
 				<div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, position:'relative' }}>
+					{isOpenAI && (
 					<button
 						onClick={()=>{ window.dispatchEvent(new CustomEvent('openAISidebar')); }}
 						title="Ask Buck (AI Assistant)"
@@ -266,14 +269,17 @@ function NavShell({ page, content }) {
 						<span style={{ position:'relative', zIndex:2 }}>Ask Buck</span>
 						<span style={{ position:'absolute', inset:0, pointerEvents:'none', background:'radial-gradient(circle at 20% 15%, rgba(255,255,255,0.25), transparent 60%)', mixBlendMode:'overlay', opacity:.5 }} />
 					</button>
-					{/* Global AI Sidebar mounted here */}
-					<AISidebar
-						open={aiSidebarOpen}
-						setOpen={setAISidebarOpen}
-						suggestion={aiSuggestion}
-						getContext={getAIContext}
-						onAsk={(q)=>{ /* handled internally by AISidebar stream */ return q; }}
-					/>
+					)}
+					{/* Global AI Sidebar mounted only if AI is enabled */}
+					{isOpenAI && (
+						<AISidebar
+							open={aiSidebarOpen}
+							setOpen={setAISidebarOpen}
+							suggestion={aiSuggestion}
+							getContext={getAIContext}
+							onAsk={(q)=>{ /* handled internally by AISidebar stream */ return q; }}
+						/>
+					)}
 					<button ref={gearRef} onClick={()=>setOpen(o=>!o)} title="Theme Settings" style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:24, lineHeight:1, color:'#fff', padding:'0 4px' }}>⚙️</button>
 					{open && (
 						<div ref={ref} style={{ position:'absolute', top:40, right:0, background: theme.surface, color: theme.text, border:'1px solid '+(theme.primary||'#444'), borderRadius:10, padding:'12px 14px 14px', boxShadow:'0 4px 14px rgba(0,0,0,0.4)', minWidth:220, zIndex:200 }}>

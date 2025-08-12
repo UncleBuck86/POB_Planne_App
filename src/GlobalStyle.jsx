@@ -39,6 +39,20 @@ const Base = createGlobalStyle`
   th {
     background: ${(props) => (props.theme && props.theme.surface) || '#f9fafb'};
   }
+
+  /* Print styles */
+  @media print {
+    @page { margin: 12mm; }
+    html, body { background: #fff !important; color: #000 !important; }
+    nav { display: none !important; }
+    .no-print, [data-print='hide'] { display: none !important; }
+    .card, .panel, section { box-shadow: none !important; border-color: #00000033 !important; background: #fff !important; }
+    table { font-size: 11px !important; }
+    th { background: #eee !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tr, td, th { break-inside: avoid; page-break-inside: avoid; }
+    .print-break-before { break-before: page; page-break-before: always; }
+    .print-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  }
 `;
 
 export default function GlobalStyle() {

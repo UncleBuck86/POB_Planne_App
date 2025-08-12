@@ -132,8 +132,8 @@ export default function FlightManifestView() {
   };
 
   return (
-    <div style={{ padding:'24px 26px 80px', minHeight:'100vh', background: theme.background, color: theme.text }}>
-      <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+    <div className="manifest-view-root" style={{ padding:'24px 26px 80px', minHeight:'100vh', background: theme.background, color: theme.text }}>
+      <div className="no-print" style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
         {backBtn}
         <h2 style={{ margin:'0 0 4px' }}>Saved Flight Manifest</h2>
         <div style={{ marginLeft:'auto', display:'flex', gap:10, flexWrap:'wrap' }}>

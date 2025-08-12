@@ -490,7 +490,7 @@ export default function FlightManifestTemplate() {
   const needsSetup = (locationOptions.length===0) || (aircraftTypes.length===0);
   return (
   <div className="manifest-root" style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
-      {needsSetup && (
+  {needsSetup && ( 
         <div role="status" style={{ margin:'0 0 14px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
           <div style={{ fontWeight:700, marginBottom:4 }}>Setup recommended</div>
           <div style={{ fontSize:12, opacity:.85 }}>
@@ -524,26 +524,26 @@ export default function FlightManifestTemplate() {
         }
         .manifest-root ::placeholder { color: ${theme.name==='Dark' ? '#9aa4ad' : '#6c7a85'}; opacity: .85; }
       `}</style>
-  <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
-    <button onClick={()=> window.location.hash = '#logistics/flights'} style={{ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>← Flights</button>
+  <div className="no-print" style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+  <button onClick={()=> window.location.hash = '#logistics/flights'} style={{ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>← Flights</button>
     <h2 style={{ marginTop:0 }}>
   {isAdminLocal() ? 'Flight Manifest Template' : 'New Manifest'}
       {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}
     </h2>
   </div>
-      <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
+  <div className="no-print" style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
         <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ flex:1 }}>Flight Details</span>
-          {isAdminLocal() && (!locked || baseLocked) && (
+            {isAdminLocal() && (!locked || baseLocked) && ( 
             <>
-              <button onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
-              {baseLocked && <button onClick={()=> setOverrideUnlock(o=>!o)} style={{ ...smallBtn(theme), background: overrideUnlock? '#c06512': smallBtn(theme).background }}>{overrideUnlock? 'Relock':'Admin Unlock'}</button>}
+                <button className="no-print" onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
+                {baseLocked && <button className="no-print" onClick={()=> setOverrideUnlock(o=>!o)} style={{ ...smallBtn(theme), background: overrideUnlock? '#c06512': smallBtn(theme).background }}>{overrideUnlock? 'Relock':'Admin Unlock'}</button>}
             </>
           )}
         </div>
   {configOpen && isAdminLocal() && (
-          <div style={{ marginBottom:14 }}>
+          <div className="no-print" style={{ marginBottom:14 }}>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
               <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}))} style={smallBtn(theme)}>All</button>
               <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=false,a),{}))} style={smallBtn(theme)}>None</button>
@@ -722,9 +722,9 @@ export default function FlightManifestTemplate() {
     setData(d=> ({ ...d, outbound: d.outbound.map(p=> p.id===passengerId ? { ...p, flightIndex: Math.max(1,(p.flightIndex|| (idx+1)) + delta) } : p) }));
   }}
     />
-          {idx===outboundFlights.length-1 && (
+          {idx===outboundFlights.length-1 && ( 
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-            {!locked && <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>}
+            {!locked && <button className="no-print" onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>}
             <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
               <span>Pax: {totalOutbound}</span>
               <span>Body Wt: {totalBodyOutbound.toFixed(1)}</span>
@@ -766,9 +766,9 @@ export default function FlightManifestTemplate() {
     setData(d=> ({ ...d, inbound: d.inbound.map(p=> p.id===passengerId ? { ...p, flightIndex: Math.max(1,(p.flightIndex|| (idx+1)) + delta) } : p) }));
   }}
     />
-          {idx===inboundFlights.length-1 && (
+          {idx===inboundFlights.length-1 && ( 
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-            {!locked && <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>}
+            {!locked && <button className="no-print" onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>}
             <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
               <span>Pax: {totalInbound}</span>
               <span>Body Wt: {totalBodyInbound.toFixed(1)}</span>

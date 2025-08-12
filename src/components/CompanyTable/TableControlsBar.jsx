@@ -10,6 +10,7 @@ export default function TableControlsBar({
   setAutoHide,
   handleSave,
   saveMsg,
+  unsaved,
   undoStack,
   redoStack,
   pushUndo,
@@ -32,6 +33,17 @@ export default function TableControlsBar({
         <button title="Scroll to end" aria-label="Scroll to end" onClick={() => scrollTable('end')} style={{ padding: '4px 10px', background: theme.primary, color: theme.text, border: '1px solid #bbb', borderRadius: 4 }}>{'>>'}</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span aria-live="polite" style={{
+          fontSize: 12,
+          fontWeight: 700,
+          padding: '4px 10px',
+          borderRadius: 999,
+          color: '#fff',
+          background: unsaved ? '#d97706' : '#10b981',
+          border: '1px solid ' + (unsaved ? '#b45309' : '#059669')
+        }} title={unsaved ? 'There are unsaved changes' : 'All changes saved'}>
+          {unsaved ? 'Unsaved' : 'Saved'}
+        </span>
         <button
           onClick={handleSave}
           disabled={autosave}
@@ -50,7 +62,7 @@ export default function TableControlsBar({
             fontWeight: autosave ? '600' : 'bold',
             letterSpacing: '0.5px'
           }}
-          title={autosave ? 'Disabled while Autosave is ON' : 'Save changes'}
+          title={autosave ? 'Disabled while Autosave is ON' : 'Save changes (Ctrl/Cmd+S)'}
         >
           Save
         </button>

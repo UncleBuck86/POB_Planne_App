@@ -66,6 +66,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [saveMsg, setSaveMsg] = useState(''); // For save status message
   const [localComments, setLocalComments] = useState(comments); // For comments row
   const [autosave, setAutosave] = useState(true); // Autosave toggle
+  // Track unsaved changes (compares to lastSavedData/Comments)
+  const [unsaved, setUnsaved] = useState(false);
   // Ensure each company row has a stable id
   const generateId = () => 'cmp_' + Math.random().toString(36).slice(2, 10);
   useEffect(() => {
@@ -191,8 +193,17 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
       storage.setJSON('pobPlannerComments', localComments);
       setLastSavedData(rowData);
       setLastSavedComments(localComments);
+      setUnsaved(false);
     }
   }, [rowData, localComments, autosave]);
+
+  // Effect: recompute unsaved when data or lastSaved snapshots change
+  useEffect(() => {
+    // Simple shallow compare by JSON stringify for this dataset size
+    const dataChanged = JSON.stringify(rowData) !== JSON.stringify(lastSavedData);
+    const commentsChanged = JSON.stringify(localComments) !== JSON.stringify(lastSavedComments);
+    setUnsaved(dataChanged || commentsChanged);
+  }, [rowData, localComments, lastSavedData, lastSavedComments]);
 
   // Helper: push current state to undo stack
   const pushUndo = () => {
@@ -260,7 +271,21 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     setLastSavedComments(localComments);
     setSaveMsg('Saved!');
     setTimeout(() => setSaveMsg(''), 2000);
+    setUnsaved(false);
   };
+
+  // Keyboard shortcut: Ctrl/Cmd+S to save when autosave is off
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const isSave = (e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey);
+      if (isSave) {
+        e.preventDefault();
+        if (!autosave) handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [autosave, handleSave, rowData, localComments]);
 
   // Scroll table horizontally by px (used for scroll buttons)
   const scrollTable = (action) => {
@@ -371,6 +396,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         setAutoHide={setAutoHide}
         handleSave={handleSave}
         saveMsg={saveMsg}
+  unsaved={unsaved}
         undoStack={undoStack}
         redoStack={redoStack}
         pushUndo={pushUndo}

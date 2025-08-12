@@ -7,7 +7,10 @@
   "dev": "vite",
   "dev:local": "vite --host 127.0.0.1 --port 5174",
     "build": "vite build",
-    "preview": "vite preview"
+  "preview": "vite preview",
+  "smoke": "node ./scripts/smoke-test.mjs",
+  "build:smoke": "npm run build && npm run smoke",
+  "ci:smoke": "npm ci && npm run build:smoke"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

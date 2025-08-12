@@ -11,6 +11,7 @@ import FlightsPage from './pages/Flights.jsx';
 import FlightManifestView from './pages/FlightManifestView.jsx';
 import FlightManifestTemplate from './pages/FlightManifestTemplate.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
+import GlobalStyle from './GlobalStyle.jsx';
 import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug, setPassiveInterval, triggerPassiveNow, setPassiveSystemPrompt, setPassiveRedaction } from './ai/passiveAI.js';
 import { emitDomain } from './ai/eventBus.js';
 import { isOpenAI } from './ai/client.js';
@@ -48,6 +49,7 @@ function RootRouter() {
 	else content = <Dashboard />;
 	return (
 		<ThemeProvider>
+			<GlobalStyle />
 			<ToastProvider>
 				<NavShell page={hash.split('/')[0]} content={content} />
 			</ToastProvider>

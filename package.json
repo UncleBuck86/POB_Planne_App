@@ -1,6 +1,6 @@
 {
   "name": "pob-planner-app",
-  "version": "10.0.0",
+  "version": "10.1.0-next",
   "description": "A web application for POB planning and scheduling.",
   "main": "src/index.js",
   "scripts": {

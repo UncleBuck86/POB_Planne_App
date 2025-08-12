@@ -1,0 +1,221 @@
+Prompt: Build Login + Roles Framework for POB Planner
+Project context
+
+App: POB Planner — React + Vite + TypeScript (if TS not enabled, convert), React Router v6+, AG Grid in main views.
+
+Styling: Use Tailwind if present; otherwise ship minimal CSS modules. Keep the UI clean and professional.
+
+Goal
+Create a lightweight authentication and authorization framework with a login landing page and role-based route guarding. Initial auth can be simple (mock/in-memory). In testing mode, treat all authenticated users as Admin regardless of their stored role. The design must be easy to swap later for client domain–based auth (SSO/OIDC).
+
+Roles (hierarchy, highest → lowest)
+
+God
+
+Superuser
+
+Admin
+
+User
+
+Viewer
+
+Requirements
+
+Startup flow
+
+App should open to /login by default if unauthenticated.
+
+After login, redirect to the originally requested route or /dashboard.
+
+Auth implementation (for now)
+
+Local, mock auth only: username + password (validate non-empty only).
+
+Store a small mock user list under src/auth/mockUsers.ts (e.g., two entries for sanity).
+
+Testing mode: If import.meta.env.VITE_TESTING_MODE === 'true', force assigned role to Admin after successful login (but keep real role in state for easy toggle/QA).
+
+Persist auth state (JWT-like mock token + username + role) in localStorage.
+
+Provide LoginPage, Logout, and basic session timeout (e.g., 8h inactivity).
+
+Auth context + guards
+
+AuthContext with reducer for login, logout, refresh, setRoleOverride.
+
+ProtectedRoute HOC/element that:
+
+Redirects to /login if not authenticated.
+
+Supports a requiredRoles?: Role[] prop for access control.
+
+RequireRole component to conditionally render controls (e.g., grid edit buttons).
+
+Routing
+
+Use React Router v6 data APIs or standard Routes.
+
+Routes:
+
+/login (public)
+
+/logout (public, clears session then routes to /login)
+
+/dashboard (protected: any role)
+
+/admin (protected: Admin+)
+
+/super (protected: Superuser+)
+
+/god (protected: God only)
+
+/access-denied + catch-all * → NotFound
+
+Add a top NavBar showing user, effective role (Admin if testing override applied), and a logout button.
+
+Role model
+
+src/auth/roles.ts: export ordered ROLES = ['God','Superuser','Admin','User','Viewer'] as const;, a Role type, and helpers rank(role), hasAtLeast(userRole, requiredRole).
+
+Policy examples:
+
+Viewer: read-only
+
+User: basic actions
+
+Admin: can manage users & settings
+
+Superuser: everything Admin can, plus advanced ops
+
+God: full system control
+
+UI/UX expectations
+
+Clean login form with validation messages, “Show password” toggle, “Remember me” checkbox.
+
+On protected pages, show inline AccessDenied component if role insufficient.
+
+If Tailwind present, use responsive, accessible forms; otherwise minimal CSS modules.
+
+Keyboard accessible; proper labels; focus states.
+
+AG Grid integration hook
+
+Expose a useRole() hook; demonstrate wiring on a sample grid page:
+
+If role < User: grid is read-only.
+
+If Admin+: enable editing toolbar (Add, Edit, Delete) — buttons wrapped in RequireRole(['Admin','Superuser','God']).
+
+File structure (create or update)
+
+css
+Copy
+Edit
+src/
+  auth/
+    AuthContext.tsx
+    ProtectedRoute.tsx
+    RequireRole.tsx
+    roles.ts
+    mockUsers.ts
+  pages/
+    LoginPage.tsx
+    DashboardPage.tsx
+    AdminPage.tsx
+    SuperPage.tsx
+    GodPage.tsx
+    AccessDeniedPage.tsx
+    NotFoundPage.tsx
+  components/
+    NavBar.tsx
+  hooks/
+    useRole.ts
+  utils/
+    storage.ts
+Environment + config
+
+Read VITE_TESTING_MODE from .env. Default to true for now.
+
+Add .env.example with:
+
+ini
+Copy
+Edit
+VITE_TESTING_MODE=true
+Add a single source of truth for storage keys in utils/storage.ts.
+
+Security & best practices (even for mock)
+
+Never store raw passwords; for mock, simply check equality in-memory and discard.
+
+On logout, clear storage and context.
+
+Implement idle timeout with activity listeners; on timeout, show a modal and then logout.
+
+Future-ready for domain auth
+
+Create src/auth/providers/oidc.placeholder.ts with interface stubs for login(), logout(), getUser().
+
+Keep AuthContext provider capable of swapping auth provider via a simple strategy pattern.
+
+Testing
+
+Use Vitest + @testing-library/react.
+
+Add tests for:
+
+Role ordering & hasAtLeast.
+
+ProtectedRoute redirects when unauthenticated and when role insufficient.
+
+Testing mode role-override behavior.
+
+Acceptance criteria
+
+Visiting any protected route when logged out redirects to /login.
+
+Logging in with any mock user lands on the last attempted route.
+
+With VITE_TESTING_MODE=true, the UI shows Effective Role: Admin and Admin routes are reachable regardless of stored role.
+
+RequireRole correctly hides/shows AG Grid edit controls.
+
+All code compiles with pnpm or npm and passes tests via pnpm test or npm run test.
+
+Deliverables
+
+All files above with complete implementations.
+
+Minimal, tasteful styling for login and navbar.
+
+Short README section in the project README explaining:
+
+How to toggle testing mode.
+
+How to add a new role and gate a route.
+
+Where to plug in future domain/SSO.
+
+Extra: sample mock users to seed (src/auth/mockUsers.ts)
+
+ts
+Copy
+Edit
+export const mockUsers = [
+  { username: 'brennan', password: 'pob123', role: 'User' },
+  { username: 'ops', password: 'pob123', role: 'Viewer' },
+] as const;
+Run instructions to include in README
+
+bash
+Copy
+Edit
+# .env
+VITE_TESTING_MODE=true
+
+# start
+npm i
+npm run dev
+Please implement exactly as above, following good TypeScript types, clean hooks, and small, testable components.

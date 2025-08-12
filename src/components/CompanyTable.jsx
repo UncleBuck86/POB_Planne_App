@@ -495,7 +495,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                   setActiveCell={setActiveCell}
                 />
               ))}
-              <TotalsRow rowData={rowsForTotals} dates={effectiveDates} />
+              <TotalsRow rowData={rowsForTotals} dates={effectiveDates} hiddenRows={hiddenRows} />
               <FlightsRow type="Flights Out" dates={effectiveDates} flights={flightsOut} />
               <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
               <CommentsRow

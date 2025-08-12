@@ -3,6 +3,7 @@ import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 import { storage } from '../utils/storageAdapter';
 import { fsx } from '../utils/fileSystem';
+import AdminFlightDirection from './AdminFlightDirection.jsx';
 
 const ADMIN_KEY = 'pobIsAdmin';
 export const isAdmin = () => {
@@ -228,7 +229,7 @@ export default function AdminPage() {
       <section id="admin-flight" style={card(theme)}>
         <div style={sectionHeader(theme)}>Flight & Planner Configuration</div>
         <p style={{ marginTop:0, fontSize:12, lineHeight:1.45 }}>Manage flight-related lists and open the manifest template builder.</p>
-        <div style={{ marginBottom:18 }}>
+  <div style={{ marginBottom:18 }}>
           <strong style={{ fontSize:12 }}>Flight Locations & POB Limits</strong>
           <div style={{ fontSize:11, opacity:.7, marginTop:2, marginBottom:6 }}>Manage locations plus regulatory Max POB and contingency bunks (Flotel / Field Boat). Highlighting on Dashboard occurs when forecast exceeds these limits.</div>
           {locations.length === 0 && <div style={{ fontSize:12, opacity:.6, marginBottom:8 }}>No locations yet. Add one below.</div>}
@@ -279,6 +280,7 @@ export default function AdminPage() {
             <button onClick={addLocation} style={{ padding:'8px 14px', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, cursor:'pointer', fontWeight:600, fontSize:12 }}>Add</button>
           </div>
         </div>
+  <AdminFlightDirection />
   <a href="#logistics/flights/manifest" style={btn(theme)}>Open Manifest Template</a>
         <div style={{ marginTop:18 }}>
           <strong style={{ fontSize:12 }}>Aircraft Types (Read Only)</strong>

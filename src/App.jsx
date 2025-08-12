@@ -4,7 +4,7 @@ import CompanyTable from './components/CompanyTable';
 import { generateFlightComments } from './helpers/commentHelpers';
 import { getAllDates } from './services/dateService';
 import { formatDate } from './helpers/dateHelpers';
-import { ThemeProvider, useTheme } from './ThemeContext.jsx';
+import { useTheme } from './ThemeContext.jsx';
 import { themePresets } from './themePresets';
 
 const today = new Date();
@@ -188,11 +188,5 @@ function AppContent(props) {
   );
 }
 
-const App = (props) => (
-  <ThemeProvider>
-    <ThemeConsumerWrapper {...props} />
-  </ThemeProvider>
-);
-
-export default App;
+export default ThemeConsumerWrapper;
 

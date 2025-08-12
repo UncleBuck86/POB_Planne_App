@@ -184,7 +184,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     // Comments row is for user input only
   }, [rowData, dates]);
 
-  // Effect: autosave table and comments to localStorage
+  // Effect: autosave table and comments to local storage (via adapter)
   useEffect(() => {
     if (autosave) {
       storage.setJSON('pobPlannerData', rowData);

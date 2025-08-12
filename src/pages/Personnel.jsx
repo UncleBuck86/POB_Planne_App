@@ -3,7 +3,7 @@ import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 import { storage } from '../utils/storageAdapter';
 
-/* Personnel record shape (persisted in localStorage under 'personnelRecords')
+/* Personnel record shape (persisted locally under 'personnelRecords')
 {
   id: string (uuid-ish),
   firstName: string,

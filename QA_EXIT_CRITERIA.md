@@ -22,7 +22,7 @@ Verify for each:
 - Flight Manifest weights and pax totals reflect the current passenger lists per direction.
 
 ## Persistence works
-- Planner table edits persist after refresh (localStorage keys like `pobPlannerData`).
+- Planner table edits persist after refresh (local storage keys like `pobPlannerData`).
 - Planner comments persist (key `pobPlannerComments`).
 - Settings toggles (e.g., include hidden in totals, toast preference) persist.
 - Admin mode preference persists (if toggled).
@@ -33,5 +33,5 @@ Verify for each:
   - No “Unhandled Promise Rejection” messages.
 
 Notes:
-- Data is stored locally in the browser’s localStorage and may include PII.
+- Data is stored locally in the browser and may include PII.
 - Exports default to redacted; opt-in is required for including comments.

@@ -167,7 +167,7 @@ export default function AdminPage() {
   return (
     <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 60px' }}>
       <h2 style={{ marginTop:0 }}>Admin Panel</h2>
-      <div style={{ fontSize:12, opacity:.75, marginBottom:18 }}>Centralized application configuration. Changes persist in local storage and affect all users on this device.</div>
+  <div style={{ fontSize:12, opacity:.75, marginBottom:18 }}>Centralized application configuration. Changes are saved locally in this browser and affect anyone using this browser profile on this device.</div>
       {/* Section quick access buttons */}
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginBottom:24 }}>
         <button onClick={()=> { toggleSection('flight'); if(activeSection!=='flight') setTimeout(()=> document.getElementById('admin-flight')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#2d6cdf', activeSection==='flight')}>{activeSection==='flight' ? '✕ Flight & Planner' : 'Flight & Planner'}</button>
@@ -282,11 +282,11 @@ export default function AdminPage() {
         <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
           <button onClick={handleResetPlanner} style={utilBtn(theme)}>Reset Planner Data</button>
           <button onClick={()=>{ const payload = {}; ['pobPlannerData','pobPlannerComments','flightManifestLocations','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','flightManifestAircraftTypes'].forEach(k=>{ try { payload[k]= storage.getJSON(k); } catch { payload[k]= storage.get(k); } }); const blob = new Blob([JSON.stringify(payload,null,2)], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pob-app-export-'+new Date().toISOString().slice(0,10)+'.json'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }} style={utilBtn(theme)}>Export Config/Data</button>
-          <button disabled title="Deactivated for safety" style={{ ...utilBtn(theme), background:'#555', borderColor:'#444', cursor:'not-allowed', opacity:.6 }}>Nuke Local Storage (Disabled)</button>
+          <button disabled title="Deactivated for safety" style={{ ...utilBtn(theme), background:'#555', borderColor:'#444', cursor:'not-allowed', opacity:.6 }}>Clear Local Data (Disabled)</button>
         </div>
-        <div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'14px 0 10px' }} />
-        <div style={{ fontWeight:'bold', fontSize:12, marginBottom:6 }}>Admin Access</div>
-  <p style={{ marginTop:0, fontSize:11, opacity:.7 }}>To revoke admin mode run in console:<br/><code>localStorage.removeItem('pobIsAdmin'); location.reload();</code></p>
+    <div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'14px 0 10px' }} />
+    <div style={{ fontWeight:'bold', fontSize:12, marginBottom:6 }}>Admin Access</div>
+  <p style={{ marginTop:0, fontSize:11, opacity:.7 }}>To revoke admin mode manually, clear the “Admin Mode” flag from your saved local data for this site and reload.</p>
   </section>
   )}
     {/* POB / Bunk Designer */}

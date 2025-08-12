@@ -51,17 +51,17 @@ Benefits: smaller diffs, simpler auditing (each change a row), easier aggregatio
 - Personnel: status history (arrival/departure events) for duration analytics.
 
 ## 8. Storage & Cost Phasing
-Phase 1 (Local): continue localStorage but isolate logic behind a small adapter (to swap to API later).
+Phase 1 (Local): continue using browser storage but isolate logic behind a small adapter (to swap to API later).
 Phase 2 (Backend MVP): Postgres + minimal auth + audit.
 Phase 3: Multi‑tenant hardening, archives, signed exports.
 Phase 4: Advanced analytics, search indexing, role customization.
 
 ## 9. Coding Guidelines For Forward Compatibility
-1. **Isolation of Persistence**: New data utilities should go through a thin service (e.g., `dataLayer.js`) instead of direct localStorage calls.
+1. **Isolation of Persistence**: New data utilities should go through a thin adapter/service (e.g., `dataLayer.js`) instead of calling the storage API directly.
 2. **Namespacing**: Prefix tenant keys when possible (for now use `pob:` style placeholder to simplify future migration scripts).
 3. **Avoid Hard‑Coding Dates**: Always calculate relative to `new Date()`; facilitate archiving cutoffs.
 4. **Immutable Patterns**: Prefer pure functions for transforms so server logic can share code.
-5. **Config Centralization**: Put new adjustable settings in Admin page with clear grouping (already established pattern). Use descriptive localStorage keys anticipating migration (e.g., `planner:zoom` -> becomes DB setting later).
+5. **Config Centralization**: Put new adjustable settings in Admin page with clear grouping (already established pattern). Use descriptive storage keys anticipating migration (e.g., `planner:zoom` -> becomes DB setting later).
 6. **No Cross‑Tenant Leakage**: Avoid global caches keyed only by company name; always include prospective `tenantId` placeholder in future code comments.
 7. **Audit Hooks Ready**: Wrap mutation helpers (`pushUndo` or bulk import) so they can later emit audit events.
 8. **Read‑Only Mode Flag**: Respect a single `readOnly` prop at component boundaries. Build this now for archives and viewer role.
@@ -69,7 +69,7 @@ Phase 4: Advanced analytics, search indexing, role customization.
 ## 10. Migration Plan (High Level)
 | Step | Milestone | Notes |
 |------|-----------|-------|
-| 1 | Introduce persistence adapter | Abstract localStorage operations. |
+| 1 | Introduce persistence adapter | Abstract browser storage operations. |
 | 2 | Add `readOnly` plumbing to planner/components | Make toggle easy for archives / viewer. |
 | 3 | Implement archive utility (local prototype) | Year-suffixed keys + export. |
 | 4 | Backend scaffold | Auth, tenants, locations, users. |

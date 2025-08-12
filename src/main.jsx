@@ -320,7 +320,7 @@ function NavShell({ page, content }) {
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>AI Settings</div>
 														<div style={{ fontSize:10, color:'#f3d9a4', background:'#3a2e14', border:'1px solid #6b4e16', padding:'6px 8px', borderRadius:6, margin:'0 0 8px' }}>
-															Privacy: This app stores planner, manifests, and personnel data in your browser's localStorage. No data is sent to external services.
+															Privacy: This app saves planner, manifest, and personnel data locally in your browser. Nothing is sent to external services.
 														</div>
 							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 6px' }}>
 								<input id="toggle-passive-ai" type="checkbox" checked={passiveAI} onChange={e=> setPassiveAI(e.target.checked)} />

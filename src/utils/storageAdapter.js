@@ -1,5 +1,5 @@
 // storageAdapter.js
-// Thin wrapper around localStorage with JSON/bool helpers and safe fallbacks.
+// Thin persistence adapter with JSON/bool helpers and safe fallbacks (uses browser storage when available).
 
 const memoryStore = new Map();
 

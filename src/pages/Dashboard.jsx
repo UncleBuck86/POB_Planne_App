@@ -57,7 +57,7 @@ function Dashboard() {
     return () => { window.removeEventListener('openDashboardSettings', openEvt); };
   },[]);
   const widgetBorderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
-  // User location setting (persist per user in localStorage)
+  // User location setting (persisted locally per user)
   const userLocKey = 'pobUserLocation';
   const [userLocation, setUserLocation] = useState(() => storage.get(userLocKey) || '');
   const [availableLocations, setAvailableLocations] = useState(() => storage.getJSON('flightManifestLocations', []));
@@ -324,7 +324,7 @@ function Dashboard() {
         )}
   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
     {(() => {
-      // Try to get username from personnelSnapshot or localStorage
+  // Try to get username from personnelSnapshot or local cache
       let username = '';
       if (personnelSnapshot && personnelSnapshot.length > 0) {
         // Use first onboard user, fallback to first user
@@ -336,7 +336,7 @@ function Dashboard() {
         }
       }
       if (!username) {
-        // Try local storage via adapter fallback
+  // Try local storage via adapter fallback
         try { username = storage.get('username') || ''; } catch {}
       }
       return <h2 style={{ margin:'0 0 4px', color: team === 'dark' ? theme.text : theme.primary }}>Welcome{username ? `, ${username}` : ''}!</h2>;

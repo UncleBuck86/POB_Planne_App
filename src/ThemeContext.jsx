@@ -8,7 +8,7 @@ const ThemeContext = createContext();
 
 
 export function ThemeProvider({ children }) {
-  // Initialize from localStorage if present
+  // Initialize from saved local data (via adapter) if present
   const initialTeam = storage.get('pobTheme') || 'light';
   const [team, setTeam] = useState(initialTeam);
   const [theme, setTheme] = useState(themePresets[initialTeam] || themePresets['light']);
@@ -44,7 +44,7 @@ export function ThemeProvider({ children }) {
   storage.setBool('pobReadOnly', next);
   };
 
-  // Keep localStorage in sync if team changes from elsewhere
+  // Keep local data in sync if team changes from elsewhere
   useEffect(() => { storage.set('pobTheme', team); }, [team]);
 
   // Keep density in sync

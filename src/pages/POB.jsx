@@ -10,8 +10,8 @@ import { storage } from '../utils/storageAdapter.js';
 // POB (Persons On Board) Landing Page
 // Shows: Current Onboard Roster (derived from personnel records) & Bunk Assignments (editable placeholder)
 // Data sources:
-//  - personnelRecords (localStorage) with arrivalDate / departureDate
-//  - bunkAssignments (localStorage) mapping bunkId -> { personId, note }
+//  - personnelRecords (saved locally) with arrivalDate / departureDate
+//  - bunkAssignments (saved locally) mapping bunkId -> { personId, note }
 
 export default function POBPage(){
   const { theme } = useTheme();

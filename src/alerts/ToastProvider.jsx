@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { storage } from '../utils/storageAdapter';
 
 const ToastContext = createContext({ addToast: () => {} });
 export const TOAST_PREF_KEY = 'pobToastDisabled';
@@ -9,7 +10,7 @@ export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const seenKeys = useRef(new Set());
   const [detailModal, setDetailModal] = useState(null);
-  const toastDisabled = (() => { try { return localStorage.getItem(TOAST_PREF_KEY)==='true'; } catch { return false; } })();
+  const toastDisabled = storage.getBool(TOAST_PREF_KEY, false);
 
   const addToast = useCallback((toast) => {
     if (toastDisabled) return; // user opted out

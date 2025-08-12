@@ -1,3 +1,4 @@
+import { storage } from './storageAdapter';
 export const GRID_SIZE = 20;
 export const layoutKey = 'dashboardWidgetLayoutV1';
 export const visibilityKey = 'dashboardWidgetVisibilityV1';
@@ -14,23 +15,23 @@ export const defaultVisibility = { nav: true, forecast: true, flightForecast: tr
 
 export function loadLayout() {
   try {
-    const stored = JSON.parse(localStorage.getItem(layoutKey));
+    const stored = storage.getJSON(layoutKey);
     return stored ? { ...defaultLayout, ...stored } : defaultLayout;
   } catch { return defaultLayout; }
 }
 export function saveLayout(layout) {
-  try { localStorage.setItem(layoutKey, JSON.stringify(layout)); } catch {}
+  try { storage.setJSON(layoutKey, layout); } catch {}
   emitPassive('WIDGET_MOVED', { ids: Object.keys(layout||{}) });
 }
 
 export function loadVisibility() {
   try {
-    const stored = JSON.parse(localStorage.getItem(visibilityKey));
+    const stored = storage.getJSON(visibilityKey);
     return stored ? { ...defaultVisibility, ...stored } : defaultVisibility;
   } catch { return defaultVisibility; }
 }
 export function saveVisibility(v) {
-  try { localStorage.setItem(visibilityKey, JSON.stringify(v)); } catch {}
+  try { storage.setJSON(visibilityKey, v); } catch {}
   emitPassive('VISIBILITY_CHANGED', { visible: v });
 }
 

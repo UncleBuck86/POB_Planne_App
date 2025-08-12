@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { storage } from '../utils/storageAdapter';
 import { useTheme } from '../ThemeContext.jsx';
 import { registerContextProvider } from '../ai/passiveAI.js';
 import { emitEvent } from '../ai/eventBus.js';
@@ -58,14 +59,10 @@ function Dashboard() {
   const widgetBorderColor = theme.name === 'Dark' ? '#bfc4ca' : '#444';
   // User location setting (persist per user in localStorage)
   const userLocKey = 'pobUserLocation';
-  const [userLocation, setUserLocation] = useState(() => {
-    try { return localStorage.getItem(userLocKey) || ''; } catch { return ''; }
-  });
-  const [availableLocations, setAvailableLocations] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
-  });
+  const [userLocation, setUserLocation] = useState(() => storage.get(userLocKey) || '');
+  const [availableLocations, setAvailableLocations] = useState(() => storage.getJSON('flightManifestLocations', []));
   // Load location caps (max, flotel, fieldBoat) for highlighting
-  const [locationCaps, setLocationCaps] = useState(()=> { try { return JSON.parse(localStorage.getItem('pobLocationCaps')) || {}; } catch { return {}; } });
+  const [locationCaps, setLocationCaps] = useState(()=> storage.getJSON('pobLocationCaps', {}));
   useEffect(()=> {
     const onStorage = (e) => { if (e.key === 'pobLocationCaps') { try { setLocationCaps(JSON.parse(e.newValue)||{}); } catch { setLocationCaps({}); } } };
     window.addEventListener('storage', onStorage);
@@ -81,20 +78,18 @@ function Dashboard() {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
-  useEffect(() => { try { localStorage.setItem(userLocKey, userLocation); } catch {} }, [userLocation]);
+  useEffect(() => { storage.set(userLocKey, userLocation); }, [userLocation]);
   // Load stored planner data (non-editable view)
   const [rowData, setRowData] = useState([]);
   const [comments, setComments] = useState({});
   useEffect(() => {
-    try { setRowData(JSON.parse(localStorage.getItem('pobPlannerData')) || []); } catch { setRowData([]); }
-    try { setComments(JSON.parse(localStorage.getItem('pobPlannerComments')) || {}); } catch { setComments({}); }
+  try { setRowData(storage.getJSON('pobPlannerData', []) || []); } catch { setRowData([]); }
+  try { setComments(storage.getJSON('pobPlannerComments', {}) || {}); } catch { setComments({}); }
   }, []);
   // Load personnel records (snapshot + optional manual refresh)
-  const [personnelSnapshot, setPersonnelSnapshot] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('personnelRecords')) || []; } catch { return []; }
-  });
+  const [personnelSnapshot, setPersonnelSnapshot] = useState(() => storage.getJSON('personnelRecords', []));
   const refreshPersonnel = () => {
-    try { setPersonnelSnapshot(JSON.parse(localStorage.getItem('personnelRecords')) || []); } catch { /* ignore */ }
+    try { setPersonnelSnapshot(storage.getJSON('personnelRecords', [])); } catch { /* ignore */ }
   };
   useEffect(() => {
     const onStorage = (e) => { if (e.key === 'personnelRecords') refreshPersonnel(); };
@@ -341,10 +336,8 @@ function Dashboard() {
         }
       }
       if (!username) {
-        // Try localStorage fallback
-        try {
-          username = localStorage.getItem('username') || '';
-        } catch {}
+        // Try local storage via adapter fallback
+        try { username = storage.get('username') || ''; } catch {}
       }
       return <h2 style={{ margin:'0 0 4px', color: team === 'dark' ? theme.text : theme.primary }}>Welcome{username ? `, ${username}` : ''}!</h2>;
     })()}

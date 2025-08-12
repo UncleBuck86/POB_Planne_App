@@ -16,6 +16,7 @@ import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassive
 import { emitDomain } from './ai/eventBus.js';
 import { isOpenAI } from './ai/client.js';
 import { ToastProvider } from './alerts/ToastProvider.jsx';
+import { storage } from './utils/storageAdapter';
 
 function RootRouter() {
 	const [hash, setHash] = useState(window.location.hash.replace('#','') || 'dashboard');
@@ -64,30 +65,24 @@ function NavShell({ page, content }) {
 	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
 	const [aiSuggestion, setAISuggestion] = useState('');
 	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
-	const [passiveAI, setPassiveAI] = useState(()=> { try { return localStorage.getItem('buckPassiveAI') !== 'false'; } catch { return true; } });
-	const [passiveDebug, setPassiveDebug] = useState(()=> { try { return localStorage.getItem('buckPassiveDebug') === 'true'; } catch { return false; } });
-	const [passiveInterval, setPassiveIntervalState] = useState(()=> { try { return parseInt(localStorage.getItem('buckPassiveInterval'),10)||60000; } catch { return 60000; } });
-	const [systemPrompt, setSystemPrompt] = useState(()=> { try { return localStorage.getItem('buckPassiveSystemPrompt')||''; } catch { return ''; } });
-	const [redaction, setRedaction] = useState(()=> { try { return localStorage.getItem('buckPassiveRedaction')==='true'; } catch { return false; } });
+	const [passiveAI, setPassiveAI] = useState(()=> storage.get('buckPassiveAI') !== 'false');
+	const [passiveDebug, setPassiveDebug] = useState(()=> storage.getBool('buckPassiveDebug', false));
+	const [passiveInterval, setPassiveIntervalState] = useState(()=> { const v = parseInt(storage.get('buckPassiveInterval'),10); return Number.isFinite(v) ? v : 60000; });
+	const [systemPrompt, setSystemPrompt] = useState(()=> storage.get('buckPassiveSystemPrompt') || '');
+	const [redaction, setRedaction] = useState(()=> storage.getBool('buckPassiveRedaction', false));
 	const TOAST_PREF_KEY = 'pobToastDisabled';
-	const [toastDisabled, setToastDisabled] = useState(() => { try { return localStorage.getItem(TOAST_PREF_KEY)==='true'; } catch { return false; } });
+	const [toastDisabled, setToastDisabled] = useState(() => storage.getBool(TOAST_PREF_KEY, false));
 	const toggleToastPref = () => {
 		setToastDisabled(prev => {
-			const next = !prev; try { localStorage.setItem(TOAST_PREF_KEY, next? 'true':'false'); } catch {}
+			const next = !prev; storage.setBool(TOAST_PREF_KEY, next);
 			return next;
 		});
 	};
 	// Planner page location selection state
-	const [plannerLocation, setPlannerLocation] = useState(() => {
-		try { return localStorage.getItem('pobPlannerLocation') || ''; } catch { return ''; }
-	});
-	const [plannerLocationOptions, setPlannerLocationOptions] = useState(() => {
-		try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
-	});
+	const [plannerLocation, setPlannerLocation] = useState(() => storage.get('pobPlannerLocation') || '');
+	const [plannerLocationOptions, setPlannerLocationOptions] = useState(() => storage.getJSON('flightManifestLocations', []));
 	// Persist planner location selection
-	useEffect(() => {
-		try { localStorage.setItem('pobPlannerLocation', plannerLocation); } catch {/* ignore */}
-	}, [plannerLocation]);
+	useEffect(() => { storage.set('pobPlannerLocation', plannerLocation); }, [plannerLocation]);
 	// Listen for external updates to locations list (Admin page changes)
 	useEffect(() => {
 		const handler = (e) => {
@@ -137,11 +132,11 @@ function NavShell({ page, content }) {
 		return ()=> { window.removeEventListener('resize', onResize); window.removeEventListener('click', clickHandler, true); };
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	},[]);
-	useEffect(()=>{ try { localStorage.setItem('buckPassiveAI', passiveAI? 'true':'false'); } catch {} setPassiveAIEnabled(passiveAI); }, [passiveAI]);
-	useEffect(()=>{ try { localStorage.setItem('buckPassiveDebug', passiveDebug? 'true':'false'); } catch {} setPassiveDebug(passiveDebug); }, [passiveDebug]);
-	useEffect(()=>{ try { localStorage.setItem('buckPassiveInterval', String(passiveInterval)); } catch {} setPassiveInterval(passiveInterval); }, [passiveInterval]);
-	useEffect(()=>{ if(systemPrompt.trim()){ try { localStorage.setItem('buckPassiveSystemPrompt', systemPrompt); } catch {} setPassiveSystemPrompt(systemPrompt); } }, [systemPrompt]);
-	useEffect(()=>{ try { localStorage.setItem('buckPassiveRedaction', redaction? 'true':'false'); } catch {} setPassiveRedaction(redaction); }, [redaction]);
+		useEffect(()=>{ storage.setBool('buckPassiveAI', !!passiveAI); setPassiveAIEnabled(passiveAI); }, [passiveAI]);
+		useEffect(()=>{ storage.setBool('buckPassiveDebug', !!passiveDebug); setPassiveDebug(passiveDebug); }, [passiveDebug]);
+		useEffect(()=>{ storage.set('buckPassiveInterval', String(passiveInterval)); setPassiveInterval(passiveInterval); }, [passiveInterval]);
+		useEffect(()=>{ if(systemPrompt.trim()){ storage.set('buckPassiveSystemPrompt', systemPrompt); setPassiveSystemPrompt(systemPrompt); } }, [systemPrompt]);
+		useEffect(()=>{ storage.setBool('buckPassiveRedaction', !!redaction); setPassiveRedaction(redaction); }, [redaction]);
 	// Listen for global AI events
 	useEffect(()=>{
 		if (!isOpenAI) return; // AI disabled: do not wire events
@@ -350,13 +345,12 @@ function NavShell({ page, content }) {
 							<button onClick={()=> { triggerPassiveNow(); setOpen(false); }} style={{ display:'block', width:'100%', textAlign:'center', background:'#375a9e', color:'#fff', border:'1px solid #1e3a8a', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, margin:'2px 0 8px' }}>Refresh Suggestions Now</button>
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>Admin</div>
-							{!adminEnabled && (
-								<button onClick={()=>{ try { localStorage.setItem('pobIsAdmin','true'); } catch{}; setAdminEnabled(true); setOpen(false); window.location.hash='#admin'; }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Enable Admin Mode</button>
-							)}
-							{adminEnabled && (
+							{!adminEnabled ? (
+								<button onClick={()=>{ try { storage.set('pobIsAdmin','true'); } catch{}; setAdminEnabled(true); setOpen(false); window.location.hash='#admin'; }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Enable Admin Mode</button>
+							) : (
 								<div style={{ display:'flex', flexDirection:'column', gap:6 }}>
 									<a href="#admin" onClick={()=>setOpen(false)} style={{ textDecoration:'none', background: theme.primary, color: theme.text, padding:'6px 8px', borderRadius:6, fontSize:12, fontWeight:600, border:'1px solid '+(theme.secondary||'#222'), textAlign:'center' }}>Admin Panel</a>
-									<button onClick={()=>{ if(window.confirm('Disable admin mode?')) { try { localStorage.removeItem('pobIsAdmin'); } catch{}; setAdminEnabled(false); if(window.location.hash==='#admin') window.location.hash='#dashboard'; setOpen(false);} }} style={{ background:'#922', color:'#fff', border:'1px solid #b55', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Disable Admin</button>
+									<button onClick={()=>{ if(window.confirm('Disable admin mode?')) { try { storage.remove('pobIsAdmin'); } catch{}; setAdminEnabled(false); if(window.location.hash==='#admin') window.location.hash='#dashboard'; setOpen(false);} }} style={{ background:'#922', color:'#fff', border:'1px solid #b55', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Disable Admin</button>
 								</div>
 							)}
 						</div>

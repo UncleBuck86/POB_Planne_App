@@ -7,6 +7,7 @@ import { formatDate } from './helpers/dateHelpers';
 import { useTheme } from './ThemeContext.jsx';
 import { themePresets } from './themePresets';
 import { initialPobData, initialPobComments } from './data/seed.js';
+import { storage } from './utils/storageAdapter';
 
 const today = new Date();
 const allDates = getAllDates(today.getFullYear());
@@ -66,18 +67,8 @@ function AppContent(props) {
     setViewStart(defaultStartStr);
     setViewEnd(defaultEndStr);
   };
-  const [rowData, setRowData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('pobPlannerData');
-      return saved ? JSON.parse(saved) : initialPobData;
-    } catch { return initialPobData; }
-  });
-  const [commentsState, setCommentsState] = useState(() => {
-    try {
-      const saved = localStorage.getItem('pobPlannerComments');
-      return saved ? JSON.parse(saved) : initialPobComments;
-    } catch { return initialPobComments; }
-  });
+  const [rowData, setRowData] = useState(() => storage.getJSON('pobPlannerData', initialPobData));
+  const [commentsState, setCommentsState] = useState(() => storage.getJSON('pobPlannerComments', initialPobComments));
 
   const [flightsOut, setFlightsOut] = useState({});
   const [flightsIn, setFlightsIn] = useState({});

@@ -3,18 +3,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 import CompanyRowDirect from './CompanyTable/CompanyRowDirect.jsx';
 import { getAllDates, formatByPreference } from '../utils/dateUtils';
+import { storage } from '../utils/storageAdapter';
 
 export default function CompanyTableDirect() {
   const { theme, dateFormat } = useTheme();
   // Pull existing planner data structure; fallback gracefully.
   const load = () => {
     try {
-      const raw = localStorage.getItem('pobPlannerData');
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      // Support both array-of-rows and object with companies field
+      const parsed = storage.getJSON('pobPlannerData', []);
       if (Array.isArray(parsed)) return parsed;
-      if (Array.isArray(parsed.companies)) return parsed.companies;
+      if (parsed && Array.isArray(parsed.companies)) return parsed.companies;
       return [];
     } catch { return []; }
   };
@@ -61,7 +59,7 @@ export default function CompanyTableDirect() {
   , [rows]);
 
   const save = () => {
-    try { localStorage.setItem('pobPlannerData', JSON.stringify(rows)); } catch {}
+    try { storage.setJSON('pobPlannerData', rows); } catch {}
   };
 
   const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';

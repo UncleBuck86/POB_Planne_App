@@ -65,6 +65,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   useEffect(() => { storage.setJSON('pobManualHighlights', manualHighlights); }, [manualHighlights]);
   const [saveMsg, setSaveMsg] = useState(''); // For save status message
   const [localComments, setLocalComments] = useState(comments); // For comments row
+  // Keep localComments in sync if parent prop changes externally
+  useEffect(() => { setLocalComments(comments); }, [comments]);
   const [autosave, setAutosave] = useState(true); // Autosave toggle
   // Track unsaved changes (compares to lastSavedData/Comments)
   const [unsaved, setUnsaved] = useState(false);
@@ -488,10 +490,10 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
               <CommentsRow
                 dates={effectiveDates}
-                comments={comments}
+                comments={localComments}
                 lastSavedComments={lastSavedComments}
                 manualHighlights={manualHighlights}
-                setComments={setComments}
+                setComments={setLocalComments}
                 pushUndo={pushUndo}
               />
               {/* Spacer row so user can scroll until totals line reaches sticky header */}

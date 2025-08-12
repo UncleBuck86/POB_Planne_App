@@ -155,6 +155,19 @@ function NavShell({ page, content }) {
 		document.head.appendChild(style);
 		window.__buckEarCSSInjected = true;
 	},[]);
+	// Inject global accessibility styles (focus rings, keyboard outlines)
+	useEffect(()=>{
+		if (window.__buckA11yCSSInjected) return;
+		const style = document.createElement('style');
+		style.textContent = `
+		  :root{ --focus-ring:#2d6cdf; --focus-ring-dark:#9ec1ff; }
+		  *:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+		  @media (prefers-color-scheme: dark){ *:focus-visible { outline-color: var(--focus-ring-dark); } }
+		  [role="button"], [tabindex]:not([tabindex="-1"]) { outline-offset: 2px; }
+		`;
+		document.head.appendChild(style);
+		window.__buckA11yCSSInjected = true;
+	},[]);
 	// Context provider for AI: if on dashboard and dashboard has registered builder
 	const getAIContext = () => {
 		if (page === 'dashboard' && typeof window.__getDashboardAIContext === 'function') {

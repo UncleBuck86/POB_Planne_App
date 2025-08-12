@@ -425,7 +425,11 @@ export default function Personnel() {
       {contactViewMode==='cards' && (
         <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fill,minmax(200px,240px))', justifyContent:'start' }}>
           {contactRecords.map(p=> (
-            <div key={p.id} onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }}
+            <div key={p.id}
+              role="button"
+              tabIndex={0}
+              onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }}
+              onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} } }}
               style={{ background: theme.surface, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, padding:'10px 12px', fontSize:12, cursor:'copy', display:'flex', flexDirection:'column', gap:4, boxShadow:'0 2px 6px rgba(0,0,0,0.25)' }} title="Click to copy name & primary phone">
               <div style={{ fontWeight:700, display:'flex', alignItems:'center', flexWrap:'wrap', gap:6 }}>
                 <span>{p.firstName} {p.lastName}</span>
@@ -457,7 +461,12 @@ export default function Personnel() {
             </thead>
             <tbody>
               {contactRecords.map((p,i)=> (
-                <tr key={p.id} onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }} style={{ background: i%2? (theme.name==='Dark'? '#2a3035':'#f5f8fa'):'transparent', cursor:'copy' }} title="Click to copy name & primary phone">
+                <tr key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }}
+                  onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} } }}
+                  style={{ background: i%2? (theme.name==='Dark'? '#2a3035':'#f5f8fa'):'transparent', cursor:'copy' }} title="Click to copy name & primary phone">
                   <td style={crewTd(theme)}>{p.firstName}</td>
                   <td style={crewTd(theme)}>{p.lastName}</td>
                   <td style={crewTd(theme)}>{p.company}</td>

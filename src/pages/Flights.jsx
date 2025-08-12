@@ -271,7 +271,7 @@ export default function FlightsPage() {
             <div style={{ fontSize:11, lineHeight:1.35, opacity:.85 }}>Create / edit current flight manifest, manage passengers & flight details.</div>
           </div>
         </a>
-        <div onClick={()=> setCatalogOpen(true)} style={manifestCardStyle(theme,'#6c8bff', true)} role="button" tabIndex={0}
+  <div onClick={()=> setCatalogOpen(true)} style={manifestCardStyle(theme,'#6c8bff', true)} role="button" tabIndex={0} aria-label="Open saved manifests"
              onKeyDown={e=> { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); setCatalogOpen(true); } }}>
           <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Saved Manifests</div>
           <div style={{ fontSize:11, lineHeight:1.35, opacity:.85 }}>Browse & load saved manifests ({catalog.length}).</div>

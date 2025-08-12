@@ -6,7 +6,7 @@ import { useTheme } from '../../ThemeContext.jsx';
 export default function CommentsRow({ dates, comments, lastSavedComments, manualHighlights, setComments, pushUndo }) {
   const { theme } = useTheme();
   const isDark = theme.name === 'Dark' || (theme.background || '').toLowerCase() === '#22223b';
-  const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
+  const borderColor = theme.name === 'Dark' ? '#bfc4ca66' : '#444';
   return (
     <tr style={{ background: theme.surface, color: theme.text, fontStyle: 'italic', height: 'auto' }}>
       <td style={{ verticalAlign: 'top', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }}>Comments</td>

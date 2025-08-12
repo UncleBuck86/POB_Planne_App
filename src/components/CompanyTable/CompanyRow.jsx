@@ -6,7 +6,7 @@ import { useTheme } from '../../ThemeContext.jsx';
 export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById, manualHighlights, setManualHighlights, inputRefs, pushUndo, setRowData, focusCell }) {
   if (hiddenRows.includes(row.id)) return null; // Skip hidden rows by id
   const { theme } = useTheme();
-  const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
+  const borderColor = theme.name === 'Dark' ? '#bfc4ca66' : '#444';
   return (
     <tr key={row.id}>
   <td style={{ width:160, minWidth:160, maxWidth:160, textAlign: 'left', position: 'sticky', left: 0, background: theme.surface, color: theme.text, zIndex: 2, borderRight: `2px solid ${borderColor.replace('40','')}`, borderLeft: `1px solid ${borderColor.replace('40','')}`, borderBottom: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>

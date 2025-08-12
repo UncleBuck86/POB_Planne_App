@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { sanitizeManifestForExport } from '../utils/privacy.js';
 import { useTheme } from '../ThemeContext.jsx';
 
 const STORAGE_KEY = 'flightManifestTemplateV1';
@@ -59,6 +60,7 @@ export default function FlightManifestTemplate() {
   const [catalog, setCatalog] = useState(()=>{ try { return JSON.parse(localStorage.getItem(CATALOG_KEY))||[]; } catch { return []; } });
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [currentCatalogId, setCurrentCatalogId] = useState(null); // which catalog entry is loaded (if any)
+  const [exportIncludeComments, setExportIncludeComments] = useState(false);
   useEffect(()=>{ try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch {/*ignore*/} }, [catalog]);
   const saveToCatalog = (asNew=false) => {
     // Determine number of flight pairs
@@ -413,12 +415,14 @@ export default function FlightManifestTemplate() {
   const inboundFlights = useMemo(()=> allocateFlights(safeInbound, selectedAircraft? (parseInt(selectedAircraft.maxPax)||null):null, selectedAircraft? (parseFloat(selectedAircraft.maxInboundWeight)||null):null), [safeInbound, selectedAircraft]);
 
   const exportJSON = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+    const safe = sanitizeManifestForExport(data, { includeComments: exportIncludeComments });
+    const blob = new Blob([JSON.stringify(safe, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}.json`; a.click(); URL.revokeObjectURL(url);
   };
   const copyJSON = () => {
     try {
-      const txt = JSON.stringify(data, null, 2);
+      const safe = sanitizeManifestForExport(data, { includeComments: exportIncludeComments });
+      const txt = JSON.stringify(safe, null, 2);
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
       else {
         const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
@@ -470,13 +474,14 @@ export default function FlightManifestTemplate() {
   const exportCSV = (dir) => {
     const list = (dir==='outbound'? (data.outbound||[]) : (data.inbound||[]));
     const isOB = dir==='outbound';
-    const headers = ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination','Comments'];
+    const headers = exportIncludeComments ? ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination','Comments'] : ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination'];
     const rows = list.map((p,i)=>{
       const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; const tot = bw + gw;
       const origin = p.origin || (isOB? data.meta.departure : data.meta.arrival) || '';
       const dest = p.destination || (isOB? data.meta.arrival : data.meta.departure) || '';
-      return [i+1, p.name||'', p.company||'', p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot? tot.toFixed(1):'', origin, dest, p.comments||'']
-        .map(csvEscape).join(',');
+      const base = [i+1, p.name||'', p.company||'', p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot? tot.toFixed(1):'', origin, dest];
+      if (exportIncludeComments) base.push(p.comments||'');
+      return base.map(csvEscape).join(',');
     });
     const content = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([content], { type:'text/csv;charset=utf-8;' });
@@ -489,14 +494,14 @@ export default function FlightManifestTemplate() {
         .manifest-root input:not([type=checkbox]):not([type=radio]),
         .manifest-root select,
         .manifest-root textarea {
-          background: ${theme.name==='Dark' ? '#2e3439' : '#ffffff'};
+          background: ${theme.name==='Dark' ? '#283039' : '#ffffff'};
           color: ${theme.text};
-          border: 1px solid ${theme.name==='Dark' ? '#58616a' : '#b8c2cc'};
+          border: 1px solid ${theme.name==='Dark' ? '#6a7480' : '#b8c2cc'};
           padding: 4px 6px;
           border-radius: 6px;
           font-size: 12px;
           font-family: inherit;
-          box-shadow: inset 0 0 0 1px ${theme.name==='Dark' ? '#00000040' : '#ffffff00'};
+          box-shadow: inset 0 0 0 1px ${theme.name==='Dark' ? '#00000055' : '#ffffff00'};
           transition: border-color .15s, background .2s;
         }
         .manifest-root input:not([type=checkbox]):not([type=radio]):focus,
@@ -776,6 +781,9 @@ export default function FlightManifestTemplate() {
           <button onClick={()=>exportCSV('inbound')} style={actionBtn(theme)}>Export IB CSV</button>
           <button onClick={copyJSON} style={actionBtn(theme)}>Copy JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
+            <input type="checkbox" checked={exportIncludeComments} onChange={e=> setExportIncludeComments(e.target.checked)} /> Include comments in exports
+          </label>
           <button onClick={()=>saveToCatalog(false)} style={actionBtn(theme)} disabled={locked || !isDirtyRelativeToCatalog}>Save{currentCatalogId && !isDirtyRelativeToCatalog? ' (Saved)':''}</button>
           <button onClick={()=>saveToCatalog(true)} style={actionBtn(theme)} disabled={locked}>Save As New</button>
           <button onClick={()=>setCatalogOpen(o=>!o)} style={actionBtn(theme)}>{catalogOpen? 'Close Catalog':'Catalog'}</button>

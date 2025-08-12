@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { sanitizeManifestForExport } from '../utils/privacy.js';
 import { useTheme } from '../ThemeContext.jsx';
 
 const CATALOG_KEY = 'flightManifestCatalogV1';
@@ -54,6 +55,7 @@ export default function FlightManifestView() {
   const inboundWt = sumWeight(inbound);
   const totalPax = totalOutbound + totalInbound;
   const totalWt = outboundWt + inboundWt;
+  const [exportIncludeComments, setExportIncludeComments] = useState(false);
 
   const editManifest = () => {
     try {
@@ -63,13 +65,15 @@ export default function FlightManifestView() {
   };
   const exportJSON = () => {
     try {
-      const blob = new Blob([JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }, null, 2)], { type:'application/json' });
+      const safe = sanitizeManifestForExport({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }, { includeComments: exportIncludeComments });
+      const blob = new Blob([JSON.stringify(safe, null, 2)], { type:'application/json' });
       const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`manifest-${entry.meta.flightNumber||'saved'}.json`; a.click(); URL.revokeObjectURL(url);
     } catch {/* ignore */}
   };
   const copyJSON = () => {
     try {
-      const txt = JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }, null, 2);
+      const safe = sanitizeManifestForExport({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }, { includeComments: exportIncludeComments });
+      const txt = JSON.stringify(safe, null, 2);
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
       else {
         const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
@@ -85,13 +89,14 @@ export default function FlightManifestView() {
     if(!entry) return;
     const list = (dir==='outbound'? (entry.outbound||[]) : (entry.inbound||[]));
     const isOB = dir==='outbound';
-    const headers = ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination','Comments'];
+    const headers = exportIncludeComments ? ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination','Comments'] : ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination'];
     const rows = list.map((p,i)=>{
       const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; const tot = bw + gw;
       const origin = p.origin || (isOB? entry.meta.departure : entry.meta.arrival) || '';
       const dest = p.destination || (isOB? entry.meta.arrival : entry.meta.departure) || '';
-      return [i+1, p.name||'', p.company||'', p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot? tot.toFixed(1):'', origin, dest, p.comments||'']
-        .map(csvEscape).join(',');
+      const base = [i+1, p.name||'', p.company||'', p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot? tot.toFixed(1):'', origin, dest];
+      if (exportIncludeComments) base.push(p.comments||'');
+      return base.map(csvEscape).join(',');
     });
     const content = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([content], { type:'text/csv;charset=utf-8;' });
@@ -137,6 +142,9 @@ export default function FlightManifestView() {
           <button onClick={()=>exportCSV('outbound')} style={actionBtn(theme)}>Export OB CSV</button>
           <button onClick={()=>exportCSV('inbound')} style={actionBtn(theme)}>Export IB CSV</button>
           <button onClick={copyJSON} style={actionBtn(theme)}>Copy</button>
+          <label style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
+            <input type="checkbox" checked={exportIncludeComments} onChange={e=> setExportIncludeComments(e.target.checked)} /> Include comments in exports
+          </label>
           <button onClick={duplicateManifest} style={actionBtn(theme)}>Duplicate</button>
           <button onClick={deleteManifest} style={{ ...actionBtn(theme), background:'#922' }}>Delete</button>
           <button onClick={editManifest} style={{ ...actionBtn(theme), background:'#2d6cdf' }}>Edit</button>
@@ -257,7 +265,7 @@ const sectionHeader = (theme) => ({ fontSize:16, fontWeight:700, marginBottom:14
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const backStyle = (theme) => ({ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 });
 const tdStyle = { padding:'4px 6px', border:'1px solid #555' };
-const thStyle = (theme) => ({ padding:'6px 8px', textAlign:'left', border:'1px solid '+(theme.name==='Dark'? '#444':'#666'), fontSize:11 });
+const thStyle = (theme) => ({ padding:'6px 8px', textAlign:'left', border:'1px solid '+(theme.name==='Dark'? '#666':'#666'), fontSize:11 });
 
 // Helper for print
 function renderPrintTable(list, label, origin, destination){

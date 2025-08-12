@@ -202,7 +202,14 @@ function Dashboard() {
     });
   }, [next7, flightDeltas, comments]);
   // --- Movable widgets layout ---
-  const [layout, setLayout] = useState(loadLayout);
+  const [layout, setLayout] = useState(() => {
+    const base = loadLayout();
+    // Backfill any missing defaults for newly added widgets
+    const ids = ['nav','forecast','flightForecast','onboard','pobCompanies','pobCompaniesForecast'];
+    const filled = { ...base };
+    ids.forEach(id => { if (!filled[id]) filled[id] = { x: 20, y: 20 }; });
+    return filled;
+  });
   useEffect(()=> { saveLayout(layout); }, [layout]);
   const [editLayout, setEditLayout] = useState(false);
   const [visible, setVisible] = useState(loadVisibility);

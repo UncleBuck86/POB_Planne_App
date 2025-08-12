@@ -8,10 +8,12 @@ export const defaultLayout = {
   forecast: { x: 20, y: 160 },
   flightForecast: { x: 340, y: 160 },
   onboard: { x: 20, y: 360 },
-  pobCompanies: { x: 340, y: 360 }
+  pobCompanies: { x: 340, y: 360 },
+  // Place the snapshot table below main blocks, left column, to avoid overlap by default
+  pobCompaniesForecast: { x: 20, y: 560 }
 };
 
-export const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true, pobCompanies: true };
+export const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true, pobCompanies: true, pobCompaniesForecast: false };
 
 export function loadLayout() {
   try {

@@ -62,6 +62,11 @@ export default function FlightManifestTemplate() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [currentCatalogId, setCurrentCatalogId] = useState(null); // which catalog entry is loaded (if any)
   const [exportIncludeComments, setExportIncludeComments] = useState(false);
+  // Print options (persisted)
+  const defaultPrint = { includeWeights: true, includeComments: true, compact: false, landscape: false, includeNotes: true, includeTotals: true };
+  const [printOptions, setPrintOptions] = useState(()=> { try { return { ...defaultPrint, ...(storage.getJSON('printOptionsManifest', {})||{}) }; } catch { return defaultPrint; } });
+  const [showPrintOpts, setShowPrintOpts] = useState(false);
+  useEffect(()=>{ try { storage.setJSON('printOptionsManifest', printOptions); } catch {/* ignore */} }, [printOptions]);
   useEffect(()=>{ try { storage.setJSON(CATALOG_KEY, catalog); } catch {/*ignore*/} }, [catalog]);
   const saveToCatalog = (asNew=false) => {
     // Determine number of flight pairs
@@ -429,8 +434,9 @@ export default function FlightManifestTemplate() {
     } catch {/* ignore */}
   };
   const printView = () => {
+    const opts = printOptions || defaultPrint;
     const w = window.open('', '_blank'); if (!w) return;
-    const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} h2{margin-top:0;} table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #444;padding:4px 6px;} th{background:#ddd;} .section{margin-bottom:18px;}`;
+    const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} h2{margin-top:0;} table{border-collapse:collapse;width:100%;${opts.compact? 'font-size:10px;':'font-size:12px;'} } th,td{border:1px solid #444;${opts.compact? 'padding:3px 4px;':'padding:4px 6px;'} } th{background:#ddd;} .section{margin-bottom:18px;} @page{${opts.landscape? 'size: landscape;':''} margin:12mm;}`;
     const selectedAircraftPrint = aircraftTypes.find(a=> a.type === data.meta.aircraftType);
     let capacityLine = '';
     if (selectedAircraftPrint) {
@@ -440,27 +446,23 @@ export default function FlightManifestTemplate() {
       capacityLine = `<div class='section'><strong>Capacity:</strong> `+
         [
           maxPax!=null?`Pax ${grandTotalPax}/${maxPax}`:null,
-          maxOutboundWeight!=null?`Outbound Wt ${totalWeightOutbound.toFixed(1)}/${maxOutboundWeight}`:null,
-          maxInboundWeight!=null?`Inbound Wt ${totalWeightInbound.toFixed(1)}/${maxInboundWeight}`:null
+          opts.includeWeights && maxOutboundWeight!=null?`Outbound Wt ${totalWeightOutbound.toFixed(1)}/${maxOutboundWeight}`:null,
+          opts.includeWeights && maxInboundWeight!=null?`Inbound Wt ${totalWeightInbound.toFixed(1)}/${maxInboundWeight}`:null
         ].filter(Boolean).join(' | ')+`</div>`;
     }
-  const html = `<!DOCTYPE html><html><head><title>Flight Manifest</title><style>${css}</style></head><body>`+
-      `<h2>Flight Manifest ${data.meta.flightNumber? ' - '+data.meta.flightNumber:''}</h2>`+
+    const header = `<h2>Flight Manifest ${data.meta.flightNumber? ' - '+data.meta.flightNumber:''}</h2>`+
       `<div class='section'><strong>Date:</strong> ${data.meta.date||''} &nbsp; <strong>Route:</strong> ${data.meta.departure||'???'} → ${data.meta.arrival||'???'} &nbsp; <strong>ETD:</strong> ${data.meta.departureTime||''} &nbsp; <strong>ETA:</strong> ${data.meta.arrivalTime||''}</div>`+
       `<div class='section'><strong>Aircraft:</strong> ${data.meta.aircraftType||''} ${data.meta.tailNumber||''} &nbsp; <strong>Captain:</strong> ${data.meta.captain||''} &nbsp; <strong>Co-Pilot:</strong> ${data.meta.coPilot||''} &nbsp; <strong>Dispatcher:</strong> ${data.meta.dispatcher||''}</div>`+
       capacityLine +
-      `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>`+
-  `<h3>Outbound (${totalOutbound})</h3>`+
-  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Body Wt</th><th>Bag Wt</th><th># Bags</th><th>Total Wt</th><th>Origin</th><th>Destination</th><th>Comments</th></tr></thead><tbody>`+
-  data.outbound.map((p,i)=>{ const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw; return `<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${p.bodyWeight||''}</td><td>${p.bagWeight||''}</td><td>${p.bagCount||''}</td><td>${tot?tot:''}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(p.comments)}</td></tr>`; }).join('')+
-      `</tbody></table>`+
-      `<div style='margin:6px 0 18px'><strong>Outbound Weight Total:</strong> ${totalWeightOutbound.toFixed(1)}</div>`+
-  `<h3>Inbound (${totalInbound})</h3>`+
-  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Body Wt</th><th>Bag Wt</th><th># Bags</th><th>Total Wt</th><th>Origin</th><th>Destination</th><th>Comments</th></tr></thead><tbody>`+
-  data.inbound.map((p,i)=>{ const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw; return `<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${p.bodyWeight||''}</td><td>${p.bagWeight||''}</td><td>${p.bagCount||''}</td><td>${tot?tot:''}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(p.comments)}</td></tr>`; }).join('')+
-      `</tbody></table>`+
-      `<div style='margin-top:6px'><strong>Inbound Weight Total:</strong> ${totalWeightInbound.toFixed(1)}</div>`+
-      `<div style='margin-top:14px'><strong>Grand Total Pax:</strong> ${grandTotalPax} &nbsp; <strong>Grand Total Weight:</strong> ${grandTotalWeight.toFixed(1)}</div>`+
+      (opts.includeNotes ? `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>` : '');
+    const obTable = renderPrintTableTemplate(data.outbound||[], opts, data.meta.departure, data.meta.arrival);
+    const ibTable = renderPrintTableTemplate(data.inbound||[], opts, data.meta.arrival, data.meta.departure);
+    const totals = opts.includeTotals ? `<div style='margin-top:14px'><strong>Grand Total Pax:</strong> ${grandTotalPax}${opts.includeWeights? ` &nbsp; <strong>Grand Total Weight:</strong> ${grandTotalWeight.toFixed(1)}`:''}</div>`:'';
+    const html = `<!DOCTYPE html><html><head><title>Flight Manifest</title><style>${css}</style></head><body>`+
+      header+
+      `<h3>Outbound (${totalOutbound})</h3>`+ obTable +
+      `<h3>Inbound (${totalInbound})</h3>`+ ibTable +
+      totals+
       `</body></html>`;
     w.document.write(html); w.document.close(); w.print();
   };
@@ -792,6 +794,7 @@ export default function FlightManifestTemplate() {
           <button onClick={()=>exportCSV('inbound')} style={actionBtn(theme)}>Export IB CSV</button>
           <button onClick={copyJSON} style={actionBtn(theme)}>Copy JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
+          <button onClick={()=> setShowPrintOpts(true)} style={actionBtn(theme)}>Print Options</button>
           <label style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
             <input type="checkbox" checked={exportIncludeComments} onChange={e=> setExportIncludeComments(e.target.checked)} /> Include comments in exports
           </label>
@@ -837,6 +840,28 @@ export default function FlightManifestTemplate() {
         </section>
       )}
       <div style={{ fontSize:10, opacity:.5, marginTop:30 }}>Future: auto-populate from planner deltas; attach saved templates to flights; CSV export.</div>
+      {showPrintOpts && (
+        <div className="no-print" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:900, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={e=>{ if(e.target===e.currentTarget) setShowPrintOpts(false); }}>
+          <div style={{ background: theme.surface, color: theme.text, width:'min(420px,90%)', border:'1px solid '+(theme.name==='Dark'? '#555':'#444'), borderRadius:12, padding:16, boxShadow:'0 8px 24px rgba(0,0,0,0.45)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ fontWeight:700 }}>Print Options</div>
+              <button onClick={()=> setShowPrintOpts(false)} style={smallBtn(theme)}>Close</button>
+            </div>
+            <div style={{ display:'grid', gap:8 }}>
+              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeWeights} onChange={e=> setPrintOptions(o=> ({ ...o, includeWeights: e.target.checked }))} /> Include weights</label>
+              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeComments} onChange={e=> setPrintOptions(o=> ({ ...o, includeComments: e.target.checked }))} /> Include comments</label>
+              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeNotes} onChange={e=> setPrintOptions(o=> ({ ...o, includeNotes: e.target.checked }))} /> Include notes</label>
+              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeTotals} onChange={e=> setPrintOptions(o=> ({ ...o, includeTotals: e.target.checked }))} /> Include totals</label>
+              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.compact} onChange={e=> setPrintOptions(o=> ({ ...o, compact: e.target.checked }))} /> Compact layout</label>
+              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.landscape} onChange={e=> setPrintOptions(o=> ({ ...o, landscape: e.target.checked }))} /> Landscape</label>
+            </div>
+            <div style={{ marginTop:12, display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button onClick={()=> setShowPrintOpts(false)} style={smallBtn(theme)}>Save</button>
+              <button onClick={()=> { setShowPrintOpts(false); printView(); }} style={actionBtn(theme)}>Print Now</button>
+            </div>
+          </div>
+        </div>
+      )}
       {addPersonOpen && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'60px 20px', zIndex:600 }} onClick={e=>{ if(e.target===e.currentTarget) setAddPersonOpen(false); }}>
           <div style={{ background: theme.background, color: theme.text, padding:20, borderRadius:12, width:'min(480px,100%)', border:'1px solid '+(theme.name==='Dark'? '#666':'#444'), boxShadow:'0 8px 24px rgba(0,0,0,0.4)' }}>
@@ -891,6 +916,21 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+function renderPrintTableTemplate(list, opts, origin, destination){
+  const headers = ['#','Name','Company'];
+  if(opts.includeWeights){ headers.push('Body Wt','Bag Wt','# Bags','Total Wt'); }
+  headers.push('Origin','Destination');
+  if(opts.includeComments){ headers.push('Comments'); }
+  const rows = list.map((p,i)=>{
+    const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw;
+    const cells = [i+1, escapeHtml(p.name||''), escapeHtml(p.company||'')];
+    if(opts.includeWeights){ cells.push(p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot?tot:''); }
+    cells.push(escapeHtml(origin||''), escapeHtml(destination||''));
+    if(opts.includeComments){ cells.push(escapeHtml(p.comments||'')); }
+    return `<tr>${cells.map(c=> `<td>${c}</td>`).join('')}</tr>`;
+  }).join('');
+  return `<table><thead><tr>${headers.map(h=> `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+}
 function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord, locked, flightNumber, flightsCount, onReassign }) {
   const [nameQuery, setNameQuery] = useState('');
   const [activeRow, setActiveRow] = useState(null);

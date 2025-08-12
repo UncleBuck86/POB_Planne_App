@@ -104,6 +104,10 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
           <button onClick={() => setOpen(false)} style={btnStyle('#444')}>✕</button>
         </div>
       </div>
+      {/* Disabled notice */}
+      <div style={{ background:'#3b2f2f', color:'#ffd7d7', padding:'8px 12px', borderBottom:'1px solid #533', fontSize:12 }}>
+        AI features are disabled in this build. No data is sent to external AI services.
+      </div>
       <div ref={scrollRef} style={{ flex:1, overflowY:'auto', padding:'12px 14px', fontSize:13 }}>
         {messages.map((m,i) => (
           <div key={i} style={{ marginBottom:10 }}>

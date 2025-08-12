@@ -24,6 +24,8 @@ const Dropdown = styled.div`
 `;
 
 function Dashboard() {
+  // Add autoHide state for widget logic
+  const [autoHide, setAutoHide] = useState(true);
   const { theme, team, changeTheme } = useTheme();
   const [aiSuggestion, setAISuggestion] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);

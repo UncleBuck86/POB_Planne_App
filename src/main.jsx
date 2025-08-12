@@ -15,7 +15,7 @@ import GlobalStyle from './GlobalStyle.jsx';
 import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug, setPassiveInterval, triggerPassiveNow, setPassiveSystemPrompt, setPassiveRedaction } from './ai/passiveAI.js';
 import { emitDomain } from './ai/eventBus.js';
 import { isOpenAI } from './ai/client.js';
-import { ToastProvider } from './alerts/ToastProvider.jsx';
+import { ToastProvider, useToast } from './alerts/ToastProvider.jsx';
 import { storage } from './utils/storageAdapter';
 
 function RootRouter() {
@@ -60,6 +60,7 @@ function RootRouter() {
 
 function NavShell({ page, content }) {
 	const { theme, team, changeTheme, density, changeDensity, readOnly, changeReadOnly } = useTheme();
+	const { addToast } = useToast();
 	const [open, setOpen] = useState(false);
 	const [localInfoOpen, setLocalInfoOpen] = useState(false);
 	// Global AI sidebar state & suggestion
@@ -113,6 +114,14 @@ function NavShell({ page, content }) {
 		return ()=>{ window.removeEventListener('mousedown',handler); window.removeEventListener('touchstart',handler); window.removeEventListener('keydown',key); };
 	},[open]);
 	// Passive AI init (once)
+	useEffect(()=>{
+		// Friendly admin guard: if user navigates to #admin without access, notify and redirect
+		if (page === 'admin' && !adminEnabled) {
+			try { addToast({ type:'warn', title:'Admin area', message:'Admin-only. Contact your lead to enable Admin Mode on this device.', timeout: 4000, dedupeKey: 'guard:admin' }); } catch {}
+			window.location.hash = '#dashboard';
+		}
+	}, [page, adminEnabled]);
+
 	useEffect(()=>{
 		initPassiveAI();
 		registerContextProvider('page', ()=> ({ page, hash: window.location.hash }));

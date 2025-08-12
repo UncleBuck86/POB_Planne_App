@@ -33,9 +33,21 @@ export function formatDDMMYY(date) {
   return `${dd}/${mm}/${yy}`;
 }
 
-// Format using global preference (fmt: 'mdy' | 'dmy') default 'mdy'
+// Format a date as ISO YYYY-MM-DD
+export function formatISO(date) {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date || '');
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Format using global preference (fmt: 'mdy' | 'dmy' | 'iso') default 'mdy'
 export function formatByPreference(date, fmt = 'mdy') {
-  return fmt === 'dmy' ? formatDDMMYY(date) : formatMMDDYY(date);
+  if (fmt === 'dmy') return formatDDMMYY(date);
+  if (fmt === 'iso') return formatISO(date);
+  return formatMMDDYY(date);
 }
 
 // Example: Get the day of week for a date

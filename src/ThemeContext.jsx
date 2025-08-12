@@ -36,7 +36,7 @@ export function ThemeProvider({ children }) {
   };
 
   const changeDateFormat = (fmt) => {
-    const next = (fmt === 'dmy' || fmt === 'mdy') ? fmt : 'mdy';
+    const next = (fmt === 'dmy' || fmt === 'mdy' || fmt === 'iso') ? fmt : 'mdy';
     setDateFormat(next);
     try { localStorage.setItem('pobDateFormat', next); } catch {/* ignore */}
   };

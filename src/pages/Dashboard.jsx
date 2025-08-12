@@ -36,6 +36,7 @@ function DateFormatPicker() {
       >
         <option value="mdy">MM/DD/YY</option>
         <option value="dmy">DD/MM/YY</option>
+  <option value="iso">YYYY-MM-DD</option>
       </select>
     </div>
   );
@@ -44,7 +45,7 @@ function DateFormatPicker() {
 function Dashboard() {
   // Add autoHide state for widget logic
   const [autoHide, setAutoHide] = useState(true);
-  const { theme, team, changeTheme } = useTheme();
+  const { theme, team, changeTheme, dateFormat } = useTheme();
   const [aiSuggestion, setAISuggestion] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
@@ -121,7 +122,7 @@ function Dashboard() {
     }
     return { ...r, daysOnboardDisplay: days };
   }), [onboard, todayMid]);
-  const next7 = useMemo(()=> getNextNDays(7), []);
+  const next7 = useMemo(()=> getNextNDays(7, new Date(), dateFormat), [dateFormat]);
   const visibleCompanies = rowData.filter(r => r.company && r.company.trim());
   const hasComments = useMemo(() => next7.some(d => (comments[d.key] || '').trim().length > 0), [comments, next7]);
   const totalsPerDay = next7.reduce((acc, d) => {

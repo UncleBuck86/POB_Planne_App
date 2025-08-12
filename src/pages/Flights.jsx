@@ -12,6 +12,10 @@ const keyForDate = (d) => (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFull
 export default function FlightsPage() {
   const { theme } = useTheme();
   const rowData = useMemo(() => storage.getJSON('pobPlannerData', []) || [], []);
+  // Setup/state presence checks for empty-state guidance
+  const isAdmin = () => { try { const a=storage.get('pobIsAdmin'); const b=storage.get('pob_admin'); return a==='true'||a==='1'||b==='true'||b==='1'; } catch { return false; } };
+  const [locationsList] = useState(() => storage.getJSON('flightManifestLocations', []) || []);
+  const [aircraftTypeList] = useState(() => storage.getJSON('flightManifestAircraftTypes', []) || []);
   const today = new Date();
   const [displayMonth, setDisplayMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [largeCalendar, setLargeCalendar] = useState(() => storage.getBool('pobLargeCalendar', false));
@@ -278,6 +282,32 @@ export default function FlightsPage() {
           <div style={{ fontSize:11, lineHeight:1.35, opacity:.85 }}>Browse & load saved manifests ({catalog.length}).</div>
         </div>
       </div>
+      {/* Empty-state helpers */}
+      {(rowData.length===0) && (
+        <div role="status" style={{ margin:'10px 0 18px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
+          <div style={{ fontWeight:700, marginBottom:4 }}>No planner data yet</div>
+          <div style={{ fontSize:12, opacity:.85 }}>Enter company counts on the Planner to see movement highlights here.</div>
+          <div style={{ marginTop:8 }}><a href="#planner" style={{ ...navBtnStyle(theme), textDecoration:'none' }}>Go to Planner</a></div>
+        </div>
+      )}
+      {(() => { try { const people = storage.getJSON('personnelRecords', [])||[]; return people.length===0; } catch { return false; } })() && (
+        <div role="status" style={{ margin:'10px 0 18px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
+          <div style={{ fontWeight:700, marginBottom:4 }}>No personnel records yet</div>
+          <div style={{ fontSize:12, opacity:.85 }}>Add personnel to enable selection into the manifest.</div>
+          <div style={{ marginTop:8 }}><a href="#personnel" style={{ ...navBtnStyle(theme), textDecoration:'none' }}>Go to Personnel</a></div>
+        </div>
+      )}
+      {((locationsList.length===0) || (aircraftTypeList.length===0)) && (
+        <div role="note" style={{ margin:'10px 0 18px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
+          <div style={{ fontWeight:700, marginBottom:4 }}>Setup recommended</div>
+          <div style={{ fontSize:12, opacity:.85 }}>
+            {locationsList.length===0 ? 'No flight locations configured. ' : ''}
+            {aircraftTypeList.length===0 ? 'No aircraft types configured (capacity checks disabled). ' : ''}
+            {isAdmin() ? 'Open Admin to configure locations and aircraft types.' : 'Ask an admin to set locations and aircraft types in Admin.'}
+          </div>
+          {isAdmin() && <div style={{ marginTop:8 }}><a href="#admin" style={{ ...navBtnStyle(theme), textDecoration:'none' }}>Open Admin</a></div>}
+        </div>
+      )}
       <div style={{ display:'flex', gap:40, alignItems:'flex-start', flexWrap:'wrap' }}>
         <div style={{ background: theme.surface, padding:20, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:16, boxShadow:'0 4px 12px rgba(0,0,0,0.3)', display:'flex', flexDirection:'column', alignItems:'stretch' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>

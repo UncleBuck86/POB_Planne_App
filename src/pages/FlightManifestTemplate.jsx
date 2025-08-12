@@ -56,7 +56,7 @@ export default function FlightManifestTemplate() {
       return { ...defaultData };
     }
   });
-  const isAdmin = () => { try { return storage.get('pobIsAdmin') === 'true'; } catch { return false; } };
+  const isAdminLocal = () => { try { return storage.get('pobIsAdmin') === 'true'; } catch { return false; } };
   // Catalog of saved manifests
   const [catalog, setCatalog] = useState(()=> storage.getJSON(CATALOG_KEY, []));
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -487,8 +487,20 @@ export default function FlightManifestTemplate() {
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}-${isOB? 'outbound':'inbound'}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
+  const needsSetup = (locationOptions.length===0) || (aircraftTypes.length===0);
   return (
   <div className="manifest-root" style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
+      {needsSetup && (
+        <div role="status" style={{ margin:'0 0 14px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
+          <div style={{ fontWeight:700, marginBottom:4 }}>Setup recommended</div>
+          <div style={{ fontSize:12, opacity:.85 }}>
+            {locationOptions.length===0 ? 'No flight locations configured. ' : ''}
+            {aircraftTypes.length===0 ? 'No aircraft types configured (capacity checks disabled). ' : ''}
+            {isAdminLocal() ? 'Open Admin to configure locations and aircraft types.' : 'Ask an admin to set locations and aircraft types in Admin.'}
+          </div>
+          {isAdminLocal() && <div style={{ marginTop:8 }}><a href="#admin" style={{ display:'inline-block', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:6, padding:'4px 8px', textDecoration:'none', fontSize:12, fontWeight:600 }}>Open Admin</a></div>}
+        </div>
+      )}
       <style>{`
         .manifest-root input:not([type=checkbox]):not([type=radio]),
         .manifest-root select,
@@ -515,7 +527,7 @@ export default function FlightManifestTemplate() {
   <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
     <button onClick={()=> window.location.hash = '#logistics/flights'} style={{ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>← Flights</button>
     <h2 style={{ marginTop:0 }}>
-      {isAdmin() ? 'Flight Manifest Template' : 'New Manifest'}
+  {isAdminLocal() ? 'Flight Manifest Template' : 'New Manifest'}
       {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}
     </h2>
   </div>
@@ -523,14 +535,14 @@ export default function FlightManifestTemplate() {
       <section style={card(theme)}>
         <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ flex:1 }}>Flight Details</span>
-          {isAdmin() && (!locked || baseLocked) && (
+          {isAdminLocal() && (!locked || baseLocked) && (
             <>
               <button onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
               {baseLocked && <button onClick={()=> setOverrideUnlock(o=>!o)} style={{ ...smallBtn(theme), background: overrideUnlock? '#c06512': smallBtn(theme).background }}>{overrideUnlock? 'Relock':'Admin Unlock'}</button>}
             </>
           )}
         </div>
-        {configOpen && isAdmin() && (
+  {configOpen && isAdminLocal() && (
           <div style={{ marginBottom:14 }}>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
               <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}))} style={smallBtn(theme)}>All</button>

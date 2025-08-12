@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 import { storage } from '../utils/storageAdapter';
+import { fsx } from '../utils/fileSystem';
 
 const ADMIN_KEY = 'pobIsAdmin';
 export const isAdmin = () => {
@@ -20,6 +21,25 @@ export default function AdminPage() {
   const [newLoc, setNewLoc] = useState('');
   // Add Local Storage toggle state
   const [localEnabled, setLocalEnabled] = useState(() => storage.isLocalEnabled());
+  const [exportDirName, setExportDirName] = useState('');
+  useEffect(()=>{
+    (async ()=>{
+      try{
+        const h = await fsx.getDirHandle('defaultExportDir');
+        if (h && h.name) setExportDirName(h.name);
+      }catch{ setExportDirName(''); }
+    })();
+  },[]);
+  const chooseExportDir = async () => {
+    try{
+      if(!fsx.isSupported()) { alert('Folder picker not supported in this browser.'); return; }
+      const handle = await fsx.pickDirectory();
+      await fsx.storeDirHandle('defaultExportDir', handle);
+      setExportDirName(handle.name || 'Selected');
+    }catch(e){ /* user canceled or error */ }
+  };
+  const clearExportDir = async () => { await fsx.clearDirHandle('defaultExportDir'); setExportDirName(''); };
+
   // Location POB caps & contingencies
   const CAPS_KEY = 'pobLocationCaps';
   const [locationCaps, setLocationCaps] = useState(()=> storage.getJSON(CAPS_KEY, {}));
@@ -169,13 +189,33 @@ export default function AdminPage() {
   return (
     <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 60px' }}>
       <h2 style={{ marginTop:0 }}>Admin Panel</h2>
-  <div style={{ fontSize:12, opacity:.75, marginBottom:18 }}>Centralized application configuration. Changes are saved locally in this browser and affect anyone using this browser profile on this device.</div>
-      {/* Local Storage Toggle */}
-      <div style={{ display:'flex', alignItems:'center', gap:8, margin:'8px 0 16px', padding:'8px 10px', border:'1px dashed '+(theme.primary||'#555'), borderRadius:8, background: theme.name==='Dark'? '#23272c':'#f6f7f9' }}>
-        <input id="toggle-local-admin" type="checkbox" checked={!!localEnabled} onChange={e=>{ const v=!!e.target.checked; setLocalEnabled(v); storage.setLocalEnabled(v); }} />
-        <label htmlFor="toggle-local-admin" style={{ fontSize:12, fontWeight:700 }}>Enable Local Storage</label>
-        <span style={{ fontSize:12, opacity:.8 }}>(controls whether data is persisted to this device’s browser storage)</span>
-      </div>
+      <div style={{ fontSize:12, opacity:.75, marginBottom:18 }}>Centralized application configuration. Changes are saved locally in this browser and affect anyone using this browser profile on this device.</div>
+
+      {/* System Settings Card */}
+      <section id="admin-system" style={card(theme)}>
+        <div style={sectionHeader(theme)}>System</div>
+        <p style={{ marginTop:0, fontSize:12, opacity:.8 }}>Global system controls for this device.</p>
+        <div style={{ display:'grid', gap:12 }}>
+          <div>
+            <div style={{ fontSize:12, fontWeight:700, marginBottom:6 }}>Local Storage</div>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <input id="toggle-local-admin" type="checkbox" checked={!!localEnabled} onChange={e=>{ const v=!!e.target.checked; setLocalEnabled(v); storage.setLocalEnabled(v); }} />
+              <label htmlFor="toggle-local-admin" style={{ fontSize:12 }}>Enable Local Storage (persist data to this device)</label>
+            </div>
+            <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>When disabled, the app uses a temporary in-memory store. Data won’t persist after refresh.</div>
+          </div>
+          <div>
+            <div style={{ fontSize:12, fontWeight:700, marginBottom:6 }}>Default Export Folder</div>
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <button onClick={chooseExportDir} style={utilBtn(theme)} disabled={!fsx.isSupported()}>Choose Folder…</button>
+              {exportDirName ? <span style={{ fontSize:12 }}>Selected: <strong>{exportDirName}</strong></span> : <span style={{ fontSize:12, opacity:.6 }}>No folder selected</span>}
+              {exportDirName && <button onClick={clearExportDir} style={{ ...utilBtn(theme), background:'#555' }}>Clear</button>}
+            </div>
+            {!fsx.isSupported() && <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Your browser may not support native folder picking. On Windows, use the latest Chrome/Edge.</div>}
+          </div>
+        </div>
+      </section>
+
       {/* Section quick access buttons */}
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginBottom:24 }}>
         <button onClick={()=> { toggleSection('flight'); if(activeSection!=='flight') setTimeout(()=> document.getElementById('admin-flight')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#2d6cdf', activeSection==='flight')}>{activeSection==='flight' ? '✕ Flight & Planner' : 'Flight & Planner'}</button>
@@ -289,7 +329,8 @@ export default function AdminPage() {
         <p style={{ marginTop:0, fontSize:12, opacity:.75 }}>Maintenance, export, and admin access controls.</p>
         <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
           <button onClick={handleResetPlanner} style={utilBtn(theme)}>Reset Planner Data</button>
-          <button onClick={()=>{ const payload = {}; ['pobPlannerData','pobPlannerComments','flightManifestLocations','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','flightManifestAircraftTypes'].forEach(k=>{ try { payload[k]= storage.getJSON(k); } catch { payload[k]= storage.get(k); } }); const blob = new Blob([JSON.stringify(payload,null,2)], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pob-app-export-'+new Date().toISOString().slice(0,10)+'.json'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }} style={utilBtn(theme)}>Export Config/Data</button>
+          <button onClick={()=>{ const payload = {}; ['pobPlannerData','pobPlannerComments','flightManifestLocations','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','flightManifestAircraftTypes'].forEach(k=>{ try { payload[k]= storage.getJSON(k); } catch { payload[k]= storage.get(k); } }); const json = JSON.stringify(payload,null,2); const fileName='pob-app-export-'+new Date().toISOString().slice(0,10)+'.json'; (async()=>{ try{ const h = await fsx.getDirHandle('defaultExportDir'); if(h){ await fsx.saveFile(h, fileName, json); alert('Saved to '+(h.name||'folder')); return; } } catch{} // fallback to download
+ const blob = new Blob([json], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=fileName; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); })(); }} style={utilBtn(theme)}>Export Config/Data</button>
           <button disabled title="Deactivated for safety" style={{ ...utilBtn(theme), background:'#555', borderColor:'#444', cursor:'not-allowed', opacity:.6 }}>Clear Local Data (Disabled)</button>
         </div>
     <div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'14px 0 10px' }} />

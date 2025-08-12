@@ -11,6 +11,7 @@ import CommentsRow from './CompanyTable/CommentsRow';
 import FlightsRow from './CompanyTable/FlightsRow';
 import TotalsRow from './CompanyTable/TotalsRow';
 import EditCompaniesModal from './CompanyTable/EditCompaniesModal';
+import TableConfigModal from './CompanyTable/TableConfigModal.jsx';
 
 export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef, todayKey, viewStart, viewEnd, themeOverride = {}, editing, setEditing }) {
   // Vertical zoom (scale rows visually). 1 = normal height
@@ -73,6 +74,11 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [editCompanies, setEditCompanies] = useState([]); // Array of {id, company}
   const [pinnedCompanies, setPinnedCompanies] = useState([]); // Array of pinned IDs
   const [hiddenRows, setHiddenRows] = useState([]); // Array of hidden IDs
+  const [configOpen, setConfigOpen] = useState(false);
+  const [includeHiddenInTotals, setIncludeHiddenInTotals] = useState(() => {
+    try { return localStorage.getItem('pobIncludeHiddenInTotals') === 'true'; } catch { return false; }
+  });
+  useEffect(()=>{ try { localStorage.setItem('pobIncludeHiddenInTotals', includeHiddenInTotals ? 'true':'false'); } catch {} }, [includeHiddenInTotals]);
 
   // auto-fit logic removed
 
@@ -148,6 +154,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Visible rows exclude manually hidden rows
   const visibleRows = useMemo(() => sortedRows.filter(r => !hiddenRows.includes(r.id)), [sortedRows, hiddenRows]);
+  const rowsForTotals = includeHiddenInTotals ? sortedRows : visibleRows;
 
   // toggleAutoFit removed
   // (Removed separate horizontal sync; unified scroll container will handle alignment)
@@ -376,6 +383,10 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         scrollTable={scrollTable}
         onBulkImport={onBulkImport}
       />
+      {/* Config button */}
+      <div style={{ margin:'0 0 8px' }}>
+        <button onClick={()=> setConfigOpen(true)} style={{ padding:'4px 10px', background: appliedTheme.primary, color: appliedTheme.text, border:'1px solid #000', borderRadius:6, fontSize:12, fontWeight:700 }}>Table Config</button>
+      </div>
       {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}
 
       {/* Unified scrollable table with sticky header & first column */}
@@ -419,7 +430,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                   focusCell={focusCell}
                 />
               ))}
-              <TotalsRow rowData={visibleRows} dates={effectiveDates} />
+              <TotalsRow rowData={rowsForTotals} dates={effectiveDates} />
               <FlightsRow type="Flights Out" dates={effectiveDates} flights={flightsOut} />
               <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
               <CommentsRow
@@ -451,6 +462,12 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         removeCompany={removeCompany}
         saveCompanies={saveCompanies}
         setEditing={setEditing}
+      />
+      <TableConfigModal
+        open={configOpen}
+        onClose={()=> setConfigOpen(false)}
+        includeHiddenInTotals={includeHiddenInTotals}
+        setIncludeHiddenInTotals={setIncludeHiddenInTotals}
       />
     </div>
   );

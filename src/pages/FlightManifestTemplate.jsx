@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { sanitizeManifestForExport } from '../utils/privacy.js';
 import { useTheme } from '../ThemeContext.jsx';
+import { storage } from '../utils/storageAdapter';
 
 const STORAGE_KEY = 'flightManifestTemplateV1';
 const CATALOG_KEY = 'flightManifestCatalogV1';
@@ -43,7 +44,7 @@ export default function FlightManifestTemplate() {
   const { theme, readOnly } = useTheme(); // Always get latest theme
   const [data, setData] = useState(() => {
     try {
-      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      const raw = storage.getJSON(STORAGE_KEY);
       const initial = raw ? { ...defaultData, ...raw } : { ...defaultData };
       // Migration: old format used `passengers` single list
       if (!initial.outbound && Array.isArray(initial.passengers)) initial.outbound = initial.passengers;
@@ -55,13 +56,13 @@ export default function FlightManifestTemplate() {
       return { ...defaultData };
     }
   });
-  const isAdmin = () => { try { return localStorage.getItem('pobIsAdmin') === 'true'; } catch { return false; } };
+  const isAdmin = () => { try { return storage.get('pobIsAdmin') === 'true'; } catch { return false; } };
   // Catalog of saved manifests
-  const [catalog, setCatalog] = useState(()=>{ try { return JSON.parse(localStorage.getItem(CATALOG_KEY))||[]; } catch { return []; } });
+  const [catalog, setCatalog] = useState(()=> storage.getJSON(CATALOG_KEY, []));
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [currentCatalogId, setCurrentCatalogId] = useState(null); // which catalog entry is loaded (if any)
   const [exportIncludeComments, setExportIncludeComments] = useState(false);
-  useEffect(()=>{ try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch {/*ignore*/} }, [catalog]);
+  useEffect(()=>{ try { storage.setJSON(CATALOG_KEY, catalog); } catch {/*ignore*/} }, [catalog]);
   const saveToCatalog = (asNew=false) => {
     // Determine number of flight pairs
     const outLen = outboundFlights.length;
@@ -136,21 +137,19 @@ export default function FlightManifestTemplate() {
   }, [currentCatalogId, catalog, data]);
   const allFieldKeys = ['flightNumber','date','departure','departureTime','arrival','arrivalTime','aircraftType','tailNumber','captain','coPilot','dispatcher','notes'];
   const [visibleFields, setVisibleFields] = useState(()=>{
-    try { const stored = JSON.parse(localStorage.getItem(FIELD_VIS_KEY)); if (stored && typeof stored === 'object') return { ...allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}), ...stored }; } catch{/*ignore*/}
+    try { const stored = storage.getJSON(FIELD_VIS_KEY); if (stored && typeof stored === 'object') return { ...allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}), ...stored }; } catch{/*ignore*/}
     return allFieldKeys.reduce((a,k)=> (a[k]=true,a),{});
   });
   const [configOpen, setConfigOpen] = useState(false);
   // Location options (admin managed)
-  const [locationOptions, setLocationOptions] = useState(()=>{
-    try { return JSON.parse(localStorage.getItem(LOCATIONS_KEY)) || []; } catch { return []; }
-  });
+  const [locationOptions, setLocationOptions] = useState(()=> storage.getJSON(LOCATIONS_KEY, []));
   const [locationOptionsText, setLocationOptionsText] = useState(()=> locationOptions.join('\n'));
-  useEffect(()=>{ try { localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locationOptions)); } catch {/*ignore*/} }, [locationOptions]);
+  useEffect(()=>{ try { storage.setJSON(LOCATIONS_KEY, locationOptions); } catch {/*ignore*/} }, [locationOptions]);
   useEffect(()=>{ setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
   // Aircraft types (admin managed)
   const [aircraftTypes, setAircraftTypes] = useState(()=>{
     try {
-      const raw = JSON.parse(localStorage.getItem(AIRCRAFT_TYPES_KEY)) || [];
+      const raw = storage.getJSON(AIRCRAFT_TYPES_KEY, []) || [];
   if (raw.length && typeof raw[0] === 'string') {
 	// Legacy string list -> expand to objects
 	return raw.map(r => ({ type:r, maxPax:'', maxOutboundWeight:'', maxInboundWeight:'' }));
@@ -164,11 +163,11 @@ export default function FlightManifestTemplate() {
   }));
     } catch { return []; }
   });
-  useEffect(()=>{ try { localStorage.setItem(AIRCRAFT_TYPES_KEY, JSON.stringify(aircraftTypes)); } catch {/*ignore*/} }, [aircraftTypes]);
+  useEffect(()=>{ try { storage.setJSON(AIRCRAFT_TYPES_KEY, aircraftTypes); } catch {/*ignore*/} }, [aircraftTypes]);
   const addAircraftType = () => setAircraftTypes(a => [...a, { type:'', maxPax:'', maxOutboundWeight:'', maxInboundWeight:'' }]);
   const updateAircraftType = (idx, field, value) => setAircraftTypes(a => a.map((t,i)=> i===idx ? { ...t, [field]: value } : t));
   const removeAircraftType = (idx) => setAircraftTypes(a => a.filter((_,i)=> i!==idx));
-  useEffect(()=>{ try { localStorage.setItem(FIELD_VIS_KEY, JSON.stringify(visibleFields)); } catch {/* ignore */} }, [visibleFields]);
+  useEffect(()=>{ try { storage.setJSON(FIELD_VIS_KEY, visibleFields); } catch {/* ignore */} }, [visibleFields]);
   const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
   const [dedupeNotice, setDedupeNotice] = useState('');
@@ -184,9 +183,9 @@ export default function FlightManifestTemplate() {
   const locked = (baseLocked && !overrideUnlock) || !!readOnly;
   const saveTimer = useRef();
   // Personnel database cache for outbound lookup
-  const [personnelRecords, setPersonnelRecords] = useState(()=>{ try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } });
+  const [personnelRecords, setPersonnelRecords] = useState(()=> storage.getJSON('personnelRecords', []));
   useEffect(()=>{
-    const onStorage = (e)=>{ if(e.key==='personnelRecords'){ try { setPersonnelRecords(JSON.parse(localStorage.getItem('personnelRecords'))||[]);}catch{} } };
+    const onStorage = (e)=>{ if(e.key==='personnelRecords'){ try { setPersonnelRecords(storage.getJSON('personnelRecords', [])); }catch{} } };
     window.addEventListener('storage', onStorage); return ()=> window.removeEventListener('storage', onStorage);
   }, []);
   // Add person modal state
@@ -203,7 +202,7 @@ export default function FlightManifestTemplate() {
   };
   const saveNewPerson = () => {
     const rec = { id: 'p_'+Math.random().toString(36).slice(2,9), firstName:addPersonDraft.firstName.trim(), lastName:addPersonDraft.lastName.trim(), company:addPersonDraft.company.trim(), position:'', location:'', crew:'', rotation:'', coreCrew:false, bodyWeight:addPersonDraft.bodyWeight, bagWeight:addPersonDraft.bagWeight, bagCount:addPersonDraft.bagCount, primaryPhone:'', secondaryPhone:'', address:'', dob:'', arrivalDate:new Date().toISOString().slice(0,10), departureDate:'', status:'Onboard', notes:'' };
-    setPersonnelRecords(list=>{ const next=[...list, rec]; try{ localStorage.setItem('personnelRecords', JSON.stringify(next)); }catch{} return next; });
+  setPersonnelRecords(list=>{ const next=[...list, rec]; try{ storage.setJSON('personnelRecords', next); }catch{} return next; });
     if(pendingPassengerId){
       setData(d=> ({ ...d, [pendingDir]: d[pendingDir].map(p => p.id===pendingPassengerId ? { ...p, name: rec.firstName + (rec.lastName? ' '+rec.lastName:''), company: rec.company, bodyWeight: rec.bodyWeight, bagWeight: rec.bagWeight, bagCount: rec.bagCount } : p) }));
     }
@@ -213,7 +212,7 @@ export default function FlightManifestTemplate() {
   useEffect(() => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); setAutoSaveState('Saved ' + new Date().toLocaleTimeString()); } catch { setAutoSaveState('Save failed'); }
+      try { storage.setJSON(STORAGE_KEY, data); setAutoSaveState('Saved ' + new Date().toLocaleTimeString()); } catch { setAutoSaveState('Save failed'); }
     }, 400);
     return () => clearTimeout(saveTimer.current);
   }, [data]);
@@ -254,8 +253,8 @@ export default function FlightManifestTemplate() {
       const shouldAuto = !current || AUTO_FLIGHT_REGEX.test(current);
       if(!shouldAuto) return d;
       // Use user profile location from Dashboard if available
-      let userLocation = '';
-      try { userLocation = localStorage.getItem('pobUserLocation') || ''; } catch {}
+  let userLocation = '';
+  try { userLocation = storage.get('pobUserLocation') || ''; } catch {}
       const locationForFlight = userLocation || d.meta.departure;
       const next = buildAutoFlightNumber(locationForFlight, d.meta.date, 1);
       if(next===current) return d;
@@ -294,10 +293,10 @@ export default function FlightManifestTemplate() {
   // Ingest selected personnel passed from Flights page (one-time)
   useEffect(()=>{
     try {
-      const raw = localStorage.getItem('manifestSelectedPersonnel');
+      const raw = storage.get('manifestSelectedPersonnel');
       if(!raw) return;
-      const list = JSON.parse(raw)||[]; if(!Array.isArray(list) || !list.length) { localStorage.removeItem('manifestSelectedPersonnel'); return; }
-      localStorage.removeItem('manifestSelectedPersonnel');
+      const list = JSON.parse(raw)||[]; if(!Array.isArray(list) || !list.length) { storage.remove('manifestSelectedPersonnel'); return; }
+      storage.remove('manifestSelectedPersonnel');
       setData(d=>{
         const outboundAdd=[]; const inboundAdd=[];
         const mkKey = (p) => ((p.name||'').trim().toLowerCase()+'|'+(p.company||'').trim().toLowerCase());

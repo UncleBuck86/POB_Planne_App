@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { sanitizeManifestForExport } from '../utils/privacy.js';
 import { useTheme } from '../ThemeContext.jsx';
+import { storage } from '../utils/storageAdapter';
 
 const CATALOG_KEY = 'flightManifestCatalogV1';
 
@@ -10,13 +11,13 @@ export default function FlightManifestView() {
   const parts = hash.replace('#','').split('/');
   // legacy pattern: ['manifest-view','<id>'] new: ['logistics','manifest-view','<id>']
   const id = parts[0]==='logistics' ? (parts[2]||'') : (parts[1]||'');
-  const [catalog, setCatalog] = useState(()=> { try { return JSON.parse(localStorage.getItem(CATALOG_KEY))||[]; } catch { return []; } });
-  useEffect(()=>{ try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch {/* ignore */} }, [catalog]);
+  const [catalog, setCatalog] = useState(()=> storage.getJSON(CATALOG_KEY, []));
+  useEffect(()=>{ try { storage.setJSON(CATALOG_KEY, catalog); } catch {/* ignore */} }, [catalog]);
   const entry = catalog.find(e=> e.id === id);
-  const [showWeights, setShowWeights] = useState(()=>{ try { return localStorage.getItem('manifestViewShowWeights') !== 'false'; } catch { return true; } });
-  useEffect(()=>{ try { localStorage.setItem('manifestViewShowWeights', showWeights? 'true':'false'); } catch {/* ignore */} }, [showWeights]);
+  const [showWeights, setShowWeights] = useState(()=> storage.getBool('manifestViewShowWeights', true));
+  useEffect(()=>{ try { storage.setBool('manifestViewShowWeights', !!showWeights); } catch {/* ignore */} }, [showWeights]);
   // Capacity badge (if aircraft type defined and limits exist)
-  const aircraftTypes = useMemo(()=> { try { return JSON.parse(localStorage.getItem('flightManifestAircraftTypes'))||[]; } catch { return []; } }, []);
+  const aircraftTypes = useMemo(()=> storage.getJSON('flightManifestAircraftTypes', []), []);
   const capacity = useMemo(()=>{
     if(!entry) return null;
     const type = aircraftTypes.find(a=> a.type === entry.meta?.aircraftType);
@@ -59,7 +60,7 @@ export default function FlightManifestView() {
 
   const editManifest = () => {
     try {
-      localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound }));
+      storage.setJSON('flightManifestTemplateV1', { meta: entry.meta, outbound: entry.outbound, inbound: entry.inbound });
     } catch {/* ignore */}
   window.location.hash = '#logistics/manifest';
   };

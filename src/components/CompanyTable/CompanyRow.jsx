@@ -26,10 +26,12 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById,
         } else if (changed) {
           bgColor = '#ffeeba';
         }
+        const isDark = theme.name === 'Dark';
+        const textColor = (isDark && (manuallyHighlighted || changed)) ? '#111' : theme.text;
         return (
           <td
             key={d.date}
-            style={{ minWidth: 80, width: 80, background: bgColor, color: theme.text, border: `1px solid ${borderColor}` }}
+            style={{ minWidth: 80, width: 80, background: bgColor, color: textColor, border: `1px solid ${borderColor}` }}
             onDoubleClick={() => {
               setManualHighlights(prev => {
                 const next = { ...prev };
@@ -42,7 +44,7 @@ export default function CompanyRow({ row, idx, dates, hiddenRows, lastSavedById,
               type="number"
               value={currVal === 0 ? '' : currVal}
               min={0}
-              style={{ width: '60px', textAlign: 'center', background: bgColor, color: theme.text, border: 'none' }}
+              style={{ width: '60px', textAlign: 'center', background: bgColor, color: textColor, border: 'none' }}
               ref={el => {
                 if (!inputRefs.current[idx]) inputRefs.current[idx] = [];
                 inputRefs.current[idx][colIdx] = el;

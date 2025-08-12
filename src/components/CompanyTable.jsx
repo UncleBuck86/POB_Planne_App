@@ -62,7 +62,12 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   // State hooks for undo/redo, highlights, autosave, modal, etc.
   const [undoStack, setUndoStack] = useState([]); // For undo history
   const [redoStack, setRedoStack] = useState([]); // For redo history
-  const [manualHighlights, setManualHighlights] = useState({}); // For cell highlights
+  const [manualHighlights, setManualHighlights] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pobManualHighlights')) || {}; } catch { return {}; }
+  }); // For cell highlights
+  useEffect(() => {
+    try { localStorage.setItem('pobManualHighlights', JSON.stringify(manualHighlights)); } catch { /* ignore */ }
+  }, [manualHighlights]);
   const [saveMsg, setSaveMsg] = useState(''); // For save status message
   const [localComments, setLocalComments] = useState(comments); // For comments row
   const [autosave, setAutosave] = useState(true); // Autosave toggle

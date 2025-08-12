@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { sanitizeManifestForExport } from '../utils/privacy.js';
 import { useTheme } from '../ThemeContext.jsx';
 import { storage } from '../utils/storageAdapter';
+import Field from '../components/forms/Field.jsx';
+import { TextInput, SelectInput, DateInput } from '../components/forms/inputs.jsx';
 
 const STORAGE_KEY = 'flightManifestTemplateV1';
 const CATALOG_KEY = 'flightManifestCatalogV1';
@@ -606,72 +608,88 @@ export default function FlightManifestTemplate() {
           </div>
         )}
         <div style={gridForm}>
-          {visibleFields.flightNumber && <Labeled label="Flight #"><input disabled={locked} value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>}
-          {visibleFields.date && <Labeled label="Date"><input disabled={locked} type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>}
-          {visibleFields.departure && <Labeled label="Departure">{
-            locationOptions.length ? (
-              <select disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)}>
-                <option value="">-- Select --</option>
-                {Array.from(new Set([...(locationOptions||[]), data.meta.departure].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
-              </select>
-            ) : (
-              <input disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" />
-            )
-          }</Labeled>}
-          {visibleFields.departureTime && <Labeled label="Departure Time"><input disabled={locked} value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Labeled>}
-          {visibleFields.arrival && <Labeled label="Arrival">{
-            locationOptions.length ? (
-              <select disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)}>
-                <option value="">-- Select --</option>
-                {Array.from(new Set([...(locationOptions||[]), data.meta.arrival].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
-              </select>
-            ) : (
-              <input disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" />
-            )
-          }</Labeled>}
-            {visibleFields.arrivalTime && <Labeled label="Arrival Time"><input disabled={locked} value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Labeled>}
-            {visibleFields.aircraftType && <Labeled label="Aircraft Type">{
-              aircraftTypes.length ? (
-                <select disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)}>
-                  <option value="">-- Select --</option>
-                  {aircraftTypes.map(t => t.type).filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
-                  {!aircraftTypes.find(a=>a.type===data.meta.aircraftType) && data.meta.aircraftType && <option value={data.meta.aircraftType}>{data.meta.aircraftType}</option>}
-                </select>
-              ) : (
-                <input disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
-              )
-            }
-            {(() => {
-              const sel = aircraftTypes.find(a=>a.type===data.meta.aircraftType);
-              if(!sel) return null;
-              const items = [];
-              if(sel.maxPax) items.push({ label:'Pax', value: sel.maxPax });
-              if(sel.maxOutboundWeight) items.push({ label:'OB Wt', value: sel.maxOutboundWeight });
-              if(sel.maxInboundWeight) items.push({ label:'IB Wt', value: sel.maxInboundWeight });
-              if(!items.length) return null;
-              return (
-                <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
-                  <span style={{ fontSize:12, fontWeight:600, opacity:.85 }}>Limits:</span>
-                  {items.map((it,i)=> (
-                    <span key={i} style={{
-                      fontSize:12,
-                      background: theme.name==='Dark'? '#39424a':'#dfe9f3',
-                      color: theme.name==='Dark'? '#fff':'#123',
-                      padding:'4px 8px',
-                      borderRadius:20,
-                      lineHeight:1,
-                      fontWeight:500,
-                      boxShadow:'0 1px 2px rgba(0,0,0,0.25)'
-                    }}>{it.label}: {it.value}</span>
-                  ))}
-                </div>
-              );
-            })()}
-            </Labeled>}
-            {visibleFields.tailNumber && <Labeled label="Tail #"><input disabled={locked} value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>}
-            {visibleFields.captain && <Labeled label="Captain"><input disabled={locked} value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>}
-            {visibleFields.coPilot && <Labeled label="Co-Pilot"><input disabled={locked} value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}
-            {visibleFields.dispatcher && <Labeled label="Dispatcher"><input disabled={locked} value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Labeled>}
+          {/* Reusable input refs for Enter/Shift+Enter navigation */}
+          {(() => {
+            const refs = {
+              flightNumber: React.createRef(),
+              date: React.createRef(),
+              departure: React.createRef(),
+              departureTime: React.createRef(),
+              arrival: React.createRef(),
+              arrivalTime: React.createRef(),
+              aircraftType: React.createRef(),
+              tailNumber: React.createRef(),
+              captain: React.createRef(),
+              coPilot: React.createRef(),
+              dispatcher: React.createRef(),
+            };
+            // Inputs imported at top
+            return (
+              <>
+                {visibleFields.flightNumber && <Field label="Flight #"><TextInput inputRef={refs.flightNumber} nextRef={refs.date} disabled={locked} value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Field>}
+                {visibleFields.date && <Field label="Date"><DateInput inputRef={refs.date} prevRef={refs.flightNumber} nextRef={refs.departure} disabled={locked} value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Field>}
+                {visibleFields.departure && (
+                  <Field label="Departure">
+                    {locationOptions.length ? (
+                      <SelectInput inputRef={refs.departure} prevRef={refs.date} nextRef={refs.departureTime} disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} options={Array.from(new Set([...(locationOptions||[]), data.meta.departure].filter(Boolean)))} />
+                    ) : (
+                      <TextInput inputRef={refs.departure} prevRef={refs.date} nextRef={refs.departureTime} disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" />
+                    )}
+                  </Field>
+                )}
+                {visibleFields.departureTime && <Field label="Departure Time"><TextInput inputRef={refs.departureTime} prevRef={refs.departure} nextRef={refs.arrival} disabled={locked} value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Field>}
+                {visibleFields.arrival && (
+                  <Field label="Arrival">
+                    {locationOptions.length ? (
+                      <SelectInput inputRef={refs.arrival} prevRef={refs.departureTime} nextRef={refs.arrivalTime} disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} options={Array.from(new Set([...(locationOptions||[]), data.meta.arrival].filter(Boolean)))} />
+                    ) : (
+                      <TextInput inputRef={refs.arrival} prevRef={refs.departureTime} nextRef={refs.arrivalTime} disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" />
+                    )}
+                  </Field>
+                )}
+                {visibleFields.arrivalTime && <Field label="Arrival Time"><TextInput inputRef={refs.arrivalTime} prevRef={refs.arrival} nextRef={refs.aircraftType} disabled={locked} value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Field>}
+                {visibleFields.aircraftType && (
+                  <Field label="Aircraft Type">
+                    {aircraftTypes.length ? (
+                      <SelectInput inputRef={refs.aircraftType} prevRef={refs.arrivalTime} nextRef={refs.tailNumber} disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} options={[...aircraftTypes.map(t=>t.type).filter(Boolean), ...(data.meta.aircraftType && !aircraftTypes.find(a=>a.type===data.meta.aircraftType)? [data.meta.aircraftType]: [])]} />
+                    ) : (
+                      <TextInput inputRef={refs.aircraftType} prevRef={refs.arrivalTime} nextRef={refs.tailNumber} disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
+                    )}
+                    {(() => {
+                      const sel = aircraftTypes.find(a=>a.type===data.meta.aircraftType);
+                      if(!sel) return null;
+                      const items = [];
+                      if(sel.maxPax) items.push({ label:'Pax', value: sel.maxPax });
+                      if(sel.maxOutboundWeight) items.push({ label:'OB Wt', value: sel.maxOutboundWeight });
+                      if(sel.maxInboundWeight) items.push({ label:'IB Wt', value: sel.maxInboundWeight });
+                      if(!items.length) return null;
+                      return (
+                        <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
+                          <span style={{ fontSize:12, fontWeight:600, opacity:.85 }}>Limits:</span>
+                          {items.map((it,i)=> (
+                            <span key={i} style={{
+                              fontSize:12,
+                              background: theme.name==='Dark'? '#39424a':'#dfe9f3',
+                              color: theme.name==='Dark'? '#fff':'#123',
+                              padding:'4px 8px',
+                              borderRadius:20,
+                              lineHeight:1,
+                              fontWeight:500,
+                              boxShadow:'0 1px 2px rgba(0,0,0,0.25)'
+                            }}>{it.label}: {it.value}</span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </Field>
+                )}
+                {visibleFields.tailNumber && <Field label="Tail #"><TextInput inputRef={refs.tailNumber} prevRef={refs.aircraftType} nextRef={refs.captain} disabled={locked} value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Field>}
+                {visibleFields.captain && <Field label="Captain"><TextInput inputRef={refs.captain} prevRef={refs.tailNumber} nextRef={refs.coPilot} disabled={locked} value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Field>}
+                {visibleFields.coPilot && <Field label="Co-Pilot"><TextInput inputRef={refs.coPilot} prevRef={refs.captain} nextRef={refs.dispatcher} disabled={locked} value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Field>}
+                {visibleFields.dispatcher && <Field label="Dispatcher"><TextInput inputRef={refs.dispatcher} prevRef={refs.coPilot} disabled={locked} value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Field>}
+              </>
+            );
+          })()}
         </div>
         <div style={{ display:'flex', gap:24, alignItems:'flex-start', marginTop:24 }}>
           <div style={{ flex:1 }}>
@@ -689,9 +707,9 @@ export default function FlightManifestTemplate() {
           </div>
           {visibleFields.notes && (
             <div style={{ flex:1 }}>
-              <Labeled label="Notes" full>
+              <Field label="Notes" full>
                 <textarea disabled={locked} rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
-              </Labeled>
+              </Field>
             </div>
           )}
         </div>

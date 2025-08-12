@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import Field from '../components/forms/Field.jsx';
+import { TextInput, PhoneInput } from '../components/forms/inputs.jsx';
 import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
 import { storage } from '../utils/storageAdapter';
@@ -385,44 +387,31 @@ export default function Personnel() {
           <button onClick={()=> setContactViewMode('table')} style={{ ...toggleBtn(theme, contactViewMode==='table') }}>Table</button>
         </div>
       </div>
-      {contactEditingId && (
-        <div style={{ marginBottom:18, padding:12, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, background: theme.surface, display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))' }}>
-          <div style={{ gridColumn:'1 / -1', fontSize:13, fontWeight:700 }}>{contactEditingId==='new'? 'Add Contact (contact-only, not in Personnel Database)': 'Edit Contact'}</div>
-          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
-            <span>First Name</span>
-            <input value={contactDraft.firstName} onChange={e=> setContactDraft(d=> ({...d, firstName:e.target.value}))} style={input(theme)} />
-          </label>
-          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
-            <span>Last Name</span>
-            <input value={contactDraft.lastName} onChange={e=> setContactDraft(d=> ({...d, lastName:e.target.value}))} style={input(theme)} />
-          </label>
-          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
-            <span>Company</span>
-            <input value={contactDraft.company} onChange={e=> setContactDraft(d=> ({...d, company:e.target.value}))} style={input(theme)} />
-          </label>
-          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
-            <span>Position</span>
-            <input value={contactDraft.position} onChange={e=> setContactDraft(d=> ({...d, position:e.target.value}))} style={input(theme)} />
-          </label>
-          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
-            <span>Primary Phone</span>
-            <input value={contactDraft.primaryPhone} onChange={e=> setContactDraft(d=> ({...d, primaryPhone:e.target.value}))} style={input(theme)} />
-          </label>
-          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
-            <span>Secondary Phone</span>
-            <input value={contactDraft.secondaryPhone} onChange={e=> setContactDraft(d=> ({...d, secondaryPhone:e.target.value}))} style={input(theme)} />
-          </label>
-          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
-            <span>Notes</span>
-            <textarea rows={2} value={contactDraft.notes} onChange={e=> setContactDraft(d=> ({...d, notes:e.target.value}))} style={{ ...input(theme), resize:'vertical' }} />
-          </label>
-          <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, marginTop:4 }}>
-            <button onClick={saveContact} style={btn(theme)}>Save</button>
-            <button onClick={cancelContactEdit} style={btn(theme)}>Cancel</button>
-            {contactEditingId!=='new' && <button onClick={()=> removeContact(contactEditingId)} style={{ ...btn(theme), background:'#922', borderColor:'#b55' }}>Delete</button>}
+      {contactEditingId && (() => {
+        const refs = {
+          first: React.createRef(), last: React.createRef(), company: React.createRef(), position: React.createRef(),
+          phone1: React.createRef(), phone2: React.createRef(), notes: React.createRef()
+        };
+        return (
+          <div style={{ marginBottom:18, padding:12, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, background: theme.surface, display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))' }}>
+            <div style={{ gridColumn:'1 / -1', fontSize:13, fontWeight:700 }}>{contactEditingId==='new'? 'Add Contact (contact-only, not in Personnel Database)': 'Edit Contact'}</div>
+            <Field label="First Name"><TextInput inputRef={refs.first} nextRef={refs.last} value={contactDraft.firstName} onChange={e=> setContactDraft(d=> ({...d, firstName:e.target.value}))} /></Field>
+            <Field label="Last Name"><TextInput inputRef={refs.last} prevRef={refs.first} nextRef={refs.company} value={contactDraft.lastName} onChange={e=> setContactDraft(d=> ({...d, lastName:e.target.value}))} /></Field>
+            <Field label="Company"><TextInput inputRef={refs.company} prevRef={refs.last} nextRef={refs.position} value={contactDraft.company} onChange={e=> setContactDraft(d=> ({...d, company:e.target.value}))} /></Field>
+            <Field label="Position"><TextInput inputRef={refs.position} prevRef={refs.company} nextRef={refs.phone1} value={contactDraft.position} onChange={e=> setContactDraft(d=> ({...d, position:e.target.value}))} /></Field>
+            <Field label="Primary Phone"><PhoneInput inputRef={refs.phone1} prevRef={refs.position} nextRef={refs.phone2} value={contactDraft.primaryPhone} onChange={e=> setContactDraft(d=> ({...d, primaryPhone:e.target.value}))} /></Field>
+            <Field label="Secondary Phone"><PhoneInput inputRef={refs.phone2} prevRef={refs.phone1} nextRef={refs.notes} value={contactDraft.secondaryPhone} onChange={e=> setContactDraft(d=> ({...d, secondaryPhone:e.target.value}))} /></Field>
+            <Field label="Notes" full>
+              <textarea ref={refs.notes} rows={2} value={contactDraft.notes} onChange={e=> setContactDraft(d=> ({...d, notes:e.target.value}))} style={{ background: theme.background, color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#bfc4ca':'#267'), padding:'6px 8px', borderRadius:6, resize:'vertical' }} />
+            </Field>
+            <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, marginTop:4 }}>
+              <button onClick={saveContact} style={btn(theme)}>Save</button>
+              <button onClick={cancelContactEdit} style={btn(theme)}>Cancel</button>
+              {contactEditingId!=='new' && <button onClick={()=> removeContact(contactEditingId)} style={{ ...btn(theme), background:'#922', borderColor:'#b55' }}>Delete</button>}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       {contactViewMode==='cards' && (
         <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fill,minmax(200px,240px))', justifyContent:'start' }}>
           {contactRecords.map(p=> (
@@ -914,14 +903,7 @@ export default function Personnel() {
   );
 }
 
-function Field({ label, children, full }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, gridColumn: full ? '1 / -1' : undefined }}>
-      <span style={{ fontWeight: 'bold' }}>{label}</span>
-      {children}
-    </label>
-  );
-}
+// Field component replaced by shared components/forms/Field.jsx
 
 const btn = (theme) => ({ background: theme.primary, color: theme.text, border: '1px solid ' + theme.secondary, padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' });
 // Use lighter neutral border in dark mode for better contrast (replaces blue outline in form)

@@ -1,6 +1,7 @@
 // CompanyTable.jsx
 // Main table component: manages state, layout, and connects all subcomponents
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { storage } from '../utils/storageAdapter';
 import TableControlsBar from './CompanyTable/TableControlsBar';
 import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../helpers/commentHelpers';
@@ -16,7 +17,7 @@ import TableConfigModal from './CompanyTable/TableConfigModal.jsx';
 export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef, todayKey, viewStart, viewEnd, themeOverride = {}, editing, setEditing }) {
   // Vertical zoom (scale rows visually). 1 = normal height
   const [zoom, setZoom] = useState(() => {
-    const stored = parseFloat(localStorage.getItem('pobZoom') || '1');
+    const stored = parseFloat(storage.get('pobZoom') || '1');
     return isNaN(stored) ? 1 : stored;
   });
   const minZoom = 0.6;   // allow shrinking
@@ -48,9 +49,7 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   }, [dates, autoHide, todayKey]);
   // frameHeight persistence removed
   // Persist zoom setting
-  useEffect(() => {
-    localStorage.setItem('pobZoom', String(zoom));
-  }, [zoom]);
+  useEffect(() => { storage.set('pobZoom', String(zoom)); }, [zoom]);
   // Auto-hide companies with no numbers in the next 28 days
   // Auto-hide logic removed; hiddenRows is now only controlled manually.
   const { theme } = useTheme ? useTheme() : { theme: { primary: '#388e3c', text: '#fff' } };
@@ -62,12 +61,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   // State hooks for undo/redo, highlights, autosave, modal, etc.
   const [undoStack, setUndoStack] = useState([]); // For undo history
   const [redoStack, setRedoStack] = useState([]); // For redo history
-  const [manualHighlights, setManualHighlights] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pobManualHighlights')) || {}; } catch { return {}; }
-  }); // For cell highlights
-  useEffect(() => {
-    try { localStorage.setItem('pobManualHighlights', JSON.stringify(manualHighlights)); } catch { /* ignore */ }
-  }, [manualHighlights]);
+  const [manualHighlights, setManualHighlights] = useState(() => storage.getJSON('pobManualHighlights', {})); // For cell highlights
+  useEffect(() => { storage.setJSON('pobManualHighlights', manualHighlights); }, [manualHighlights]);
   const [saveMsg, setSaveMsg] = useState(''); // For save status message
   const [localComments, setLocalComments] = useState(comments); // For comments row
   const [autosave, setAutosave] = useState(true); // Autosave toggle
@@ -80,35 +75,27 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [pinnedCompanies, setPinnedCompanies] = useState([]); // Array of pinned IDs
   const [hiddenRows, setHiddenRows] = useState([]); // Array of hidden IDs
   const [configOpen, setConfigOpen] = useState(false);
-  const [includeHiddenInTotals, setIncludeHiddenInTotals] = useState(() => {
-    try { return localStorage.getItem('pobIncludeHiddenInTotals') === 'true'; } catch { return false; }
-  });
-  useEffect(()=>{ try { localStorage.setItem('pobIncludeHiddenInTotals', includeHiddenInTotals ? 'true':'false'); } catch {} }, [includeHiddenInTotals]);
+  const [includeHiddenInTotals, setIncludeHiddenInTotals] = useState(() => storage.getBool('pobIncludeHiddenInTotals', false));
+  useEffect(()=>{ storage.setBool('pobIncludeHiddenInTotals', includeHiddenInTotals); }, [includeHiddenInTotals]);
   // Toggle for number input arrows (spinners); default off
-  const [showArrows, setShowArrows] = useState(() => {
-    try { return localStorage.getItem('pobShowNumberArrows') === 'true'; } catch { return false; }
-  });
-  useEffect(()=>{ try { localStorage.setItem('pobShowNumberArrows', showArrows ? 'true':'false'); } catch {} }, [showArrows]);
+  const [showArrows, setShowArrows] = useState(() => storage.getBool('pobShowNumberArrows', false));
+  useEffect(()=>{ storage.setBool('pobShowNumberArrows', showArrows); }, [showArrows]);
 
   // auto-fit logic removed
 
   // After ids exist, load persisted pinned/hidden (filter to existing ids)
   useEffect(() => {
     if (!rowData.every(r => r.id)) return; // wait until all have ids
-    const storedPinned = JSON.parse(localStorage.getItem('pobPinnedIds') || '[]');
-    const storedHidden = JSON.parse(localStorage.getItem('pobHiddenIds') || '[]');
+  const storedPinned = storage.getJSON('pobPinnedIds', []);
+  const storedHidden = storage.getJSON('pobHiddenIds', []);
     const ids = new Set(rowData.map(r => r.id));
     setPinnedCompanies(storedPinned.filter(id => ids.has(id)));
     setHiddenRows(storedHidden.filter(id => ids.has(id)));
   }, [rowData]);
 
   // Persist pinned & hidden changes
-  useEffect(() => {
-    localStorage.setItem('pobPinnedIds', JSON.stringify(pinnedCompanies));
-  }, [pinnedCompanies]);
-  useEffect(() => {
-    localStorage.setItem('pobHiddenIds', JSON.stringify(hiddenRows));
-  }, [hiddenRows]);
+  useEffect(() => { storage.setJSON('pobPinnedIds', pinnedCompanies); }, [pinnedCompanies]);
+  useEffect(() => { storage.setJSON('pobHiddenIds', hiddenRows); }, [hiddenRows]);
 
   // Prune pinned/hidden if rows removed
   useEffect(() => {
@@ -200,8 +187,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   // Effect: autosave table and comments to localStorage
   useEffect(() => {
     if (autosave) {
-      localStorage.setItem('pobPlannerData', JSON.stringify(rowData));
-      localStorage.setItem('pobPlannerComments', JSON.stringify(localComments));
+      storage.setJSON('pobPlannerData', rowData);
+      storage.setJSON('pobPlannerComments', localComments);
       setLastSavedData(rowData);
       setLastSavedComments(localComments);
     }
@@ -267,8 +254,8 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Manual save button
   const handleSave = () => {
-    localStorage.setItem('pobPlannerData', JSON.stringify(rowData));
-    localStorage.setItem('pobPlannerComments', JSON.stringify(localComments));
+  storage.setJSON('pobPlannerData', rowData);
+  storage.setJSON('pobPlannerComments', localComments);
     setLastSavedData(rowData);
     setLastSavedComments(localComments);
     setSaveMsg('Saved!');

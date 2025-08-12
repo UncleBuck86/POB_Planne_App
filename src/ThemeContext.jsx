@@ -1,6 +1,7 @@
 // ThemeContext.jsx
 // Provides theme state and switching for the app
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { storage } from './utils/storageAdapter';
 import { themePresets } from './themePresets';
 
 const ThemeContext = createContext();
@@ -8,68 +9,52 @@ const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   // Initialize from localStorage if present
-  const initialTeam = (() => {
-    try { return localStorage.getItem('pobTheme') || 'light'; } catch { return 'light'; }
-  })();
+  const initialTeam = storage.get('pobTheme') || 'light';
   const [team, setTeam] = useState(initialTeam);
   const [theme, setTheme] = useState(themePresets[initialTeam] || themePresets['light']);
-  const initialDensity = (() => {
-    try { return localStorage.getItem('pobDensity') || 'comfort'; } catch { return 'comfort'; }
-  })();
+  const initialDensity = storage.get('pobDensity') || 'comfort';
   const [density, setDensity] = useState(initialDensity);
-  const initialDateFormat = (() => {
-    try { return localStorage.getItem('pobDateFormat') || 'mdy'; } catch { return 'mdy'; }
-  })();
+  const initialDateFormat = storage.get('pobDateFormat') || 'mdy';
   const [dateFormat, setDateFormat] = useState(initialDateFormat);
-  const initialReadOnly = (() => {
-    try { return localStorage.getItem('pobReadOnly') === 'true'; } catch { return false; }
-  })();
+  const initialReadOnly = storage.getBool('pobReadOnly', false);
   const [readOnly, setReadOnly] = useState(initialReadOnly);
 
   const changeTheme = (themeName) => {
     const next = themePresets[themeName] ? themeName : 'light';
     setTeam(next);
     setTheme(themePresets[next]);
-    try { localStorage.setItem('pobTheme', next); } catch {/* ignore */}
+  storage.set('pobTheme', next);
   };
 
   const changeDensity = (d) => {
     const next = (d === 'compact' || d === 'comfort') ? d : 'comfort';
     setDensity(next);
-    try { localStorage.setItem('pobDensity', next); } catch {/* ignore */}
+  storage.set('pobDensity', next);
   };
 
   const changeDateFormat = (fmt) => {
     const next = (fmt === 'dmy' || fmt === 'mdy' || fmt === 'iso') ? fmt : 'mdy';
     setDateFormat(next);
-    try { localStorage.setItem('pobDateFormat', next); } catch {/* ignore */}
+  storage.set('pobDateFormat', next);
   };
 
   const changeReadOnly = (val) => {
     const next = !!val;
     setReadOnly(next);
-    try { localStorage.setItem('pobReadOnly', next ? 'true' : 'false'); } catch {/* ignore */}
+  storage.setBool('pobReadOnly', next);
   };
 
   // Keep localStorage in sync if team changes from elsewhere
-  useEffect(() => {
-    try { localStorage.setItem('pobTheme', team); } catch {/* ignore */}
-  }, [team]);
+  useEffect(() => { storage.set('pobTheme', team); }, [team]);
 
   // Keep density in sync
-  useEffect(() => {
-    try { localStorage.setItem('pobDensity', density); } catch {/* ignore */}
-  }, [density]);
+  useEffect(() => { storage.set('pobDensity', density); }, [density]);
 
   // Keep dateFormat in sync
-  useEffect(() => {
-    try { localStorage.setItem('pobDateFormat', dateFormat); } catch {/* ignore */}
-  }, [dateFormat]);
+  useEffect(() => { storage.set('pobDateFormat', dateFormat); }, [dateFormat]);
 
   // Keep readOnly in sync
-  useEffect(() => {
-    try { localStorage.setItem('pobReadOnly', readOnly ? 'true' : 'false'); } catch {/* ignore */}
-  }, [readOnly]);
+  useEffect(() => { storage.setBool('pobReadOnly', readOnly); }, [readOnly]);
 
   return (
   <ThemeContext.Provider value={{ theme, team, changeTheme, density, changeDensity, dateFormat, changeDateFormat, readOnly, changeReadOnly }}>

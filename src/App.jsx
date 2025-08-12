@@ -6,6 +6,7 @@ import { getAllDates } from './services/dateService';
 import { formatDate } from './helpers/dateHelpers';
 import { useTheme } from './ThemeContext.jsx';
 import { themePresets } from './themePresets';
+import { initialPobData, initialPobComments } from './data/seed.js';
 
 const today = new Date();
 const allDates = getAllDates(today.getFullYear());
@@ -19,18 +20,7 @@ defaultEnd.setDate(defaultEnd.getDate() + 28);
 const defaultStartStr = defaultStart.toISOString().split('T')[0];
 const defaultEndStr = defaultEnd.toISOString().split('T')[0];
 
-const initialPobData = [
-  { company: 'Operations', '8/7/2025': 19, '8/8/2025': 21, '8/9/2025': 23, '8/10/2025': 23 },
-  { company: 'ABS' },
-  { company: 'Audubon', '8/8/2025': 1, '8/9/2025': 1, '8/10/2025': 1 },
-  { company: 'Baileys', '8/7/2025': 3, '8/8/2025': 3, '8/9/2025': 3, '8/10/2025': 3 },
-  { company: 'BH Energy', '8/7/2025': 3, '8/8/2025': 3, '8/9/2025': 3, '8/10/2025': 3 },
-];
-
-const comments = {
-  '8/9/2025': 'Ops-Trey P and Taylor S',
-  '8/10/2025': 'Ops-Hayden T and Wendel K. Linear - Kent P headed in, Jared B Staying Out, Shell out to prove LACT',
-};
+// Seed data moved to data/seed.js
 
 function ThemeSelector() {
   const { team, changeTheme } = useTheme();
@@ -77,12 +67,16 @@ function AppContent(props) {
     setViewEnd(defaultEndStr);
   };
   const [rowData, setRowData] = useState(() => {
-    const saved = localStorage.getItem('pobPlannerData');
-    return saved ? JSON.parse(saved) : initialPobData;
+    try {
+      const saved = localStorage.getItem('pobPlannerData');
+      return saved ? JSON.parse(saved) : initialPobData;
+    } catch { return initialPobData; }
   });
   const [commentsState, setCommentsState] = useState(() => {
-    const saved = localStorage.getItem('pobPlannerComments');
-    return saved ? JSON.parse(saved) : comments;
+    try {
+      const saved = localStorage.getItem('pobPlannerComments');
+      return saved ? JSON.parse(saved) : initialPobComments;
+    } catch { return initialPobComments; }
   });
 
   const [flightsOut, setFlightsOut] = useState({});

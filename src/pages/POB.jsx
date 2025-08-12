@@ -4,6 +4,7 @@ import { useTheme } from '../ThemeContext.jsx';
 import CompanyTable from '../components/CompanyTable';
 import { getAllDates } from '../services/dateService';
 import { formatDate } from '../helpers/dateHelpers';
+import { initialPobData, initialPobComments } from '../data/seed.js';
 
 // POB (Persons On Board) Landing Page
 // Shows: Current Onboard Roster (derived from personnel records) & Bunk Assignments (editable placeholder)
@@ -26,8 +27,8 @@ export default function POBPage(){
     return dt >= new Date(viewStart) && dt <= new Date(viewEnd);
   }), [allDates, viewStart, viewEnd]);
   const todayColumnRef = useRef(null);
-  const [rowData, setRowData] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobPlannerData'))||[]; } catch { return []; } });
-  const [comments, setComments] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobPlannerComments'))||{}; } catch { return {}; } });
+  const [rowData, setRowData] = useState(()=>{ try { const s=localStorage.getItem('pobPlannerData'); return s? JSON.parse(s): initialPobData; } catch { return initialPobData; } });
+  const [comments, setComments] = useState(()=>{ try { const s=localStorage.getItem('pobPlannerComments'); return s? JSON.parse(s): initialPobComments; } catch { return initialPobComments; } });
   const [editingCompanies, setEditingCompanies] = useState(false);
   // Allow gear menu to open Edit Companies on POB page
   useEffect(()=>{

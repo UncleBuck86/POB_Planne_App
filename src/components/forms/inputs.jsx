@@ -16,22 +16,22 @@ function useEnterNav(nextRef, prevRef) {
   };
 }
 
-export function TextInput({ value, onChange, placeholder, disabled, nextRef, prevRef, inputRef, type='text', style }) {
+export function TextInput({ value, onChange, placeholder, disabled, nextRef, prevRef, inputRef, type='text', style, ...rest }) {
   const { theme } = useTheme();
   const ref = inputRef || useRef(null);
   const onKeyDown = useEnterNav(nextRef, prevRef);
   return (
     <input ref={ref} type={type} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled}
-      onKeyDown={onKeyDown} style={{ ...baseStyle(theme), ...style }} />
+      onKeyDown={onKeyDown} style={{ ...baseStyle(theme), ...style }} {...rest} />
   );
 }
 
-export function SelectInput({ value, onChange, options=[], disabled, nextRef, prevRef, inputRef, placeholder='-- Select --', style }) {
+export function SelectInput({ value, onChange, options=[], disabled, nextRef, prevRef, inputRef, placeholder='-- Select --', style, ...rest }) {
   const { theme } = useTheme();
   const ref = inputRef || useRef(null);
   const onKeyDown = useEnterNav(nextRef, prevRef);
   return (
-    <select ref={ref} value={value} onChange={onChange} disabled={disabled} onKeyDown={onKeyDown} style={{ ...baseStyle(theme), ...style }}>
+    <select ref={ref} value={value} onChange={onChange} disabled={disabled} onKeyDown={onKeyDown} style={{ ...baseStyle(theme), ...style }} {...rest}>
       <option value="">{placeholder}</option>
       {options.map(opt => typeof opt === 'string' ? (
         <option key={opt} value={opt}>{opt}</option>
@@ -62,7 +62,7 @@ function formatPhone(raw=''){
   return (cc+out).trim();
 }
 
-export function PhoneInput({ value, onChange, disabled, nextRef, prevRef, inputRef, placeholder='(###) ###-####', style }){
+export function PhoneInput({ value, onChange, disabled, nextRef, prevRef, inputRef, placeholder='(###) ###-####', style, ...rest }){
   const { theme } = useTheme();
   const ref = inputRef || useRef(null);
   const onKeyDown = useEnterNav(nextRef, prevRef);
@@ -78,6 +78,6 @@ export function PhoneInput({ value, onChange, disabled, nextRef, prevRef, inputR
     // no-op, formatting is pure
   }, [value]);
   return (
-    <input ref={ref} value={value} onChange={handleChange} placeholder={placeholder} disabled={disabled} onKeyDown={onKeyDown} style={{ ...baseStyle(theme), ...style }} />
+    <input ref={ref} value={value} onChange={handleChange} placeholder={placeholder} disabled={disabled} onKeyDown={onKeyDown} style={{ ...baseStyle(theme), ...style }} {...rest} />
   );
 }

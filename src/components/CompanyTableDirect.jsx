@@ -2,17 +2,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../ThemeContext.jsx';
 import CompanyRowDirect from './CompanyTable/CompanyRowDirect.jsx';
-import { getAllDates, formatByPreference } from '../utils/dateUtils';
-import { storage } from '../utils/storageAdapter';
+import { getAllDates } from '../utils/dateUtils';
 
 export default function CompanyTableDirect() {
-  const { theme, dateFormat } = useTheme();
+  const { theme } = useTheme();
   // Pull existing planner data structure; fallback gracefully.
   const load = () => {
     try {
-      const parsed = storage.getJSON('pobPlannerData', []);
+      const raw = localStorage.getItem('pobPlannerData');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      // Support both array-of-rows and object with companies field
       if (Array.isArray(parsed)) return parsed;
-      if (parsed && Array.isArray(parsed.companies)) return parsed.companies;
+      if (Array.isArray(parsed.companies)) return parsed.companies;
       return [];
     } catch { return []; }
   };
@@ -59,7 +61,7 @@ export default function CompanyTableDirect() {
   , [rows]);
 
   const save = () => {
-    try { storage.setJSON('pobPlannerData', rows); } catch {}
+    try { localStorage.setItem('pobPlannerData', JSON.stringify(rows)); } catch {}
   };
 
   const borderColor = theme.name === 'Dark' ? '#bfc4ca40' : '#444';
@@ -89,7 +91,7 @@ export default function CompanyTableDirect() {
             <tr>
               <th style={{ width:160, minWidth:160, maxWidth:160, position:'sticky', top:0, left:0, zIndex:6, background:theme.surface, color:theme.text, padding:'4px 6px', textAlign:'left', border:`1px solid ${borderCore}`, whiteSpace:'nowrap' }}>Company</th>
               {visibleDates.map(d => (
-                <th key={d.date} style={{ width:80, minWidth:80, maxWidth:80, position:'sticky', top:0, zIndex:5, background:theme.surface, color:theme.text, padding:'4px 4px', textAlign:'center', border:`1px solid ${borderColor}`, whiteSpace:'nowrap' }}>{formatByPreference(d.date, dateFormat)}</th>
+                <th key={d.date} style={{ width:80, minWidth:80, maxWidth:80, position:'sticky', top:0, zIndex:5, background:theme.surface, color:theme.text, padding:'4px 4px', textAlign:'center', border:`1px solid ${borderColor}`, whiteSpace:'nowrap' }}>{d.labelShort || d.label || d.date}</th>
               ))}
             </tr>
           </thead>

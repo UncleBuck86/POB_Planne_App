@@ -6,22 +6,33 @@ import { getAllDates } from './services/dateService';
 import { formatDate } from './helpers/dateHelpers';
 import { useTheme } from './ThemeContext.jsx';
 import { themePresets } from './themePresets';
-import { initialPobData, initialPobComments } from './data/seed.js';
-import { storage } from './utils/storageAdapter';
 
 const today = new Date();
 const allDates = getAllDates(today.getFullYear());
 const todayStr = formatDate(today); // YYYY-MM-DD
 const todayKey = (today.getMonth()+1) + '/' + today.getDate() + '/' + today.getFullYear(); // matches table date keys
 
-const defaultStart = new Date(today); // start at today
-const defaultEnd = new Date(today);   // end at today + 28
+const defaultStart = new Date(today);
+defaultStart.setDate(defaultStart.getDate() - 7);
+
+const defaultEnd = new Date(today);
 defaultEnd.setDate(defaultEnd.getDate() + 28);
 
 const defaultStartStr = defaultStart.toISOString().split('T')[0];
 const defaultEndStr = defaultEnd.toISOString().split('T')[0];
 
-// Seed data moved to data/seed.js
+const initialPobData = [
+  { company: 'Operations', '8/7/2025': 19, '8/8/2025': 21, '8/9/2025': 23, '8/10/2025': 23 },
+  { company: 'ABS' },
+  { company: 'Audubon', '8/8/2025': 1, '8/9/2025': 1, '8/10/2025': 1 },
+  { company: 'Baileys', '8/7/2025': 3, '8/8/2025': 3, '8/9/2025': 3, '8/10/2025': 3 },
+  { company: 'BH Energy', '8/7/2025': 3, '8/8/2025': 3, '8/9/2025': 3, '8/10/2025': 3 },
+];
+
+const comments = {
+  '8/9/2025': 'Ops-Trey P and Taylor S',
+  '8/10/2025': 'Ops-Hayden T and Wendel K. Linear - Kent P headed in, Jared B Staying Out, Shell out to prove LACT',
+};
 
 function ThemeSelector() {
   const { team, changeTheme } = useTheme();
@@ -67,8 +78,14 @@ function AppContent(props) {
     setViewStart(defaultStartStr);
     setViewEnd(defaultEndStr);
   };
-  const [rowData, setRowData] = useState(() => storage.getJSON('pobPlannerData', initialPobData));
-  const [commentsState, setCommentsState] = useState(() => storage.getJSON('pobPlannerComments', initialPobComments));
+  const [rowData, setRowData] = useState(() => {
+    const saved = localStorage.getItem('pobPlannerData');
+    return saved ? JSON.parse(saved) : initialPobData;
+  });
+  const [commentsState, setCommentsState] = useState(() => {
+    const saved = localStorage.getItem('pobPlannerComments');
+    return saved ? JSON.parse(saved) : comments;
+  });
 
   const [flightsOut, setFlightsOut] = useState({});
   const [flightsIn, setFlightsIn] = useState({});
@@ -105,9 +122,6 @@ function AppContent(props) {
   return (
   <div style={{ background: team === 'dark' ? theme.background : theme.background, color: theme.text, minHeight: '100vh' }}>
   {/* Unified settings handled by global nav gear */}
-      <div style={{ position: 'fixed', top: 10, left: 60, color: 'yellow', fontWeight: 'bold', fontSize: '14px', letterSpacing: '1px', textShadow: '0 0 4px rgba(0,0,0,0.6)' }}>
-  v5.1
-      </div>
       <h1 style={{ 
         color: team === 'dark' ? theme.text : theme.primary,
         background: team === 'dark' ? theme.background : theme.secondary,

@@ -1,94 +1,37 @@
-import { storage } from './storageAdapter';
 export const GRID_SIZE = 20;
 export const layoutKey = 'dashboardWidgetLayoutV1';
 export const visibilityKey = 'dashboardWidgetVisibilityV1';
-export const customDefaultKey = 'dashboardCustomDefaultLayoutV1';
 
 export const defaultLayout = {
-  // Left column stack to avoid horizontal overlap on typical screens
   nav: { x: 20, y: 20 },
-  forecast: { x: 20, y: 120 },
-  // Place Flight Forecast below POB Forecast to avoid overlapping widths
-  flightForecast: { x: 20, y: 360 },
-  // Onboard below forecasts
-  onboard: { x: 20, y: 560 },
-  // Crew/company counts below onboard to avoid overlap
-  pobCompanies: { x: 20, y: 900 },
-  // Snapshot table at the bottom of the stack by default
-  pobCompaniesForecast: { x: 20, y: 1100 },
-  // New widgets stacked further down
-  weather: { x: 20, y: 1320 },
-  flightStatus: { x: 20, y: 1480 },
-  crewCountdown: { x: 20, y: 1640 },
-  pobTrend: { x: 20, y: 1820 },
-  alerts: { x: 20, y: 2080 },
-  quickActions: { x: 20, y: 2220 },
-  contractorMix: { x: 20, y: 2380 },
-  map: { x: 20, y: 2560 }
+  forecast: { x: 20, y: 160 },
+  flightForecast: { x: 340, y: 160 },
+  onboard: { x: 20, y: 360 },
+  pobCompanies: { x: 340, y: 360 }
 };
 
-export const defaultVisibility = {
-  nav: true,
-  forecast: true,
-  flightForecast: true,
-  onboard: true,
-  pobCompanies: true,
-  pobCompaniesForecast: false,
-  weather: true,
-  flightStatus: false,
-  crewCountdown: true,
-  pobTrend: true,
-  alerts: true,
-  quickActions: true,
-  contractorMix: true,
-  map: false
-};
-
-// Effective default: allow user-saved custom default to override positions
-export function getDefaultLayout() {
-  try {
-    // Prefer system default injected at startup (from public/dashboard-default-layout.json)
-    if (typeof window !== 'undefined' && window.__dashboardDefaultLayout) {
-      const sys = window.__dashboardDefaultLayout.layout || window.__dashboardDefaultLayout;
-      if (sys && typeof sys === 'object') return { ...defaultLayout, ...sys };
-    }
-    const custom = storage.getJSON(customDefaultKey);
-    if (custom && typeof custom === 'object') {
-      return { ...defaultLayout, ...custom };
-    }
-  } catch { /* ignore */ }
-  return defaultLayout;
-}
+export const defaultVisibility = { nav: true, forecast: true, flightForecast: true, onboard: true, pobCompanies: true };
 
 export function loadLayout() {
   try {
-  const baseDefault = getDefaultLayout();
-  const stored = storage.getJSON(layoutKey);
-  return stored ? { ...baseDefault, ...stored } : baseDefault;
+    const stored = JSON.parse(localStorage.getItem(layoutKey));
+    return stored ? { ...defaultLayout, ...stored } : defaultLayout;
   } catch { return defaultLayout; }
 }
 export function saveLayout(layout) {
-  try { storage.setJSON(layoutKey, layout); } catch {}
+  try { localStorage.setItem(layoutKey, JSON.stringify(layout)); } catch {}
   emitPassive('WIDGET_MOVED', { ids: Object.keys(layout||{}) });
 }
 
 export function loadVisibility() {
   try {
-    const stored = storage.getJSON(visibilityKey);
+    const stored = JSON.parse(localStorage.getItem(visibilityKey));
     return stored ? { ...defaultVisibility, ...stored } : defaultVisibility;
   } catch { return defaultVisibility; }
 }
 export function saveVisibility(v) {
-  try { storage.setJSON(visibilityKey, v); } catch {}
+  try { localStorage.setItem(visibilityKey, JSON.stringify(v)); } catch {}
   emitPassive('VISIBILITY_CHANGED', { visible: v });
-}
-
-export function saveCustomDefaultLayout(layout) {
-  try { storage.setJSON(customDefaultKey, layout); } catch {}
-}
-
-export function clearCustomDefaultLayout() {
-  try { storage.remove(customDefaultKey); } catch {}
 }
 
 // Fire passive AI events (lazy import to avoid hard dependency at module load)

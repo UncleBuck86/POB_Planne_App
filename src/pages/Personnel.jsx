@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import Field from '../components/forms/Field.jsx';
-import { TextInput, PhoneInput, SelectInput, DateInput } from '../components/forms/inputs.jsx';
 import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
-import { storage } from '../utils/storageAdapter';
 
-/* Personnel record shape (persisted locally under 'personnelRecords')
+/* Personnel record shape (persisted in localStorage under 'personnelRecords')
 {
   id: string (uuid-ish),
   firstName: string,
@@ -29,13 +26,13 @@ const STORAGE_KEY = 'personnelRecords';
 const CONTACTS_KEY = 'personnelContactOnlyRecords';
 
 function loadRecords() {
-  try { return storage.getJSON(STORAGE_KEY, []) || []; } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
 }
-function saveRecords(recs) { storage.setJSON(STORAGE_KEY, recs); }
+function saveRecords(recs) { localStorage.setItem(STORAGE_KEY, JSON.stringify(recs)); }
 function loadContactOnly() {
-  try { return storage.getJSON(CONTACTS_KEY, []) || []; } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(CONTACTS_KEY)) || []; } catch { return []; }
 }
-function saveContactOnly(recs) { storage.setJSON(CONTACTS_KEY, recs); }
+function saveContactOnly(recs) { localStorage.setItem(CONTACTS_KEY, JSON.stringify(recs)); }
 
 const blank = () => ({
   id: 'p_' + Math.random().toString(36).slice(2,9),
@@ -69,7 +66,7 @@ export default function Personnel() {
   const [search, setSearch] = useState('');
   // Persistent location filter
   const initialLocFilter = (() => {
-    try { return storage.get('personnelLocationFilter') || 'all'; } catch { return 'all'; }
+    try { return localStorage.getItem('personnelLocationFilter') || 'all'; } catch { return 'all'; }
   })();
   const [locationFilter, setLocationFilter] = useState(initialLocFilter);
   const [editingId, setEditingId] = useState(null);
@@ -78,13 +75,13 @@ export default function Personnel() {
   // Company options sourced automatically from POB planner companies
   const [companyOptions, setCompanyOptions] = useState(() => {
     try {
-      const data = storage.getJSON('pobPlannerData', []) || [];
+      const data = JSON.parse(localStorage.getItem('pobPlannerData')) || [];
       return [...new Set(data.map(r => (r.company || '').trim()).filter(Boolean))].sort();
     } catch { return []; }
   });
   // Admin-managed option lists
   const loadList = (key) => {
-    try { return storage.getJSON(key, []) || []; } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
   };
   const [crewOptions, setCrewOptions] = useState(() => loadList('personnelCrewOptions'));
   const [locationOptions, setLocationOptions] = useState(() => loadList('personnelLocationOptions'));
@@ -100,24 +97,24 @@ export default function Personnel() {
 
   useEffect(() => { saveRecords(records); }, [records]);
   useEffect(() => { saveContactOnly(contactOnlyRecords); }, [contactOnlyRecords]);
-  useEffect(() => { storage.setJSON('personnelCrewOptions', crewOptions); }, [crewOptions]);
-  useEffect(() => { storage.setJSON('personnelLocationOptions', locationOptions); }, [locationOptions]);
-  useEffect(() => { storage.setJSON('personnelRotationOptions', rotationOptions); }, [rotationOptions]);
+  useEffect(() => { localStorage.setItem('personnelCrewOptions', JSON.stringify(crewOptions)); }, [crewOptions]);
+  useEffect(() => { localStorage.setItem('personnelLocationOptions', JSON.stringify(locationOptions)); }, [locationOptions]);
+  useEffect(() => { localStorage.setItem('personnelRotationOptions', JSON.stringify(rotationOptions)); }, [rotationOptions]);
   // Keep textareas in sync if lists change externally
   useEffect(() => { setCrewOptionsText(crewOptions.join('\n')); }, [crewOptions]);
   useEffect(() => { setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
   useEffect(() => { setRotationOptionsText(rotationOptions.join('\n')); }, [rotationOptions]);
-  useEffect(() => { storage.set('personnelLocationFilter', locationFilter); }, [locationFilter]);
+  useEffect(() => { localStorage.setItem('personnelLocationFilter', locationFilter); }, [locationFilter]);
   // Refresh company options when storage changes (other tab) or periodically while on page
   useEffect(() => {
     const load = () => {
       try {
-        const data = storage.getJSON('pobPlannerData', []) || [];
+        const data = JSON.parse(localStorage.getItem('pobPlannerData')) || [];
         const opts = [...new Set(data.map(r => (r.company || '').trim()).filter(Boolean))].sort();
         setCompanyOptions(opts);
       } catch { /* ignore */ }
     };
-  const onStorage = (e) => { if (e.key === 'pobPlannerData') load(); };
+    const onStorage = (e) => { if (e.key === 'pobPlannerData') load(); };
     window.addEventListener('storage', onStorage);
     // Also poll lightly in-case same-tab edits happen without route change
     const interval = setInterval(load, 5000);
@@ -310,9 +307,9 @@ export default function Personnel() {
   }, [records, crewOptions]);
   const [crewViewMode, setCrewViewMode] = useState('cards'); // 'cards' | 'table'
   const [contactViewMode, setContactViewMode] = useState(() => { // 'cards' | 'table'
-    try { return storage.get('personnelContactViewMode') || 'cards'; } catch { return 'cards'; }
+    try { return localStorage.getItem('personnelContactViewMode') || 'cards'; } catch { return 'cards'; }
   });
-  useEffect(()=> { try { storage.set('personnelContactViewMode', contactViewMode); } catch {} }, [contactViewMode]);
+  useEffect(()=> { try { localStorage.setItem('personnelContactViewMode', contactViewMode); } catch {} }, [contactViewMode]);
   // --- Crew Drag & Drop State ---
   const [dragCrewPersonId, setDragCrewPersonId] = useState(null);
   const [dragOverCrew, setDragOverCrew] = useState(null);
@@ -387,39 +384,48 @@ export default function Personnel() {
           <button onClick={()=> setContactViewMode('table')} style={{ ...toggleBtn(theme, contactViewMode==='table') }}>Table</button>
         </div>
       </div>
-      {contactEditingId && (() => {
-        const refs = {
-          first: React.createRef(), last: React.createRef(), company: React.createRef(), position: React.createRef(),
-          phone1: React.createRef(), phone2: React.createRef(), notes: React.createRef()
-        };
-        return (
-          <div style={{ marginBottom:18, padding:12, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, background: theme.surface, display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))' }}>
-            <div style={{ gridColumn:'1 / -1', fontSize:13, fontWeight:700 }}>{contactEditingId==='new'? 'Add Contact (contact-only, not in Personnel Database)': 'Edit Contact'}</div>
-            <Field label="First Name" required error={!contactDraft.firstName?.trim()? 'Required':''}><TextInput inputRef={refs.first} nextRef={refs.last} value={contactDraft.firstName} onChange={e=> setContactDraft(d=> ({...d, firstName:e.target.value}))} /></Field>
-            <Field label="Last Name" required error={!contactDraft.lastName?.trim()? 'Required':''}><TextInput inputRef={refs.last} prevRef={refs.first} nextRef={refs.company} value={contactDraft.lastName} onChange={e=> setContactDraft(d=> ({...d, lastName:e.target.value}))} /></Field>
-            <Field label="Company"><TextInput inputRef={refs.company} prevRef={refs.last} nextRef={refs.position} value={contactDraft.company} onChange={e=> setContactDraft(d=> ({...d, company:e.target.value}))} /></Field>
-            <Field label="Position"><TextInput inputRef={refs.position} prevRef={refs.company} nextRef={refs.phone1} value={contactDraft.position} onChange={e=> setContactDraft(d=> ({...d, position:e.target.value}))} /></Field>
-            <Field label="Primary Phone"><PhoneInput inputRef={refs.phone1} prevRef={refs.position} nextRef={refs.phone2} value={contactDraft.primaryPhone} onChange={e=> setContactDraft(d=> ({...d, primaryPhone:e.target.value}))} /></Field>
-            <Field label="Secondary Phone"><PhoneInput inputRef={refs.phone2} prevRef={refs.phone1} nextRef={refs.notes} value={contactDraft.secondaryPhone} onChange={e=> setContactDraft(d=> ({...d, secondaryPhone:e.target.value}))} /></Field>
-            <Field label="Notes" full>
-              <textarea ref={refs.notes} rows={2} value={contactDraft.notes} onChange={e=> setContactDraft(d=> ({...d, notes:e.target.value}))} style={{ background: theme.background, color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#bfc4ca':'#267'), padding:'6px 8px', borderRadius:6, resize:'vertical' }} />
-            </Field>
-            <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, marginTop:4 }}>
-              <button onClick={saveContact} style={btn(theme)}>Save</button>
-              <button onClick={cancelContactEdit} style={btn(theme)}>Cancel</button>
-              {contactEditingId!=='new' && <button onClick={()=> removeContact(contactEditingId)} style={{ ...btn(theme), background:'#922', borderColor:'#b55' }}>Delete</button>}
-            </div>
+      {contactEditingId && (
+        <div style={{ marginBottom:18, padding:12, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, background: theme.surface, display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))' }}>
+          <div style={{ gridColumn:'1 / -1', fontSize:13, fontWeight:700 }}>{contactEditingId==='new'? 'Add Contact (contact-only, not in Personnel Database)': 'Edit Contact'}</div>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>First Name</span>
+            <input value={contactDraft.firstName} onChange={e=> setContactDraft(d=> ({...d, firstName:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Last Name</span>
+            <input value={contactDraft.lastName} onChange={e=> setContactDraft(d=> ({...d, lastName:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Company</span>
+            <input value={contactDraft.company} onChange={e=> setContactDraft(d=> ({...d, company:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Position</span>
+            <input value={contactDraft.position} onChange={e=> setContactDraft(d=> ({...d, position:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Primary Phone</span>
+            <input value={contactDraft.primaryPhone} onChange={e=> setContactDraft(d=> ({...d, primaryPhone:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Secondary Phone</span>
+            <input value={contactDraft.secondaryPhone} onChange={e=> setContactDraft(d=> ({...d, secondaryPhone:e.target.value}))} style={input(theme)} />
+          </label>
+          <label style={{ display:'flex', flexDirection:'column', gap:4, fontSize:12 }}>
+            <span>Notes</span>
+            <textarea rows={2} value={contactDraft.notes} onChange={e=> setContactDraft(d=> ({...d, notes:e.target.value}))} style={{ ...input(theme), resize:'vertical' }} />
+          </label>
+          <div style={{ gridColumn:'1 / -1', display:'flex', gap:8, marginTop:4 }}>
+            <button onClick={saveContact} style={btn(theme)}>Save</button>
+            <button onClick={cancelContactEdit} style={btn(theme)}>Cancel</button>
+            {contactEditingId!=='new' && <button onClick={()=> removeContact(contactEditingId)} style={{ ...btn(theme), background:'#922', borderColor:'#b55' }}>Delete</button>}
           </div>
-        );
-      })()}
+        </div>
+      )}
       {contactViewMode==='cards' && (
         <div style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(auto-fill,minmax(200px,240px))', justifyContent:'start' }}>
           {contactRecords.map(p=> (
-            <div key={p.id}
-              role="button"
-              tabIndex={0}
-              onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }}
-              onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} } }}
+            <div key={p.id} onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }}
               style={{ background: theme.surface, border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, padding:'10px 12px', fontSize:12, cursor:'copy', display:'flex', flexDirection:'column', gap:4, boxShadow:'0 2px 6px rgba(0,0,0,0.25)' }} title="Click to copy name & primary phone">
               <div style={{ fontWeight:700, display:'flex', alignItems:'center', flexWrap:'wrap', gap:6 }}>
                 <span>{p.firstName} {p.lastName}</span>
@@ -451,12 +457,7 @@ export default function Personnel() {
             </thead>
             <tbody>
               {contactRecords.map((p,i)=> (
-                <tr key={p.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }}
-                  onKeyDown={(e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} } }}
-                  style={{ background: i%2? (theme.name==='Dark'? '#2a3035':'#f5f8fa'):'transparent', cursor:'copy' }} title="Click to copy name & primary phone">
+                <tr key={p.id} onClick={()=> { const txt=p.firstName+' '+p.lastName+' '+(p.primaryPhone||''); try { navigator.clipboard.writeText(txt); } catch{} }} style={{ background: i%2? (theme.name==='Dark'? '#2a3035':'#f5f8fa'):'transparent', cursor:'copy' }} title="Click to copy name & primary phone">
                   <td style={crewTd(theme)}>{p.firstName}</td>
                   <td style={crewTd(theme)}>{p.lastName}</td>
                   <td style={crewTd(theme)}>{p.company}</td>
@@ -677,80 +678,71 @@ export default function Personnel() {
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
-            {(() => {
-              const r = {
-                first: React.createRef(), last: React.createRef(), company: React.createRef(), body: React.createRef(), bag: React.createRef(), bags: React.createRef(),
-                loc: React.createRef(), pos: React.createRef(), crew: React.createRef(), rot: React.createRef(), arr: React.createRef(), dep: React.createRef(), dob: React.createRef(),
-                core: React.createRef(), p1: React.createRef(), p2: React.createRef(), addr: React.createRef(), status: React.createRef(), notes: React.createRef()
-              };
-              return (
-                <>
-                  <Field label="First Name"><TextInput inputRef={r.first} nextRef={r.last} value={draft.firstName} onChange={e => setDraft({ ...draft, firstName: e.target.value })} /></Field>
-                  <Field label="Last Name"><TextInput inputRef={r.last} prevRef={r.first} nextRef={r.company} value={draft.lastName} onChange={e => setDraft({ ...draft, lastName: e.target.value })} /></Field>
-                  <Field label="Company">
-                    <TextInput inputRef={r.company} prevRef={r.last} nextRef={r.body} list="companyOptionsList" value={draft.company} onChange={e => setDraft({ ...draft, company: e.target.value })} placeholder={companyOptions.length ? 'Start typing to select' : ''} />
-                    {companyOptions.length > 0 && (
-                      <datalist id="companyOptionsList">
-                        {companyOptions.map(c => <option key={c} value={c} />)}
-                      </datalist>
-                    )}
-                  </Field>
-                  <Field label="Body Weight (lb)"><TextInput inputRef={r.body} prevRef={r.company} nextRef={r.bag} value={draft.bodyWeight} onChange={e => setDraft({ ...draft, bodyWeight: e.target.value.replace(/[^0-9.]/g,'') })} placeholder="e.g. 185" /></Field>
-                  <Field label="Bag Weight (lb)"><TextInput inputRef={r.bag} prevRef={r.body} nextRef={r.bags} value={draft.bagWeight} onChange={e => setDraft({ ...draft, bagWeight: e.target.value.replace(/[^0-9.]/g,'') })} placeholder="e.g. 35" /></Field>
-                  <Field label="# Bags"><TextInput inputRef={r.bags} prevRef={r.bag} nextRef={r.loc} value={draft.bagCount} onChange={e => setDraft({ ...draft, bagCount: e.target.value.replace(/[^0-9]/g,'') })} placeholder="e.g. 2" /></Field>
-                  <Field label="Location">
-                    {locationOptions.length ? (
-                      <SelectInput inputRef={r.loc} prevRef={r.bags} nextRef={r.pos} value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} options={locationOptions} placeholder="-- Select Location --" />
-                    ) : (
-                      <TextInput inputRef={r.loc} prevRef={r.bags} nextRef={r.pos} value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} placeholder="Define locations in Manage Lists" />
-                    )}
-                  </Field>
-                  <Field label="Position"><TextInput inputRef={r.pos} prevRef={r.loc} nextRef={r.crew} value={draft.position} onChange={e => setDraft({ ...draft, position: e.target.value })} /></Field>
-                  <Field label="Crew">
-                    {crewOptions.length ? (
-                      <SelectInput inputRef={r.crew} prevRef={r.pos} nextRef={r.rot} value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} options={crewOptions} placeholder="-- Select Crew --" />
-                    ) : (
-                      <TextInput inputRef={r.crew} prevRef={r.pos} nextRef={r.rot} value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} placeholder="Define crews in Manage Lists" />
-                    )}
-                  </Field>
-                  <Field label="Rotation">
-                    {rotationOptions.length ? (
-                      <SelectInput inputRef={r.rot} prevRef={r.crew} nextRef={r.arr} value={draft.rotation} onChange={e => setDraft({ ...draft, rotation: e.target.value })} options={rotationOptions} placeholder="-- Select Rotation --" />
-                    ) : (
-                      <TextInput inputRef={r.rot} prevRef={r.crew} nextRef={r.arr} value={draft.rotation} onChange={e => setDraft({ ...draft, rotation: e.target.value })} placeholder="Define rotations in Manage Lists" />
-                    )}
-                  </Field>
-                  <Field label="Arrival Date"><DateInput inputRef={r.arr} prevRef={r.rot} nextRef={r.dep} value={draft.arrivalDate} onChange={e => setDraft({ ...draft, arrivalDate: e.target.value })} /></Field>
-                  <Field label="Departure Date"><DateInput inputRef={r.dep} prevRef={r.arr} nextRef={r.dob} value={draft.departureDate} onChange={e => setDraft({ ...draft, departureDate: e.target.value })} /></Field>
-                  <Field label="DOB"><DateInput inputRef={r.dob} prevRef={r.dep} nextRef={r.core} disabled={!draft.coreCrew} value={draft.dob} onChange={e => setDraft({ ...draft, dob: e.target.value })} style={{ opacity: draft.coreCrew ? 1 : 0.5 }} /></Field>
-                  <Field label="Core Crew">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input ref={r.core} type="checkbox" checked={!!draft.coreCrew} onChange={e => {
-                        const checked = e.target.checked;
-                        setDraft(d => ({
-                          ...d,
-                          coreCrew: checked,
-                          primaryPhone: checked ? d.primaryPhone : '',
-                          secondaryPhone: checked ? d.secondaryPhone : '',
-                          address: checked ? d.address : '',
-                          dob: checked ? d.dob : ''
-                        }));
-                      }} style={{ transform: 'scale(1.2)' }} />
-                      <span style={{ fontSize: 12 }}>Enable contact details</span>
-                    </div>
-                  </Field>
-                  <Field label="Primary Phone"><PhoneInput inputRef={r.p1} prevRef={r.core} nextRef={r.p2} value={draft.primaryPhone} disabled={!draft.coreCrew} onChange={e => setDraft({ ...draft, primaryPhone: e.target.value })} placeholder="(###) ###-####" style={{ opacity: draft.coreCrew ? 1 : 0.5 }} /></Field>
-                  <Field label="Secondary Phone"><PhoneInput inputRef={r.p2} prevRef={r.p1} nextRef={r.addr} value={draft.secondaryPhone} disabled={!draft.coreCrew} onChange={e => setDraft({ ...draft, secondaryPhone: e.target.value })} placeholder="optional" style={{ opacity: draft.coreCrew ? 1 : 0.5 }} /></Field>
-                  <Field label="Address" full>
-                    <textarea ref={r.addr} value={draft.address} disabled={!draft.coreCrew} onChange={e => setDraft({ ...draft, address: e.target.value })} rows={2} style={{ ...input(theme), resize: 'vertical', opacity: draft.coreCrew ? 1 : 0.5 }} placeholder="Street, City, State" />
-                  </Field>
-                  <Field label="Status"><SelectInput inputRef={r.status} prevRef={r.addr} nextRef={r.notes} value={draft.status} onChange={e => { const v = e.target.value; setDraft(d => ({ ...d, status: v, location: v === 'Departed' ? '' : d.location })); }} options={[ 'Onboard','Pending','Departed' ]} placeholder="Select status" /></Field>
-                  <Field label="Notes" full>
-                    <textarea ref={r.notes} value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} rows={3} style={{ ...input(theme), resize: 'vertical' }} />
-                  </Field>
-                </>
-              );
-            })()}
+            <Field label="First Name">
+              <input value={draft.firstName} onChange={e => setDraft({ ...draft, firstName: e.target.value })} style={input(theme)} />
+            </Field>
+            <Field label="Last Name">
+              <input value={draft.lastName} onChange={e => setDraft({ ...draft, lastName: e.target.value })} style={input(theme)} />
+            </Field>
+            <Field label="Company">
+              <input list="companyOptionsList" value={draft.company} onChange={e => setDraft({ ...draft, company: e.target.value })} style={input(theme)} placeholder={companyOptions.length ? 'Start typing to select' : ''} />
+              {companyOptions.length > 0 && (
+                <datalist id="companyOptionsList">
+                  {companyOptions.map(c => <option key={c} value={c} />)}
+                </datalist>
+              )}
+            </Field>
+            <Field label="Body Weight (lb)">
+              <input value={draft.bodyWeight} onChange={e => setDraft({ ...draft, bodyWeight: e.target.value.replace(/[^0-9.]/g,'') })} style={input(theme)} placeholder="e.g. 185" />
+            </Field>
+            <Field label="Bag Weight (lb)">
+              <input value={draft.bagWeight} onChange={e => setDraft({ ...draft, bagWeight: e.target.value.replace(/[^0-9.]/g,'') })} style={input(theme)} placeholder="e.g. 35" />
+            </Field>
+            <Field label="# Bags">
+              <input value={draft.bagCount} onChange={e => setDraft({ ...draft, bagCount: e.target.value.replace(/[^0-9]/g,'') })} style={input(theme)} placeholder="e.g. 2" />
+            </Field>
+            <Field label="Location">
+              {locationOptions.length ? (
+                <select value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} style={select(theme)}>
+                  <option value="">-- Select Location --</option>
+                  {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              ) : (
+                <input value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} style={input(theme)} placeholder="Define locations in Manage Lists" />
+              )}
+            </Field>
+            <Field label="Position">
+              <input value={draft.position} onChange={e => setDraft({ ...draft, position: e.target.value })} style={input(theme)} />
+            </Field>
+            <Field label="Crew">
+              {crewOptions.length ? (
+                <select value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} style={select(theme)}>
+                  <option value="">-- Select Crew --</option>
+                  {crewOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : (
+                <input value={draft.crew} onChange={e => setDraft({ ...draft, crew: e.target.value })} style={input(theme)} placeholder="Define crews in Manage Lists" />
+              )}
+            </Field>
+            <Field label="Rotation">
+              {rotationOptions.length ? (
+                <select value={draft.rotation} onChange={e => setDraft({ ...draft, rotation: e.target.value })} style={select(theme)}>
+                  <option value="">-- Select Rotation --</option>
+                  {rotationOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              ) : (
+                <input value={draft.rotation} onChange={e => setDraft({ ...draft, rotation: e.target.value })} style={input(theme)} placeholder="Define rotations in Manage Lists" />
+              )}
+            </Field>
+            <Field label="Arrival Date">
+              <input type="date" value={draft.arrivalDate} onChange={e => setDraft({ ...draft, arrivalDate: e.target.value })} style={input(theme)} />
+            </Field>
+            <Field label="Departure Date">
+              <input type="date" value={draft.departureDate} onChange={e => setDraft({ ...draft, departureDate: e.target.value })} style={input(theme)} />
+            </Field>
+            <Field label="DOB">
+              <input type="date" value={draft.dob} disabled={!draft.coreCrew} onChange={e => setDraft({ ...draft, dob: e.target.value })} style={{ ...input(theme), opacity: draft.coreCrew ? 1 : 0.5 }} />
+            </Field>
             <Field label="Core Crew">
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <input
@@ -912,7 +904,14 @@ export default function Personnel() {
   );
 }
 
-// Field component replaced by shared components/forms/Field.jsx
+function Field({ label, children, full }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, gridColumn: full ? '1 / -1' : undefined }}>
+      <span style={{ fontWeight: 'bold' }}>{label}</span>
+      {children}
+    </label>
+  );
+}
 
 const btn = (theme) => ({ background: theme.primary, color: theme.text, border: '1px solid ' + theme.secondary, padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' });
 // Use lighter neutral border in dark mode for better contrast (replaces blue outline in form)

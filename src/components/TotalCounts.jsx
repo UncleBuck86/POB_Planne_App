@@ -1,9 +1,6 @@
 import React from 'react';
-import { formatByPreference } from '../utils/dateUtils.js';
-import { useTheme } from '../ThemeContext.jsx';
 
 export default function TotalCounts({ totalDailyPOB, dates }) {
-  const { dateFormat } = useTheme();
   return (
     <div style={{ marginTop: 20 }}>
       <h3>Total Daily POB</h3>
@@ -11,7 +8,7 @@ export default function TotalCounts({ totalDailyPOB, dates }) {
         <thead>
           <tr>
             {dates.map(d => (
-              <th key={d.date}>{formatByPreference(d.date, dateFormat)}</th>
+              <th key={d.date}>{d.date}</th>
             ))}
           </tr>
         </thead>

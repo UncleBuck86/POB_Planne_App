@@ -1,10 +1,9 @@
-import { storage } from './storageAdapter';
 export const colorKey = 'dashboardWidgetColorsV1';
 
 export function loadWidgetColors() {
-  try { return storage.getJSON(colorKey, {}) || {}; } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(colorKey)) || {}; } catch { return {}; }
 }
-export function saveWidgetColors(colors) { try { storage.setJSON(colorKey, colors); } catch {} }
+export function saveWidgetColors(colors) { try { localStorage.setItem(colorKey, JSON.stringify(colors)); } catch {} }
 
 export function deriveColors(hex) {
   if (!hex || !/^#?[0-9a-fA-F]{6}$/.test(hex)) return null;

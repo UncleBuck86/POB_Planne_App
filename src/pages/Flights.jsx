@@ -4,40 +4,35 @@ import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../utils/generateFlightComment.js';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
-import { storage } from '../utils/storageAdapter.js';
 
 // Format date into planner key (M/D/YYYY)
 const keyForDate = (d) => (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
 
 export default function FlightsPage() {
   const { theme } = useTheme();
-  const rowData = useMemo(() => storage.getJSON('pobPlannerData', []) || [], []);
-  // Setup/state presence checks for empty-state guidance
-  const isAdmin = () => { try { const a=storage.get('pobIsAdmin'); const b=storage.get('pob_admin'); return a==='true'||a==='1'||b==='true'||b==='1'; } catch { return false; } };
-  const [locationsList] = useState(() => storage.getJSON('flightManifestLocations', []) || []);
-  const [aircraftTypeList] = useState(() => storage.getJSON('flightManifestAircraftTypes', []) || []);
+  const rowData = useMemo(() => { try { return JSON.parse(localStorage.getItem('pobPlannerData')) || []; } catch { return []; } }, []);
   const today = new Date();
   const [displayMonth, setDisplayMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const [largeCalendar, setLargeCalendar] = useState(() => storage.getBool('pobLargeCalendar', false));
-  useEffect(() => { storage.setBool('pobLargeCalendar', largeCalendar); }, [largeCalendar]);
+  const [largeCalendar, setLargeCalendar] = useState(()=>{ try { return localStorage.getItem('pobLargeCalendar')==='true'; } catch { return false; } });
+  useEffect(()=>{ try { localStorage.setItem('pobLargeCalendar', largeCalendar?'true':'false'); } catch{} }, [largeCalendar]);
   const [selectedDates, setSelectedDates] = useState([]);
-    const [hideNoMovement, setHideNoMovement] = useState(() => storage.getBool('pobHideNoMovement', false));
-    useEffect(() => { storage.setBool('pobHideNoMovement', hideNoMovement); }, [hideNoMovement]);
+    const [hideNoMovement, setHideNoMovement] = useState(()=> { try { return localStorage.getItem('pobHideNoMovement')==='true'; } catch { return false; } });
+    useEffect(()=>{ try { localStorage.setItem('pobHideNoMovement', hideNoMovement?'true':'false'); } catch {/* ignore */} }, [hideNoMovement]);
   // Removed manifestOpen popup; movement widget + direct manifest link replaces it
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const catalog = useMemo(() => storage.getJSON('flightManifestCatalogV1', []) || [], []);
+  const catalog = useMemo(()=>{ try { return JSON.parse(localStorage.getItem('flightManifestCatalogV1'))||[]; } catch { return []; } }, []);
   const openCatalogManifest = (entry) => {
     try {
       const d = new Date(entry.meta.date || entry.date);
       const key = keyForDate(d);
-      storage.setJSON('manifestGenerateDates', [key]);
+      localStorage.setItem('manifestGenerateDates', JSON.stringify([key]));
     } catch {/* ignore */}
   window.location.hash = '#logistics/manifest-view/'+entry.id;
   };
   const openManifestTemplate = () => {
     try {
       const keys = selectedDates.map(d=> keyForDate(d));
-      storage.setJSON('manifestGenerateDates', keys);
+      localStorage.setItem('manifestGenerateDates', JSON.stringify(keys));
     } catch {}
   window.location.hash = '#logistics/manifest';
   };
@@ -68,7 +63,7 @@ export default function FlightsPage() {
     const parseEntries = (arr) => arr.reduce((sum, e)=>{ const dash=e.indexOf('-'); if(dash===-1) return sum; const num=parseInt(e.slice(0,dash),10); return sum + (isNaN(num)?0:num); },0);
     const isoFromKey = (k)=>{ try { const [m,d,y]=k.split('/'); return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); } catch { return null; } };
     // load aircraft type limits for capacity error detection
-  let aircraftTypes = storage.getJSON('flightManifestAircraftTypes', []) || [];
+    let aircraftTypes=[]; try { aircraftTypes = JSON.parse(localStorage.getItem('flightManifestAircraftTypes'))||[]; } catch { aircraftTypes=[]; }
     allDatesForMonth.forEach(d=>{
       const k=keyForDate(d); const iso=isoFromKey(k);
       const plannerOutboundCount = parseEntries(flightsOut[k]||[]);
@@ -123,7 +118,7 @@ export default function FlightsPage() {
   const [popup, setPopup] = useState(null);
   const clearSelection = () => { setSelectedDates([]); };
   // Personnel movement widget data (combines personnel database and planner delta logic)
-  const personnelRecords = useMemo(() => storage.getJSON('personnelRecords', []) || [], []);
+  const personnelRecords = useMemo(()=> { try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } }, []);
   const plannerRows = rowData; // existing rowData from planner
   // Track selected personnel from movement widgets to send to manifest
   const [selectedPeople, setSelectedPeople] = useState({}); // key -> person payload
@@ -131,7 +126,7 @@ export default function FlightsPage() {
   const manifestPassengersSet = useMemo(()=>{
     const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
     try {
-      const raw = storage.getJSON('flightManifestTemplateV1', null);
+      const raw = JSON.parse(localStorage.getItem('flightManifestTemplateV1'));
       if(!raw) return new Set();
       const collect = [];
       ['outbound','inbound'].forEach(dir=>{
@@ -181,7 +176,7 @@ export default function FlightsPage() {
   const sendSelectedToManifest = () => {
     try {
       const ignoreKeywords = ['cargo','package','packages','sample','samples','mail','tool','tools','parts','supply','supplies'];
-      const existingRaw = storage.getJSON('flightManifestTemplateV1', {}) || {};
+      const existingRaw = JSON.parse(localStorage.getItem('flightManifestTemplateV1')||'{}');
       const mkKey = (f,l,c) => ((f||'').trim().toLowerCase()+' '+(l||'').trim().toLowerCase()).trim()+'|'+(c||'').trim().toLowerCase();
       const existingOutbound = new Set((existingRaw.outbound||[]).map(p=>mkKey(...((p.name||'').split(' ')).slice(0,1), (p.name||'').split(' ').slice(1).join(' '), p.company))); // simplified but will be refined below
       const existingInbound = new Set((existingRaw.inbound||[]).map(p=>mkKey(...((p.name||'').split(' ')).slice(0,1), (p.name||'').split(' ').slice(1).join(' '), p.company)));
@@ -192,7 +187,7 @@ export default function FlightsPage() {
         if(p.direction==='inbound') return !existingInbound.has(key);
         return true;
       });
-      storage.setJSON('manifestSelectedPersonnel', payload);
+      localStorage.setItem('manifestSelectedPersonnel', JSON.stringify(payload));
   } catch {/* ignore */}
   emitDomain('MANIFEST_TEMPLATE_CHANGED', { added: Object.keys(selectedPeople).length }, 'Selected personnel staged for manifest');
     // Check catalog for existing manifest on target date (use last selected date or today fallback)
@@ -209,7 +204,7 @@ export default function FlightsPage() {
           const load = window.confirm('A saved manifest already exists for '+targetIso+' (Flight # '+(existing.meta.flightNumber||'N/A')+').\nLoad it before adding selected personnel?');
           if(load){
             try {
-              storage.setJSON('flightManifestTemplateV1', { meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound });
+              localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta: existing.meta, outbound: existing.outbound, inbound: existing.inbound }));
             } catch {/* ignore */}
             emitDomain('MANIFEST_TEMPLATE_CHANGED', { loadedExisting:true, date: targetIso }, 'Loaded existing manifest '+targetIso);
           }
@@ -239,7 +234,7 @@ export default function FlightsPage() {
   // Open manifest for a specific planner date key (M/D/YYYY)
   const openManifestForDate = (mdyKey) => {
     try {
-    storage.setJSON('manifestGenerateDates', [mdyKey]);
+      localStorage.setItem('manifestGenerateDates', JSON.stringify([mdyKey]));
       const [m,d,y] = mdyKey.split('/');
       const iso = y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const existing = catalog.find(c=> c.meta && c.meta.date === iso);
@@ -249,9 +244,9 @@ export default function FlightsPage() {
         return;
       } else {
         try {
-      const prev = storage.getJSON('flightManifestTemplateV1', {}) || {};
+          const prev = JSON.parse(localStorage.getItem('flightManifestTemplateV1'))||{};
           const meta = { ...(prev.meta||{}), date: iso };
-      storage.setJSON('flightManifestTemplateV1', { meta, outbound: [], inbound: [] });
+          localStorage.setItem('flightManifestTemplateV1', JSON.stringify({ meta, outbound: [], inbound: [] }));
         } catch {/* ignore */}
         emitDomain('MANIFEST_TEMPLATE_CHANGED', { date: iso, newTemplate:true }, 'Started new manifest '+iso);
       }
@@ -276,38 +271,12 @@ export default function FlightsPage() {
             <div style={{ fontSize:11, lineHeight:1.35, opacity:.85 }}>Create / edit current flight manifest, manage passengers & flight details.</div>
           </div>
         </a>
-  <div onClick={()=> setCatalogOpen(true)} style={manifestCardStyle(theme,'#6c8bff', true)} role="button" tabIndex={0} aria-label="Open saved manifests"
+        <div onClick={()=> setCatalogOpen(true)} style={manifestCardStyle(theme,'#6c8bff', true)} role="button" tabIndex={0}
              onKeyDown={e=> { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); setCatalogOpen(true); } }}>
           <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Saved Manifests</div>
           <div style={{ fontSize:11, lineHeight:1.35, opacity:.85 }}>Browse & load saved manifests ({catalog.length}).</div>
         </div>
       </div>
-      {/* Empty-state helpers */}
-      {(rowData.length===0) && (
-        <div role="status" style={{ margin:'10px 0 18px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
-          <div style={{ fontWeight:700, marginBottom:4 }}>No planner data yet</div>
-          <div style={{ fontSize:12, opacity:.85 }}>Enter company counts on the Planner to see movement highlights here.</div>
-          <div style={{ marginTop:8 }}><a href="#planner" style={{ ...navBtnStyle(theme), textDecoration:'none' }}>Go to Planner</a></div>
-        </div>
-      )}
-      {(() => { try { const people = storage.getJSON('personnelRecords', [])||[]; return people.length===0; } catch { return false; } })() && (
-        <div role="status" style={{ margin:'10px 0 18px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
-          <div style={{ fontWeight:700, marginBottom:4 }}>No personnel records yet</div>
-          <div style={{ fontSize:12, opacity:.85 }}>Add personnel to enable selection into the manifest.</div>
-          <div style={{ marginTop:8 }}><a href="#personnel" style={{ ...navBtnStyle(theme), textDecoration:'none' }}>Go to Personnel</a></div>
-        </div>
-      )}
-      {((locationsList.length===0) || (aircraftTypeList.length===0)) && (
-        <div role="note" style={{ margin:'10px 0 18px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
-          <div style={{ fontWeight:700, marginBottom:4 }}>Setup recommended</div>
-          <div style={{ fontSize:12, opacity:.85 }}>
-            {locationsList.length===0 ? 'No flight locations configured. ' : ''}
-            {aircraftTypeList.length===0 ? 'No aircraft types configured (capacity checks disabled). ' : ''}
-            {isAdmin() ? 'Open Admin to configure locations and aircraft types.' : 'Ask an admin to set locations and aircraft types in Admin.'}
-          </div>
-          {isAdmin() && <div style={{ marginTop:8 }}><a href="#admin" style={{ ...navBtnStyle(theme), textDecoration:'none' }}>Open Admin</a></div>}
-        </div>
-      )}
       <div style={{ display:'flex', gap:40, alignItems:'flex-start', flexWrap:'wrap' }}>
         <div style={{ background: theme.surface, padding:20, border:'1px solid '+(theme.name==='Dark' ? '#555':'#ccc'), borderRadius:16, boxShadow:'0 4px 12px rgba(0,0,0,0.3)', display:'flex', flexDirection:'column', alignItems:'stretch' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>

@@ -1,7 +1,5 @@
 // Passive AI code removed on 2025-08-11. See _ARCHIVE_2025_08_11/passiveAI.js for original implementation.
-// Graceful stubs so UI does not crash when AI is disabled.
 export function getPassiveSuggestions() { return []; }
-export function getPassiveSnapshot() { return null; }
 export function registerContextProvider() { /* stub */ }
 export function setPassiveAIEnabled() { /* stub */ }
 

@@ -1,9 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { sanitizeManifestForExport } from '../utils/privacy.js';
 import { useTheme } from '../ThemeContext.jsx';
-import { storage } from '../utils/storageAdapter';
-import Field from '../components/forms/Field.jsx';
-import { TextInput, SelectInput, DateInput } from '../components/forms/inputs.jsx';
 
 const STORAGE_KEY = 'flightManifestTemplateV1';
 const CATALOG_KEY = 'flightManifestCatalogV1';
@@ -43,10 +39,10 @@ function buildAutoFlightNumber(location, isoDate, index){
 const AUTO_FLIGHT_REGEX = /^[A-Z0-9]+-\d{6}-flight \d+$/;
 
 export default function FlightManifestTemplate() {
-  const { theme, readOnly } = useTheme(); // Always get latest theme
+  const { theme } = useTheme(); // Always get latest theme
   const [data, setData] = useState(() => {
     try {
-      const raw = storage.getJSON(STORAGE_KEY);
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
       const initial = raw ? { ...defaultData, ...raw } : { ...defaultData };
       // Migration: old format used `passengers` single list
       if (!initial.outbound && Array.isArray(initial.passengers)) initial.outbound = initial.passengers;
@@ -58,18 +54,12 @@ export default function FlightManifestTemplate() {
       return { ...defaultData };
     }
   });
-  const isAdminLocal = () => { try { return storage.get('pobIsAdmin') === 'true'; } catch { return false; } };
+  const isAdmin = () => { try { return localStorage.getItem('pobIsAdmin') === 'true'; } catch { return false; } };
   // Catalog of saved manifests
-  const [catalog, setCatalog] = useState(()=> storage.getJSON(CATALOG_KEY, []));
+  const [catalog, setCatalog] = useState(()=>{ try { return JSON.parse(localStorage.getItem(CATALOG_KEY))||[]; } catch { return []; } });
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [currentCatalogId, setCurrentCatalogId] = useState(null); // which catalog entry is loaded (if any)
-  const [exportIncludeComments, setExportIncludeComments] = useState(false);
-  // Print options (persisted)
-  const defaultPrint = { includeWeights: true, includeComments: true, compact: false, landscape: false, includeNotes: true, includeTotals: true };
-  const [printOptions, setPrintOptions] = useState(()=> { try { return { ...defaultPrint, ...(storage.getJSON('printOptionsManifest', {})||{}) }; } catch { return defaultPrint; } });
-  const [showPrintOpts, setShowPrintOpts] = useState(false);
-  useEffect(()=>{ try { storage.setJSON('printOptionsManifest', printOptions); } catch {/* ignore */} }, [printOptions]);
-  useEffect(()=>{ try { storage.setJSON(CATALOG_KEY, catalog); } catch {/*ignore*/} }, [catalog]);
+  useEffect(()=>{ try { localStorage.setItem(CATALOG_KEY, JSON.stringify(catalog)); } catch {/*ignore*/} }, [catalog]);
   const saveToCatalog = (asNew=false) => {
     // Determine number of flight pairs
     const outLen = outboundFlights.length;
@@ -144,19 +134,21 @@ export default function FlightManifestTemplate() {
   }, [currentCatalogId, catalog, data]);
   const allFieldKeys = ['flightNumber','date','departure','departureTime','arrival','arrivalTime','aircraftType','tailNumber','captain','coPilot','dispatcher','notes'];
   const [visibleFields, setVisibleFields] = useState(()=>{
-    try { const stored = storage.getJSON(FIELD_VIS_KEY); if (stored && typeof stored === 'object') return { ...allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}), ...stored }; } catch{/*ignore*/}
+    try { const stored = JSON.parse(localStorage.getItem(FIELD_VIS_KEY)); if (stored && typeof stored === 'object') return { ...allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}), ...stored }; } catch{/*ignore*/}
     return allFieldKeys.reduce((a,k)=> (a[k]=true,a),{});
   });
   const [configOpen, setConfigOpen] = useState(false);
   // Location options (admin managed)
-  const [locationOptions, setLocationOptions] = useState(()=> storage.getJSON(LOCATIONS_KEY, []));
+  const [locationOptions, setLocationOptions] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem(LOCATIONS_KEY)) || []; } catch { return []; }
+  });
   const [locationOptionsText, setLocationOptionsText] = useState(()=> locationOptions.join('\n'));
-  useEffect(()=>{ try { storage.setJSON(LOCATIONS_KEY, locationOptions); } catch {/*ignore*/} }, [locationOptions]);
+  useEffect(()=>{ try { localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locationOptions)); } catch {/*ignore*/} }, [locationOptions]);
   useEffect(()=>{ setLocationOptionsText(locationOptions.join('\n')); }, [locationOptions]);
   // Aircraft types (admin managed)
   const [aircraftTypes, setAircraftTypes] = useState(()=>{
     try {
-      const raw = storage.getJSON(AIRCRAFT_TYPES_KEY, []) || [];
+      const raw = JSON.parse(localStorage.getItem(AIRCRAFT_TYPES_KEY)) || [];
   if (raw.length && typeof raw[0] === 'string') {
 	// Legacy string list -> expand to objects
 	return raw.map(r => ({ type:r, maxPax:'', maxOutboundWeight:'', maxInboundWeight:'' }));
@@ -170,11 +162,11 @@ export default function FlightManifestTemplate() {
   }));
     } catch { return []; }
   });
-  useEffect(()=>{ try { storage.setJSON(AIRCRAFT_TYPES_KEY, aircraftTypes); } catch {/*ignore*/} }, [aircraftTypes]);
+  useEffect(()=>{ try { localStorage.setItem(AIRCRAFT_TYPES_KEY, JSON.stringify(aircraftTypes)); } catch {/*ignore*/} }, [aircraftTypes]);
   const addAircraftType = () => setAircraftTypes(a => [...a, { type:'', maxPax:'', maxOutboundWeight:'', maxInboundWeight:'' }]);
   const updateAircraftType = (idx, field, value) => setAircraftTypes(a => a.map((t,i)=> i===idx ? { ...t, [field]: value } : t));
   const removeAircraftType = (idx) => setAircraftTypes(a => a.filter((_,i)=> i!==idx));
-  useEffect(()=>{ try { storage.setJSON(FIELD_VIS_KEY, visibleFields); } catch {/* ignore */} }, [visibleFields]);
+  useEffect(()=>{ try { localStorage.setItem(FIELD_VIS_KEY, JSON.stringify(visibleFields)); } catch {/* ignore */} }, [visibleFields]);
   const toggleField = (k) => setVisibleFields(v => ({ ...v, [k]: !v[k] }));
   const [autoSaveState, setAutoSaveState] = useState('');
   const [dedupeNotice, setDedupeNotice] = useState('');
@@ -187,12 +179,12 @@ export default function FlightManifestTemplate() {
   useEffect(()=>{ const int = setInterval(()=> setTodayIso(localToday()), 60*1000); return ()=> clearInterval(int); }, []);
   const baseLocked = useMemo(()=>{ try { return data.meta.date && data.meta.date < todayIso; } catch { return false; } }, [data.meta.date, todayIso]);
   const [overrideUnlock, setOverrideUnlock] = useState(false); // admin temporary unlock
-  const locked = (baseLocked && !overrideUnlock) || !!readOnly;
+  const locked = baseLocked && !overrideUnlock;
   const saveTimer = useRef();
   // Personnel database cache for outbound lookup
-  const [personnelRecords, setPersonnelRecords] = useState(()=> storage.getJSON('personnelRecords', []));
+  const [personnelRecords, setPersonnelRecords] = useState(()=>{ try { return JSON.parse(localStorage.getItem('personnelRecords'))||[]; } catch { return []; } });
   useEffect(()=>{
-    const onStorage = (e)=>{ if(e.key==='personnelRecords'){ try { setPersonnelRecords(storage.getJSON('personnelRecords', [])); }catch{} } };
+    const onStorage = (e)=>{ if(e.key==='personnelRecords'){ try { setPersonnelRecords(JSON.parse(localStorage.getItem('personnelRecords'))||[]);}catch{} } };
     window.addEventListener('storage', onStorage); return ()=> window.removeEventListener('storage', onStorage);
   }, []);
   // Add person modal state
@@ -209,7 +201,7 @@ export default function FlightManifestTemplate() {
   };
   const saveNewPerson = () => {
     const rec = { id: 'p_'+Math.random().toString(36).slice(2,9), firstName:addPersonDraft.firstName.trim(), lastName:addPersonDraft.lastName.trim(), company:addPersonDraft.company.trim(), position:'', location:'', crew:'', rotation:'', coreCrew:false, bodyWeight:addPersonDraft.bodyWeight, bagWeight:addPersonDraft.bagWeight, bagCount:addPersonDraft.bagCount, primaryPhone:'', secondaryPhone:'', address:'', dob:'', arrivalDate:new Date().toISOString().slice(0,10), departureDate:'', status:'Onboard', notes:'' };
-  setPersonnelRecords(list=>{ const next=[...list, rec]; try{ storage.setJSON('personnelRecords', next); }catch{} return next; });
+    setPersonnelRecords(list=>{ const next=[...list, rec]; try{ localStorage.setItem('personnelRecords', JSON.stringify(next)); }catch{} return next; });
     if(pendingPassengerId){
       setData(d=> ({ ...d, [pendingDir]: d[pendingDir].map(p => p.id===pendingPassengerId ? { ...p, name: rec.firstName + (rec.lastName? ' '+rec.lastName:''), company: rec.company, bodyWeight: rec.bodyWeight, bagWeight: rec.bagWeight, bagCount: rec.bagCount } : p) }));
     }
@@ -219,7 +211,7 @@ export default function FlightManifestTemplate() {
   useEffect(() => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      try { storage.setJSON(STORAGE_KEY, data); setAutoSaveState('Saved ' + new Date().toLocaleTimeString()); } catch { setAutoSaveState('Save failed'); }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); setAutoSaveState('Saved ' + new Date().toLocaleTimeString()); } catch { setAutoSaveState('Save failed'); }
     }, 400);
     return () => clearTimeout(saveTimer.current);
   }, [data]);
@@ -260,8 +252,8 @@ export default function FlightManifestTemplate() {
       const shouldAuto = !current || AUTO_FLIGHT_REGEX.test(current);
       if(!shouldAuto) return d;
       // Use user profile location from Dashboard if available
-  let userLocation = '';
-  try { userLocation = storage.get('pobUserLocation') || ''; } catch {}
+      let userLocation = '';
+      try { userLocation = localStorage.getItem('pobUserLocation') || ''; } catch {}
       const locationForFlight = userLocation || d.meta.departure;
       const next = buildAutoFlightNumber(locationForFlight, d.meta.date, 1);
       if(next===current) return d;
@@ -300,10 +292,10 @@ export default function FlightManifestTemplate() {
   // Ingest selected personnel passed from Flights page (one-time)
   useEffect(()=>{
     try {
-      const raw = storage.get('manifestSelectedPersonnel');
+      const raw = localStorage.getItem('manifestSelectedPersonnel');
       if(!raw) return;
-      const list = JSON.parse(raw)||[]; if(!Array.isArray(list) || !list.length) { storage.remove('manifestSelectedPersonnel'); return; }
-      storage.remove('manifestSelectedPersonnel');
+      const list = JSON.parse(raw)||[]; if(!Array.isArray(list) || !list.length) { localStorage.removeItem('manifestSelectedPersonnel'); return; }
+      localStorage.removeItem('manifestSelectedPersonnel');
       setData(d=>{
         const outboundAdd=[]; const inboundAdd=[];
         const mkKey = (p) => ((p.name||'').trim().toLowerCase()+'|'+(p.company||'').trim().toLowerCase());
@@ -421,24 +413,12 @@ export default function FlightManifestTemplate() {
   const inboundFlights = useMemo(()=> allocateFlights(safeInbound, selectedAircraft? (parseInt(selectedAircraft.maxPax)||null):null, selectedAircraft? (parseFloat(selectedAircraft.maxInboundWeight)||null):null), [safeInbound, selectedAircraft]);
 
   const exportJSON = () => {
-    const safe = sanitizeManifestForExport(data, { includeComments: exportIncludeComments });
-    const blob = new Blob([JSON.stringify(safe, null, 2)], { type:'application/json' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}.json`; a.click(); URL.revokeObjectURL(url);
   };
-  const copyJSON = () => {
-    try {
-      const safe = sanitizeManifestForExport(data, { includeComments: exportIncludeComments });
-      const txt = JSON.stringify(safe, null, 2);
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt);
-      else {
-        const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-      }
-    } catch {/* ignore */}
-  };
   const printView = () => {
-    const opts = printOptions || defaultPrint;
     const w = window.open('', '_blank'); if (!w) return;
-    const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} h2{margin-top:0;} table{border-collapse:collapse;width:100%;${opts.compact? 'font-size:10px;':'font-size:12px;'} } th,td{border:1px solid #444;${opts.compact? 'padding:3px 4px;':'padding:4px 6px;'} } th{background:#ddd;} .section{margin-bottom:18px;} @page{${opts.landscape? 'size: landscape;':''} margin:12mm;}`;
+    const css = `body{font-family:Segoe UI,Arial,sans-serif;padding:16px;} h2{margin-top:0;} table{border-collapse:collapse;width:100%;font-size:12px;} th,td{border:1px solid #444;padding:4px 6px;} th{background:#ddd;} .section{margin-bottom:18px;}`;
     const selectedAircraftPrint = aircraftTypes.find(a=> a.type === data.meta.aircraftType);
     let capacityLine = '';
     if (selectedAircraftPrint) {
@@ -448,75 +428,45 @@ export default function FlightManifestTemplate() {
       capacityLine = `<div class='section'><strong>Capacity:</strong> `+
         [
           maxPax!=null?`Pax ${grandTotalPax}/${maxPax}`:null,
-          opts.includeWeights && maxOutboundWeight!=null?`Outbound Wt ${totalWeightOutbound.toFixed(1)}/${maxOutboundWeight}`:null,
-          opts.includeWeights && maxInboundWeight!=null?`Inbound Wt ${totalWeightInbound.toFixed(1)}/${maxInboundWeight}`:null
+          maxOutboundWeight!=null?`Outbound Wt ${totalWeightOutbound.toFixed(1)}/${maxOutboundWeight}`:null,
+          maxInboundWeight!=null?`Inbound Wt ${totalWeightInbound.toFixed(1)}/${maxInboundWeight}`:null
         ].filter(Boolean).join(' | ')+`</div>`;
     }
-    const header = `<h2>Flight Manifest ${data.meta.flightNumber? ' - '+data.meta.flightNumber:''}</h2>`+
+  const html = `<!DOCTYPE html><html><head><title>Flight Manifest</title><style>${css}</style></head><body>`+
+      `<h2>Flight Manifest ${data.meta.flightNumber? ' - '+data.meta.flightNumber:''}</h2>`+
       `<div class='section'><strong>Date:</strong> ${data.meta.date||''} &nbsp; <strong>Route:</strong> ${data.meta.departure||'???'} → ${data.meta.arrival||'???'} &nbsp; <strong>ETD:</strong> ${data.meta.departureTime||''} &nbsp; <strong>ETA:</strong> ${data.meta.arrivalTime||''}</div>`+
       `<div class='section'><strong>Aircraft:</strong> ${data.meta.aircraftType||''} ${data.meta.tailNumber||''} &nbsp; <strong>Captain:</strong> ${data.meta.captain||''} &nbsp; <strong>Co-Pilot:</strong> ${data.meta.coPilot||''} &nbsp; <strong>Dispatcher:</strong> ${data.meta.dispatcher||''}</div>`+
       capacityLine +
-      (opts.includeNotes ? `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>` : '');
-    const obTable = renderPrintTableTemplate(data.outbound||[], opts, data.meta.departure, data.meta.arrival);
-    const ibTable = renderPrintTableTemplate(data.inbound||[], opts, data.meta.arrival, data.meta.departure);
-    const totals = opts.includeTotals ? `<div style='margin-top:14px'><strong>Grand Total Pax:</strong> ${grandTotalPax}${opts.includeWeights? ` &nbsp; <strong>Grand Total Weight:</strong> ${grandTotalWeight.toFixed(1)}`:''}</div>`:'';
-    const html = `<!DOCTYPE html><html><head><title>Flight Manifest</title><style>${css}</style></head><body>`+
-      header+
-      `<h3>Outbound (${totalOutbound})</h3>`+ obTable +
-      `<h3>Inbound (${totalInbound})</h3>`+ ibTable +
-      totals+
+      `<div class='section'><strong>Notes:</strong><br/>${(data.meta.notes||'').replace(/</g,'&lt;').replace(/\n/g,'<br/>')}</div>`+
+  `<h3>Outbound (${totalOutbound})</h3>`+
+  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Body Wt</th><th>Bag Wt</th><th># Bags</th><th>Total Wt</th><th>Origin</th><th>Destination</th><th>Comments</th></tr></thead><tbody>`+
+  data.outbound.map((p,i)=>{ const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw; return `<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${p.bodyWeight||''}</td><td>${p.bagWeight||''}</td><td>${p.bagCount||''}</td><td>${tot?tot:''}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(p.comments)}</td></tr>`; }).join('')+
+      `</tbody></table>`+
+      `<div style='margin:6px 0 18px'><strong>Outbound Weight Total:</strong> ${totalWeightOutbound.toFixed(1)}</div>`+
+  `<h3>Inbound (${totalInbound})</h3>`+
+  `<table><thead><tr><th>#</th><th>Name</th><th>Company</th><th>Body Wt</th><th>Bag Wt</th><th># Bags</th><th>Total Wt</th><th>Origin</th><th>Destination</th><th>Comments</th></tr></thead><tbody>`+
+  data.inbound.map((p,i)=>{ const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw; return `<tr><td>${i+1}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.company)}</td><td>${p.bodyWeight||''}</td><td>${p.bagWeight||''}</td><td>${p.bagCount||''}</td><td>${tot?tot:''}</td><td>${escapeHtml(data.meta.arrival||'')}</td><td>${escapeHtml(data.meta.departure||'')}</td><td>${escapeHtml(p.comments)}</td></tr>`; }).join('')+
+      `</tbody></table>`+
+      `<div style='margin-top:6px'><strong>Inbound Weight Total:</strong> ${totalWeightInbound.toFixed(1)}</div>`+
+      `<div style='margin-top:14px'><strong>Grand Total Pax:</strong> ${grandTotalPax} &nbsp; <strong>Grand Total Weight:</strong> ${grandTotalWeight.toFixed(1)}</div>`+
       `</body></html>`;
     w.document.write(html); w.document.close(); w.print();
   };
 
-  const csvEscape = (v='') => {
-    const s = String(v??'');
-    if (/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
-    return s;
-  };
-  const exportCSV = (dir) => {
-    const list = (dir==='outbound'? (data.outbound||[]) : (data.inbound||[]));
-    const isOB = dir==='outbound';
-    const headers = exportIncludeComments ? ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination','Comments'] : ['#','Name','Company','Body Wt','Bag Wt','# Bags','Total Wt','Origin','Destination'];
-    const rows = list.map((p,i)=>{
-      const bw = parseFloat(p.bodyWeight)||0; const gw = parseFloat(p.bagWeight)||0; const tot = bw + gw;
-      const origin = p.origin || (isOB? data.meta.departure : data.meta.arrival) || '';
-      const dest = p.destination || (isOB? data.meta.arrival : data.meta.departure) || '';
-      const base = [i+1, p.name||'', p.company||'', p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot? tot.toFixed(1):'', origin, dest];
-      if (exportIncludeComments) base.push(p.comments||'');
-      return base.map(csvEscape).join(',');
-    });
-    const content = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([content], { type:'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`flight-manifest-${data.meta.flightNumber||'draft'}-${isOB? 'outbound':'inbound'}.csv`; a.click(); URL.revokeObjectURL(url);
-  };
-
-  const needsSetup = (locationOptions.length===0) || (aircraftTypes.length===0);
   return (
   <div className="manifest-root" style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 80px', position:'relative' }}>
-  {needsSetup && ( 
-        <div role="status" style={{ margin:'0 0 14px', padding:'10px 12px', border:'1px dashed '+(theme.name==='Dark'?'#777':'#9aa7b2'), background: theme.name==='Dark'? '#2a3035':'#f1f6fa', color: theme.text, borderRadius:10 }}>
-          <div style={{ fontWeight:700, marginBottom:4 }}>Setup recommended</div>
-          <div style={{ fontSize:12, opacity:.85 }}>
-            {locationOptions.length===0 ? 'No flight locations configured. ' : ''}
-            {aircraftTypes.length===0 ? 'No aircraft types configured (capacity checks disabled). ' : ''}
-            {isAdminLocal() ? 'Open Admin to configure locations and aircraft types.' : 'Ask an admin to set locations and aircraft types in Admin.'}
-          </div>
-          {isAdminLocal() && <div style={{ marginTop:8 }}><a href="#admin" style={{ display:'inline-block', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:6, padding:'4px 8px', textDecoration:'none', fontSize:12, fontWeight:600 }}>Open Admin</a></div>}
-        </div>
-      )}
       <style>{`
         .manifest-root input:not([type=checkbox]):not([type=radio]),
         .manifest-root select,
         .manifest-root textarea {
-          background: ${theme.name==='Dark' ? '#283039' : '#ffffff'};
+          background: ${theme.name==='Dark' ? '#2e3439' : '#ffffff'};
           color: ${theme.text};
-          border: 1px solid ${theme.name==='Dark' ? '#6a7480' : '#b8c2cc'};
+          border: 1px solid ${theme.name==='Dark' ? '#58616a' : '#b8c2cc'};
           padding: 4px 6px;
           border-radius: 6px;
           font-size: 12px;
           font-family: inherit;
-          box-shadow: inset 0 0 0 1px ${theme.name==='Dark' ? '#00000055' : '#ffffff00'};
+          box-shadow: inset 0 0 0 1px ${theme.name==='Dark' ? '#00000040' : '#ffffff00'};
           transition: border-color .15s, background .2s;
         }
         .manifest-root input:not([type=checkbox]):not([type=radio]):focus,
@@ -528,26 +478,26 @@ export default function FlightManifestTemplate() {
         }
         .manifest-root ::placeholder { color: ${theme.name==='Dark' ? '#9aa4ad' : '#6c7a85'}; opacity: .85; }
       `}</style>
-  <div className="no-print" style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
-  <button onClick={()=> window.location.hash = '#logistics/flights'} style={{ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>← Flights</button>
+  <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+    <button onClick={()=> window.location.hash = '#logistics/flights'} style={{ background: theme.name==='Dark'? '#333b42':'#d8e2ea', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#888'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}>← Flights</button>
     <h2 style={{ marginTop:0 }}>
-  {isAdminLocal() ? 'Flight Manifest Template' : 'New Manifest'}
+      {isAdmin() ? 'Flight Manifest Template' : 'New Manifest'}
       {baseLocked && <span style={{ marginLeft:12, fontSize:14, background: theme.name==='Dark'? '#3d4a55':'#ffe6c9', color: theme.name==='Dark'? '#ffce91':'#8b4c00', padding:'4px 10px', borderRadius:18, fontWeight:600 }}>{locked? 'LOCKED':'UNLOCKED (ADMIN)'}</span>}
     </h2>
   </div>
-  <div className="no-print" style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
+      <div style={{ fontSize:12, opacity:.75, marginBottom:16 }}>Draft and store a manifest template. Auto-saves locally; not yet integrated with planner flights.</div>
       <section style={card(theme)}>
         <div style={{ ...sectionHeader(theme), display:'flex', alignItems:'center', gap:12 }}>
           <span style={{ flex:1 }}>Flight Details</span>
-            {isAdminLocal() && (!locked || baseLocked) && ( 
+          {isAdmin() && (!locked || baseLocked) && (
             <>
-                <button className="no-print" onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
-                {baseLocked && <button className="no-print" onClick={()=> setOverrideUnlock(o=>!o)} style={{ ...smallBtn(theme), background: overrideUnlock? '#c06512': smallBtn(theme).background }}>{overrideUnlock? 'Relock':'Admin Unlock'}</button>}
+              <button onClick={()=>setConfigOpen(o=>!o)} style={smallBtn(theme)}>{configOpen ? 'Done' : 'Customize'}</button>
+              {baseLocked && <button onClick={()=> setOverrideUnlock(o=>!o)} style={{ ...smallBtn(theme), background: overrideUnlock? '#c06512': smallBtn(theme).background }}>{overrideUnlock? 'Relock':'Admin Unlock'}</button>}
             </>
           )}
         </div>
-  {configOpen && isAdminLocal() && (
-          <div className="no-print" style={{ marginBottom:14 }}>
+        {configOpen && isAdmin() && (
+          <div style={{ marginBottom:14 }}>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
               <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=true,a),{}))} style={smallBtn(theme)}>All</button>
               <button onClick={()=>setVisibleFields(allFieldKeys.reduce((a,k)=> (a[k]=false,a),{}))} style={smallBtn(theme)}>None</button>
@@ -608,88 +558,72 @@ export default function FlightManifestTemplate() {
           </div>
         )}
         <div style={gridForm}>
-          {/* Reusable input refs for Enter/Shift+Enter navigation */}
-          {(() => {
-            const refs = {
-              flightNumber: React.createRef(),
-              date: React.createRef(),
-              departure: React.createRef(),
-              departureTime: React.createRef(),
-              arrival: React.createRef(),
-              arrivalTime: React.createRef(),
-              aircraftType: React.createRef(),
-              tailNumber: React.createRef(),
-              captain: React.createRef(),
-              coPilot: React.createRef(),
-              dispatcher: React.createRef(),
-            };
-            // Inputs imported at top
-            return (
-              <>
-                {visibleFields.flightNumber && <Field label="Flight #"><TextInput inputRef={refs.flightNumber} nextRef={refs.date} disabled={locked} value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Field>}
-                {visibleFields.date && <Field label="Date"><DateInput inputRef={refs.date} prevRef={refs.flightNumber} nextRef={refs.departure} disabled={locked} value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Field>}
-                {visibleFields.departure && (
-                  <Field label="Departure">
-                    {locationOptions.length ? (
-                      <SelectInput inputRef={refs.departure} prevRef={refs.date} nextRef={refs.departureTime} disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} options={Array.from(new Set([...(locationOptions||[]), data.meta.departure].filter(Boolean)))} />
-                    ) : (
-                      <TextInput inputRef={refs.departure} prevRef={refs.date} nextRef={refs.departureTime} disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" />
-                    )}
-                  </Field>
-                )}
-                {visibleFields.departureTime && <Field label="Departure Time"><TextInput inputRef={refs.departureTime} prevRef={refs.departure} nextRef={refs.arrival} disabled={locked} value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Field>}
-                {visibleFields.arrival && (
-                  <Field label="Arrival">
-                    {locationOptions.length ? (
-                      <SelectInput inputRef={refs.arrival} prevRef={refs.departureTime} nextRef={refs.arrivalTime} disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} options={Array.from(new Set([...(locationOptions||[]), data.meta.arrival].filter(Boolean)))} />
-                    ) : (
-                      <TextInput inputRef={refs.arrival} prevRef={refs.departureTime} nextRef={refs.arrivalTime} disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" />
-                    )}
-                  </Field>
-                )}
-                {visibleFields.arrivalTime && <Field label="Arrival Time"><TextInput inputRef={refs.arrivalTime} prevRef={refs.arrival} nextRef={refs.aircraftType} disabled={locked} value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Field>}
-                {visibleFields.aircraftType && (
-                  <Field label="Aircraft Type">
-                    {aircraftTypes.length ? (
-                      <SelectInput inputRef={refs.aircraftType} prevRef={refs.arrivalTime} nextRef={refs.tailNumber} disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} options={[...aircraftTypes.map(t=>t.type).filter(Boolean), ...(data.meta.aircraftType && !aircraftTypes.find(a=>a.type===data.meta.aircraftType)? [data.meta.aircraftType]: [])]} />
-                    ) : (
-                      <TextInput inputRef={refs.aircraftType} prevRef={refs.arrivalTime} nextRef={refs.tailNumber} disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
-                    )}
-                    {(() => {
-                      const sel = aircraftTypes.find(a=>a.type===data.meta.aircraftType);
-                      if(!sel) return null;
-                      const items = [];
-                      if(sel.maxPax) items.push({ label:'Pax', value: sel.maxPax });
-                      if(sel.maxOutboundWeight) items.push({ label:'OB Wt', value: sel.maxOutboundWeight });
-                      if(sel.maxInboundWeight) items.push({ label:'IB Wt', value: sel.maxInboundWeight });
-                      if(!items.length) return null;
-                      return (
-                        <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
-                          <span style={{ fontSize:12, fontWeight:600, opacity:.85 }}>Limits:</span>
-                          {items.map((it,i)=> (
-                            <span key={i} style={{
-                              fontSize:12,
-                              background: theme.name==='Dark'? '#39424a':'#dfe9f3',
-                              color: theme.name==='Dark'? '#fff':'#123',
-                              padding:'4px 8px',
-                              borderRadius:20,
-                              lineHeight:1,
-                              fontWeight:500,
-                              boxShadow:'0 1px 2px rgba(0,0,0,0.25)'
-                            }}>{it.label}: {it.value}</span>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </Field>
-                )}
-                {visibleFields.tailNumber && <Field label="Tail #"><TextInput inputRef={refs.tailNumber} prevRef={refs.aircraftType} nextRef={refs.captain} disabled={locked} value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Field>}
-                {visibleFields.captain && <Field label="Captain"><TextInput inputRef={refs.captain} prevRef={refs.tailNumber} nextRef={refs.coPilot} disabled={locked} value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Field>}
-                {visibleFields.coPilot && <Field label="Co-Pilot"><TextInput inputRef={refs.coPilot} prevRef={refs.captain} nextRef={refs.dispatcher} disabled={locked} value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Field>}
-                {visibleFields.dispatcher && <Field label="Dispatcher"><TextInput inputRef={refs.dispatcher} prevRef={refs.coPilot} disabled={locked} value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Field>}
-              </>
-            );
-          })()}
+          {visibleFields.flightNumber && <Labeled label="Flight #"><input disabled={locked} value={data.meta.flightNumber} onChange={e=>updateMeta('flightNumber', e.target.value)} /></Labeled>}
+          {visibleFields.date && <Labeled label="Date"><input disabled={locked} type="date" value={data.meta.date} onChange={e=>updateMeta('date', e.target.value)} /></Labeled>}
+          {visibleFields.departure && <Labeled label="Departure">{
+            locationOptions.length ? (
+              <select disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)}>
+                <option value="">-- Select --</option>
+                {Array.from(new Set([...(locationOptions||[]), data.meta.departure].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+            ) : (
+              <input disabled={locked} value={data.meta.departure} onChange={e=>updateMeta('departure', e.target.value)} placeholder="Origin" />
+            )
+          }</Labeled>}
+          {visibleFields.departureTime && <Labeled label="Departure Time"><input disabled={locked} value={data.meta.departureTime} onChange={e=>updateMeta('departureTime', e.target.value)} placeholder="HHMM" /></Labeled>}
+          {visibleFields.arrival && <Labeled label="Arrival">{
+            locationOptions.length ? (
+              <select disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)}>
+                <option value="">-- Select --</option>
+                {Array.from(new Set([...(locationOptions||[]), data.meta.arrival].filter(Boolean))).map(loc => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+            ) : (
+              <input disabled={locked} value={data.meta.arrival} onChange={e=>updateMeta('arrival', e.target.value)} placeholder="Destination" />
+            )
+          }</Labeled>}
+            {visibleFields.arrivalTime && <Labeled label="Arrival Time"><input disabled={locked} value={data.meta.arrivalTime} onChange={e=>updateMeta('arrivalTime', e.target.value)} placeholder="HHMM" /></Labeled>}
+            {visibleFields.aircraftType && <Labeled label="Aircraft Type">{
+              aircraftTypes.length ? (
+                <select disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)}>
+                  <option value="">-- Select --</option>
+                  {aircraftTypes.map(t => t.type).filter(Boolean).map(t => <option key={t} value={t}>{t}</option>)}
+                  {!aircraftTypes.find(a=>a.type===data.meta.aircraftType) && data.meta.aircraftType && <option value={data.meta.aircraftType}>{data.meta.aircraftType}</option>}
+                </select>
+              ) : (
+                <input disabled={locked} value={data.meta.aircraftType} onChange={e=>updateMeta('aircraftType', e.target.value)} placeholder="Type" />
+              )
+            }
+            {(() => {
+              const sel = aircraftTypes.find(a=>a.type===data.meta.aircraftType);
+              if(!sel) return null;
+              const items = [];
+              if(sel.maxPax) items.push({ label:'Pax', value: sel.maxPax });
+              if(sel.maxOutboundWeight) items.push({ label:'OB Wt', value: sel.maxOutboundWeight });
+              if(sel.maxInboundWeight) items.push({ label:'IB Wt', value: sel.maxInboundWeight });
+              if(!items.length) return null;
+              return (
+                <div style={{ marginTop:6, display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
+                  <span style={{ fontSize:12, fontWeight:600, opacity:.85 }}>Limits:</span>
+                  {items.map((it,i)=> (
+                    <span key={i} style={{
+                      fontSize:12,
+                      background: theme.name==='Dark'? '#39424a':'#dfe9f3',
+                      color: theme.name==='Dark'? '#fff':'#123',
+                      padding:'4px 8px',
+                      borderRadius:20,
+                      lineHeight:1,
+                      fontWeight:500,
+                      boxShadow:'0 1px 2px rgba(0,0,0,0.25)'
+                    }}>{it.label}: {it.value}</span>
+                  ))}
+                </div>
+              );
+            })()}
+            </Labeled>}
+            {visibleFields.tailNumber && <Labeled label="Tail #"><input disabled={locked} value={data.meta.tailNumber} onChange={e=>updateMeta('tailNumber', e.target.value)} placeholder="Registration" /></Labeled>}
+            {visibleFields.captain && <Labeled label="Captain"><input disabled={locked} value={data.meta.captain} onChange={e=>updateMeta('captain', e.target.value)} /></Labeled>}
+            {visibleFields.coPilot && <Labeled label="Co-Pilot"><input disabled={locked} value={data.meta.coPilot} onChange={e=>updateMeta('coPilot', e.target.value)} /></Labeled>}
+            {visibleFields.dispatcher && <Labeled label="Dispatcher"><input disabled={locked} value={data.meta.dispatcher} onChange={e=>updateMeta('dispatcher', e.target.value)} /></Labeled>}
         </div>
         <div style={{ display:'flex', gap:24, alignItems:'flex-start', marginTop:24 }}>
           <div style={{ flex:1 }}>
@@ -707,9 +641,9 @@ export default function FlightManifestTemplate() {
           </div>
           {visibleFields.notes && (
             <div style={{ flex:1 }}>
-              <Field label="Notes" full>
+              <Labeled label="Notes" full>
                 <textarea disabled={locked} rows={4} value={data.meta.notes} onChange={e=>updateMeta('notes', e.target.value)} style={{ resize:'vertical' }} />
-              </Field>
+              </Labeled>
             </div>
           )}
         </div>
@@ -742,9 +676,9 @@ export default function FlightManifestTemplate() {
     setData(d=> ({ ...d, outbound: d.outbound.map(p=> p.id===passengerId ? { ...p, flightIndex: Math.max(1,(p.flightIndex|| (idx+1)) + delta) } : p) }));
   }}
     />
-          {idx===outboundFlights.length-1 && ( 
+          {idx===outboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-            {!locked && <button className="no-print" onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>}
+            {!locked && <button onClick={()=>addPassenger('outbound')} style={actionBtn(theme)}>Add Outbound</button>}
             <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
               <span>Pax: {totalOutbound}</span>
               <span>Body Wt: {totalBodyOutbound.toFixed(1)}</span>
@@ -786,9 +720,9 @@ export default function FlightManifestTemplate() {
     setData(d=> ({ ...d, inbound: d.inbound.map(p=> p.id===passengerId ? { ...p, flightIndex: Math.max(1,(p.flightIndex|| (idx+1)) + delta) } : p) }));
   }}
     />
-          {idx===inboundFlights.length-1 && ( 
+          {idx===inboundFlights.length-1 && (
           <div style={{ display:'flex', gap:12, marginTop:12, flexWrap:'wrap', alignItems:'center' }}>
-            {!locked && <button className="no-print" onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>}
+            {!locked && <button onClick={()=>addPassenger('inbound')} style={actionBtn(theme)}>Add Inbound</button>}
             <div style={{ marginLeft:'auto', fontSize:12, opacity:.8, display:'flex', gap:14, flexWrap:'wrap' }}>
               <span>Pax: {totalInbound}</span>
               <span>Body Wt: {totalBodyInbound.toFixed(1)}</span>
@@ -808,14 +742,7 @@ export default function FlightManifestTemplate() {
         <div style={sectionHeader(theme)}>Actions & Totals</div>
         <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
           <button onClick={exportJSON} style={actionBtn(theme)}>Export JSON</button>
-          <button onClick={()=>exportCSV('outbound')} style={actionBtn(theme)}>Export OB CSV</button>
-          <button onClick={()=>exportCSV('inbound')} style={actionBtn(theme)}>Export IB CSV</button>
-          <button onClick={copyJSON} style={actionBtn(theme)}>Copy JSON</button>
           <button onClick={printView} style={actionBtn(theme)}>Print</button>
-          <button onClick={()=> setShowPrintOpts(true)} style={actionBtn(theme)}>Print Options</button>
-          <label style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
-            <input type="checkbox" checked={exportIncludeComments} onChange={e=> setExportIncludeComments(e.target.checked)} /> Include comments in exports
-          </label>
           <button onClick={()=>saveToCatalog(false)} style={actionBtn(theme)} disabled={locked || !isDirtyRelativeToCatalog}>Save{currentCatalogId && !isDirtyRelativeToCatalog? ' (Saved)':''}</button>
           <button onClick={()=>saveToCatalog(true)} style={actionBtn(theme)} disabled={locked}>Save As New</button>
           <button onClick={()=>setCatalogOpen(o=>!o)} style={actionBtn(theme)}>{catalogOpen? 'Close Catalog':'Catalog'}</button>
@@ -858,28 +785,6 @@ export default function FlightManifestTemplate() {
         </section>
       )}
       <div style={{ fontSize:10, opacity:.5, marginTop:30 }}>Future: auto-populate from planner deltas; attach saved templates to flights; CSV export.</div>
-      {showPrintOpts && (
-        <div className="no-print" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:900, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={e=>{ if(e.target===e.currentTarget) setShowPrintOpts(false); }}>
-          <div style={{ background: theme.surface, color: theme.text, width:'min(420px,90%)', border:'1px solid '+(theme.name==='Dark'? '#555':'#444'), borderRadius:12, padding:16, boxShadow:'0 8px 24px rgba(0,0,0,0.45)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <div style={{ fontWeight:700 }}>Print Options</div>
-              <button onClick={()=> setShowPrintOpts(false)} style={smallBtn(theme)}>Close</button>
-            </div>
-            <div style={{ display:'grid', gap:8 }}>
-              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeWeights} onChange={e=> setPrintOptions(o=> ({ ...o, includeWeights: e.target.checked }))} /> Include weights</label>
-              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeComments} onChange={e=> setPrintOptions(o=> ({ ...o, includeComments: e.target.checked }))} /> Include comments</label>
-              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeNotes} onChange={e=> setPrintOptions(o=> ({ ...o, includeNotes: e.target.checked }))} /> Include notes</label>
-              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.includeTotals} onChange={e=> setPrintOptions(o=> ({ ...o, includeTotals: e.target.checked }))} /> Include totals</label>
-              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.compact} onChange={e=> setPrintOptions(o=> ({ ...o, compact: e.target.checked }))} /> Compact layout</label>
-              <label style={{ fontSize:12 }}><input type="checkbox" checked={!!printOptions.landscape} onChange={e=> setPrintOptions(o=> ({ ...o, landscape: e.target.checked }))} /> Landscape</label>
-            </div>
-            <div style={{ marginTop:12, display:'flex', gap:8, justifyContent:'flex-end' }}>
-              <button onClick={()=> setShowPrintOpts(false)} style={smallBtn(theme)}>Save</button>
-              <button onClick={()=> { setShowPrintOpts(false); printView(); }} style={actionBtn(theme)}>Print Now</button>
-            </div>
-          </div>
-        </div>
-      )}
       {addPersonOpen && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'60px 20px', zIndex:600 }} onClick={e=>{ if(e.target===e.currentTarget) setAddPersonOpen(false); }}>
           <div style={{ background: theme.background, color: theme.text, padding:20, borderRadius:12, width:'min(480px,100%)', border:'1px solid '+(theme.name==='Dark'? '#666':'#444'), boxShadow:'0 8px 24px rgba(0,0,0,0.4)' }}>
@@ -934,21 +839,6 @@ const Td = ({ children, colSpan, style }) => <td colSpan={colSpan} style={{ padd
 const actionBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 12px', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600, boxShadow:'0 2px 4px rgba(0,0,0,0.3)' });
 const smallBtn = (theme) => ({ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'4px 6px', borderRadius:6, cursor:'pointer', fontSize:11, fontWeight:600 });
 function escapeHtml(str='') { return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-function renderPrintTableTemplate(list, opts, origin, destination){
-  const headers = ['#','Name','Company'];
-  if(opts.includeWeights){ headers.push('Body Wt','Bag Wt','# Bags','Total Wt'); }
-  headers.push('Origin','Destination');
-  if(opts.includeComments){ headers.push('Comments'); }
-  const rows = list.map((p,i)=>{
-    const bw=parseFloat(p.bodyWeight)||0; const gw=parseFloat(p.bagWeight)||0; const tot=bw+gw;
-    const cells = [i+1, escapeHtml(p.name||''), escapeHtml(p.company||'')];
-    if(opts.includeWeights){ cells.push(p.bodyWeight||'', p.bagWeight||'', p.bagCount||'', tot?tot:''); }
-    cells.push(escapeHtml(origin||''), escapeHtml(destination||''));
-    if(opts.includeComments){ cells.push(escapeHtml(p.comments||'')); }
-    return `<tr>${cells.map(c=> `<td>${c}</td>`).join('')}</tr>`;
-  }).join('');
-  return `<table><thead><tr>${headers.map(h=> `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
-}
 function PassengerTable({ theme, dir, list, onUpdate, onRemove, onManualRoute, personnelRecords, openAddPerson, applyPersonRecord, locked, flightNumber, flightsCount, onReassign }) {
   const [nameQuery, setNameQuery] = useState('');
   const [activeRow, setActiveRow] = useState(null);

@@ -1,15 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { emitDomain } from '../ai/eventBus.js';
 import { useTheme } from '../ThemeContext.jsx';
-import { storage } from '../utils/storageAdapter';
-import { fsx } from '../utils/fileSystem';
-import AdminFlightDirection from './AdminFlightDirection.jsx';
 
 const ADMIN_KEY = 'pobIsAdmin';
 export const isAdmin = () => {
   try {
-  const a = storage.get(ADMIN_KEY);
-  const b = storage.get('pob_admin');
+    const a = localStorage.getItem(ADMIN_KEY);
+    const b = localStorage.getItem('pob_admin');
     return a === 'true' || a === '1' || b === 'true' || b === '1';
   } catch { return false; }
 };
@@ -18,44 +15,25 @@ export default function AdminPage() {
   const { theme } = useTheme();
   useEffect(()=> { if (!isAdmin()) window.location.hash = '#dashboard'; }, []);
   // Manage manifest locations list
-  const [locations, setLocations] = useState(() => storage.getJSON('flightManifestLocations', []));
+  const [locations, setLocations] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
+  });
   const [newLoc, setNewLoc] = useState('');
-  // Add Local Storage toggle state
-  const [localEnabled, setLocalEnabled] = useState(() => storage.isLocalEnabled());
-  const [exportDirName, setExportDirName] = useState('');
-  useEffect(()=>{
-    (async ()=>{
-      try{
-        const h = await fsx.getDirHandle('defaultExportDir');
-        if (h && h.name) setExportDirName(h.name);
-      }catch{ setExportDirName(''); }
-    })();
-  },[]);
-  const chooseExportDir = async () => {
-    try{
-      if(!fsx.isSupported()) { alert('Folder picker not supported in this browser.'); return; }
-      const handle = await fsx.pickDirectory();
-      await fsx.storeDirHandle('defaultExportDir', handle);
-      setExportDirName(handle.name || 'Selected');
-    }catch(e){ /* user canceled or error */ }
-  };
-  const clearExportDir = async () => { await fsx.clearDirHandle('defaultExportDir'); setExportDirName(''); };
-
   // Location POB caps & contingencies
   const CAPS_KEY = 'pobLocationCaps';
-  const [locationCaps, setLocationCaps] = useState(()=> storage.getJSON(CAPS_KEY, {}));
-  useEffect(()=> { storage.setJSON(CAPS_KEY, locationCaps); }, [locationCaps]);
+  const [locationCaps, setLocationCaps] = useState(()=> { try { return JSON.parse(localStorage.getItem(CAPS_KEY)) || {}; } catch { return {}; } });
+  useEffect(()=> { try { localStorage.setItem(CAPS_KEY, JSON.stringify(locationCaps)); } catch {} }, [locationCaps]);
   // Personnel list options (centralized here for admin)
-  const [crewOptions, setCrewOptions] = useState(()=> storage.getJSON('personnelCrewOptions', []));
-  const [personnelLocOptions, setPersonnelLocOptions] = useState(()=> storage.getJSON('personnelLocationOptions', []));
-  const [rotationOptions, setRotationOptions] = useState(()=> storage.getJSON('personnelRotationOptions', []));
+  const [crewOptions, setCrewOptions] = useState(()=> { try { return JSON.parse(localStorage.getItem('personnelCrewOptions')) || []; } catch { return []; }});
+  const [personnelLocOptions, setPersonnelLocOptions] = useState(()=> { try { return JSON.parse(localStorage.getItem('personnelLocationOptions')) || []; } catch { return []; }});
+  const [rotationOptions, setRotationOptions] = useState(()=> { try { return JSON.parse(localStorage.getItem('personnelRotationOptions')) || []; } catch { return []; }});
   const [crewText, setCrewText] = useState(()=> crewOptions.join('\n'));
   const [personnelLocText, setPersonnelLocText] = useState(()=> personnelLocOptions.join('\n'));
   const [rotationText, setRotationText] = useState(()=> rotationOptions.join('\n'));
   // Persist changes
-  useEffect(()=> { storage.setJSON('personnelCrewOptions', crewOptions); }, [crewOptions]);
-  useEffect(()=> { storage.setJSON('personnelLocationOptions', personnelLocOptions); }, [personnelLocOptions]);
-  useEffect(()=> { storage.setJSON('personnelRotationOptions', rotationOptions); }, [rotationOptions]);
+  useEffect(()=> { localStorage.setItem('personnelCrewOptions', JSON.stringify(crewOptions)); }, [crewOptions]);
+  useEffect(()=> { localStorage.setItem('personnelLocationOptions', JSON.stringify(personnelLocOptions)); }, [personnelLocOptions]);
+  useEffect(()=> { localStorage.setItem('personnelRotationOptions', JSON.stringify(rotationOptions)); }, [rotationOptions]);
   // Sync text when lists updated (other tabs / utilities)
   useEffect(()=> { setCrewText(crewOptions.join('\n')); }, [crewOptions]);
   useEffect(()=> { setPersonnelLocText(personnelLocOptions.join('\n')); }, [personnelLocOptions]);
@@ -117,9 +95,9 @@ export default function AdminPage() {
       return { ...c, [loc]: { ...existing, [field]: nextVal } };
     });
   };
-  useEffect(()=> { storage.setJSON('flightManifestLocations', locations); }, [locations]);
+  useEffect(()=> { localStorage.setItem('flightManifestLocations', JSON.stringify(locations)); }, [locations]);
   let aircraftTypes = [];
-  try { aircraftTypes = storage.getJSON('flightManifestAircraftTypes', []); } catch {}
+  try { aircraftTypes = JSON.parse(localStorage.getItem('flightManifestAircraftTypes')) || []; } catch {}
   const [activeSection, setActiveSection] = useState(null); // 'flight' | 'personnel' | 'utilities' | 'pob'
   const toggleSection = (key) => setActiveSection(prev => prev === key ? null : key);
   // Triple verification reset handler
@@ -128,8 +106,8 @@ export default function AdminPage() {
     if(!window.confirm('Second confirmation: This action cannot be undone. Still proceed?')) return;
     const phrase = prompt('FINAL confirmation: type RESET (all caps) to proceed.');
     if(phrase !== 'RESET') { alert('Reset aborted.'); return; }
-  storage.remove('pobPlannerData');
-  storage.remove('pobPlannerComments');
+    localStorage.removeItem('pobPlannerData');
+    localStorage.removeItem('pobPlannerComments');
     alert('Planner data cleared. Reload Planner page to see effect.');
     emitDomain('CONFIG_CHANGED', { type:'planner_reset' }, 'Planner reset');
   };
@@ -167,8 +145,8 @@ export default function AdminPage() {
   useEffect(()=>{ setBulkPreview(parseBulk(bulkText)); }, [bulkText]);
   const applyBulk = () => {
     if(!bulkPreview.length) { setBulkOpen(false); return; }
-  let prev = [];
-  try { prev = storage.getJSON('pobPlannerData', []) || []; } catch {}
+    let prev = [];
+    try { prev = JSON.parse(localStorage.getItem('pobPlannerData')) || []; } catch {}
     const map = new Map(prev.map(r=> [ (r.company||'').toLowerCase(), r ]));
     const next = [...prev];
     bulkPreview.forEach(br => {
@@ -181,7 +159,7 @@ export default function AdminPage() {
       }
       Object.entries(br.values).forEach(([k,v])=>{ row[k]=v; });
     });
-  storage.setJSON('pobPlannerData', next);
+    localStorage.setItem('pobPlannerData', JSON.stringify(next));
     setBulkOpen(false);
   };
   const bpTh = { padding:'4px 6px', border:'1px solid #999', background:'#f0f3f6', position:'sticky', top:0 };
@@ -190,33 +168,7 @@ export default function AdminPage() {
   return (
     <div style={{ background: theme.background, color: theme.text, minHeight:'100vh', padding:'24px 26px 60px' }}>
       <h2 style={{ marginTop:0 }}>Admin Panel</h2>
-      <div style={{ fontSize:12, opacity:.75, marginBottom:18 }}>Centralized application configuration. Changes are saved locally in this browser and affect anyone using this browser profile on this device.</div>
-
-      {/* System Settings Card */}
-      <section id="admin-system" style={card(theme)}>
-        <div style={sectionHeader(theme)}>System</div>
-        <p style={{ marginTop:0, fontSize:12, opacity:.8 }}>Global system controls for this device.</p>
-        <div style={{ display:'grid', gap:12 }}>
-          <div>
-            <div style={{ fontSize:12, fontWeight:700, marginBottom:6 }}>Local Storage</div>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <input id="toggle-local-admin" type="checkbox" checked={!!localEnabled} onChange={e=>{ const v=!!e.target.checked; setLocalEnabled(v); storage.setLocalEnabled(v); }} />
-              <label htmlFor="toggle-local-admin" style={{ fontSize:12 }}>Enable Local Storage (persist data to this device)</label>
-            </div>
-            <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>When disabled, the app uses a temporary in-memory store. Data won’t persist after refresh.</div>
-          </div>
-          <div>
-            <div style={{ fontSize:12, fontWeight:700, marginBottom:6 }}>Default Export Folder</div>
-            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-              <button onClick={chooseExportDir} style={utilBtn(theme)} disabled={!fsx.isSupported()}>Choose Folder…</button>
-              {exportDirName ? <span style={{ fontSize:12 }}>Selected: <strong>{exportDirName}</strong></span> : <span style={{ fontSize:12, opacity:.6 }}>No folder selected</span>}
-              {exportDirName && <button onClick={clearExportDir} style={{ ...utilBtn(theme), background:'#555' }}>Clear</button>}
-            </div>
-            {!fsx.isSupported() && <div style={{ fontSize:11, opacity:.65, marginTop:4 }}>Your browser may not support native folder picking. On Windows, use the latest Chrome/Edge.</div>}
-          </div>
-        </div>
-      </section>
-
+      <div style={{ fontSize:12, opacity:.75, marginBottom:18 }}>Centralized application configuration. Changes persist in local storage and affect all users on this device.</div>
       {/* Section quick access buttons */}
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, marginBottom:24 }}>
         <button onClick={()=> { toggleSection('flight'); if(activeSection!=='flight') setTimeout(()=> document.getElementById('admin-flight')?.scrollIntoView({ behavior:'smooth', block:'start' }), 30); }} style={navBtn(theme, '#2d6cdf', activeSection==='flight')}>{activeSection==='flight' ? '✕ Flight & Planner' : 'Flight & Planner'}</button>
@@ -229,7 +181,7 @@ export default function AdminPage() {
       <section id="admin-flight" style={card(theme)}>
         <div style={sectionHeader(theme)}>Flight & Planner Configuration</div>
         <p style={{ marginTop:0, fontSize:12, lineHeight:1.45 }}>Manage flight-related lists and open the manifest template builder.</p>
-  <div style={{ marginBottom:18 }}>
+        <div style={{ marginBottom:18 }}>
           <strong style={{ fontSize:12 }}>Flight Locations & POB Limits</strong>
           <div style={{ fontSize:11, opacity:.7, marginTop:2, marginBottom:6 }}>Manage locations plus regulatory Max POB and contingency bunks (Flotel / Field Boat). Highlighting on Dashboard occurs when forecast exceeds these limits.</div>
           {locations.length === 0 && <div style={{ fontSize:12, opacity:.6, marginBottom:8 }}>No locations yet. Add one below.</div>}
@@ -280,7 +232,6 @@ export default function AdminPage() {
             <button onClick={addLocation} style={{ padding:'8px 14px', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, cursor:'pointer', fontWeight:600, fontSize:12 }}>Add</button>
           </div>
         </div>
-  <AdminFlightDirection />
   <a href="#logistics/flights/manifest" style={btn(theme)}>Open Manifest Template</a>
         <div style={{ marginTop:18 }}>
           <strong style={{ fontSize:12 }}>Aircraft Types (Read Only)</strong>
@@ -331,13 +282,12 @@ export default function AdminPage() {
         <p style={{ marginTop:0, fontSize:12, opacity:.75 }}>Maintenance, export, and admin access controls.</p>
         <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
           <button onClick={handleResetPlanner} style={utilBtn(theme)}>Reset Planner Data</button>
-          <button onClick={()=>{ const payload = {}; ['pobPlannerData','pobPlannerComments','flightManifestLocations','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','flightManifestAircraftTypes'].forEach(k=>{ try { payload[k]= storage.getJSON(k); } catch { payload[k]= storage.get(k); } }); const json = JSON.stringify(payload,null,2); const fileName='pob-app-export-'+new Date().toISOString().slice(0,10)+'.json'; (async()=>{ try{ const h = await fsx.getDirHandle('defaultExportDir'); if(h){ await fsx.saveFile(h, fileName, json); alert('Saved to '+(h.name||'folder')); return; } } catch{} // fallback to download
- const blob = new Blob([json], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=fileName; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); })(); }} style={utilBtn(theme)}>Export Config/Data</button>
-          <button disabled title="Deactivated for safety" style={{ ...utilBtn(theme), background:'#555', borderColor:'#444', cursor:'not-allowed', opacity:.6 }}>Clear Local Data (Disabled)</button>
+          <button onClick={()=>{ const payload = {}; ['pobPlannerData','pobPlannerComments','flightManifestLocations','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','flightManifestAircraftTypes'].forEach(k=>{ try { payload[k]= JSON.parse(localStorage.getItem(k)); } catch { payload[k]= localStorage.getItem(k); } }); const blob = new Blob([JSON.stringify(payload,null,2)], { type:'application/json' }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pob-app-export-'+new Date().toISOString().slice(0,10)+'.json'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0); }} style={utilBtn(theme)}>Export Config/Data</button>
+          <button disabled title="Deactivated for safety" style={{ ...utilBtn(theme), background:'#555', borderColor:'#444', cursor:'not-allowed', opacity:.6 }}>Nuke Local Storage (Disabled)</button>
         </div>
-    <div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'14px 0 10px' }} />
-    <div style={{ fontWeight:'bold', fontSize:12, marginBottom:6 }}>Admin Access</div>
-  <p style={{ marginTop:0, fontSize:11, opacity:.7 }}>To revoke admin mode manually, clear the “Admin Mode” flag from your saved local data for this site and reload.</p>
+        <div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'14px 0 10px' }} />
+        <div style={{ fontWeight:'bold', fontSize:12, marginBottom:6 }}>Admin Access</div>
+        <p style={{ marginTop:0, fontSize:11, opacity:.7 }}>To revoke admin mode run in console:<br/><code>localStorage.removeItem('pobIsAdmin'); location.reload();</code></p>
   </section>
   )}
     {/* POB / Bunk Designer */}
@@ -407,8 +357,8 @@ const navBtn = (theme, color, active) => ({
 
 // --- Bunk Designer Component ---
 function BunkDesigner({ theme }) {
-  const [bunks, setBunks] = useState(()=> storage.getJSON('pobBunkConfig', []));
-  const [assignments] = useState(()=> storage.getJSON('pobBunkAssignments', {}));
+  const [bunks, setBunks] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobBunkConfig'))||[]; } catch { return []; } });
+  const [assignments] = useState(()=>{ try { return JSON.parse(localStorage.getItem('pobBunkAssignments'))||{}; } catch { return {}; } });
   const [filter, setFilter] = useState('');
   const [newFloor, setNewFloor] = useState('1');
   const [newSection, setNewSection] = useState('A');
@@ -425,11 +375,11 @@ function BunkDesigner({ theme }) {
     });
     if(changed) {
       setBunks(next);
-  try { storage.setJSON('pobBunkConfig', next); } catch{}
+      try { localStorage.setItem('pobBunkConfig', JSON.stringify(next)); } catch{}
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const persist = (next) => { setBunks(next); try { storage.setJSON('pobBunkConfig', next); } catch{} };
+  const persist = (next) => { setBunks(next); try { localStorage.setItem('pobBunkConfig', JSON.stringify(next)); } catch{} };
   const [newPattern, setNewPattern] = useState('hyphen-num'); // 'num' | 'hyphen-num' | 'hyphen-alpha'
   const alphaSeq = (n) => { // 1 -> A, 27 -> AA
     let s='';

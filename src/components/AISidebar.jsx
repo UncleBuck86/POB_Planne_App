@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { getPassiveSuggestions, getPassiveSnapshot } from '../ai/passiveAI.js';
+import { getPassiveSuggestions } from '../ai/passiveAI.js';
 import { streamChat, isOpenAI } from '../ai/client.js';
 
 export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext }) {
@@ -48,7 +48,7 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
     setLoading(true);
     let assistantAccum = '';
     try {
-      const res = await streamChat([...messages.filter(m=>m.role!=='system'), userMsg], {
+      await streamChat([...messages.filter(m=>m.role!=='system'), userMsg], {
         onToken: (tok, full) => {
           assistantAccum = full;
           setMessages(curr => {
@@ -65,10 +65,10 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
           setMessages(curr => {
             if (curr.length && curr[curr.length-1].role === 'assistant' && curr[curr.length-1].streaming) {
               const updated = [...curr];
-              updated[updated.length-1] = { role:'assistant', content: final || assistantAccum || '(no response)' };
+              updated[updated.length-1] = { role:'assistant', content: final };
               return updated;
             }
-            return [...curr, { role:'assistant', content: final || assistantAccum || '(no response)' }];
+            return [...curr, { role:'assistant', content: final }];
           });
         },
         onError: (err) => {
@@ -77,15 +77,6 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
         temperature: 0.2,
         maxTokens: 400
       });
-      // If the client stub returns a string or falsy without calling callbacks, add a safe message
-      if (typeof res === 'string' && !assistantAccum) {
-        const txt = res.trim();
-        if (txt) {
-          setMessages(curr => [...curr, { role:'assistant', content: txt }]);
-        } else {
-          setMessages(curr => [...curr, { role:'assistant', content: '(no response)' }]);
-        }
-      }
     } finally {
       setLoading(false);
     }
@@ -103,10 +94,6 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
           <button onClick={()=> setMessages([{ role:'assistant', content:'Context cleared. Ask a new question.' }])} style={btnStyle('#444')}>Clear</button>
           <button onClick={() => setOpen(false)} style={btnStyle('#444')}>✕</button>
         </div>
-      </div>
-      {/* Disabled notice */}
-      <div style={{ background:'#3b2f2f', color:'#ffd7d7', padding:'8px 12px', borderBottom:'1px solid #533', fontSize:12 }}>
-        AI features are disabled in this build. No data is sent to external AI services.
       </div>
       <div ref={scrollRef} style={{ flex:1, overflowY:'auto', padding:'12px 14px', fontSize:13 }}>
         {messages.map((m,i) => (
@@ -154,9 +141,7 @@ export default function AISidebar({ suggestion, onAsk, open, setOpen, getContext
         </div>
         {showDebug && (
           <pre style={{ marginTop:8, maxHeight:160, overflow:'auto', background:'#15181c', padding:8, fontSize:10, border:'1px solid #333', borderRadius:6 }}>
-            {(function(){
-              try { const snap = getPassiveSnapshot && getPassiveSnapshot(); return JSON.stringify(snap, null, 2) || 'No snapshot'; } catch { return 'No snapshot'; }
-            })()}
+            {JSON.stringify(getPassiveSnapshot(), null, 2) || 'No snapshot'}
           </pre>
         )}
       </div>

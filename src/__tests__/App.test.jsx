@@ -1,7 +1,10 @@
-// v8.11+: AI UI is hidden when disabled; previous banner check no longer applies.
-// Skipping this test until a new UI contract is defined.
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import App from '../App';
+
 describe('App', () => {
-  test.skip('renders AI banner when applicable', () => {
-    // placeholder
+  test('renders main app and AI banner', () => {
+    render(<App />);
+    expect(screen.getByText(/AI features are currently disabled/i)).toBeInTheDocument();
   });
 });

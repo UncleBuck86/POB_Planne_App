@@ -1,11 +1,9 @@
 // CompanyTable.jsx
 // Main table component: manages state, layout, and connects all subcomponents
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { storage } from '../utils/storageAdapter';
 import TableControlsBar from './CompanyTable/TableControlsBar';
 import { useTheme } from '../ThemeContext.jsx';
 import { generateFlightComments } from '../helpers/commentHelpers';
-import { useToast } from '../alerts/ToastProvider.jsx';
 // Import subcomponents for modular table rendering
 import CompanyTableHeader from './CompanyTable/CompanyTableHeader';
 import CompanyRow from './CompanyTable/CompanyRow';
@@ -13,12 +11,11 @@ import CommentsRow from './CompanyTable/CommentsRow';
 import FlightsRow from './CompanyTable/FlightsRow';
 import TotalsRow from './CompanyTable/TotalsRow';
 import EditCompaniesModal from './CompanyTable/EditCompaniesModal';
-import TableConfigModal from './CompanyTable/TableConfigModal.jsx';
 
 export default function CompanyTable({ rowData, setRowData, dates, comments, setComments, todayColumnRef, todayKey, viewStart, viewEnd, themeOverride = {}, editing, setEditing }) {
   // Vertical zoom (scale rows visually). 1 = normal height
   const [zoom, setZoom] = useState(() => {
-    const stored = parseFloat(storage.get('pobZoom') || '1');
+    const stored = parseFloat(localStorage.getItem('pobZoom') || '1');
     return isNaN(stored) ? 1 : stored;
   });
   const minZoom = 0.6;   // allow shrinking
@@ -50,7 +47,9 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   }, [dates, autoHide, todayKey]);
   // frameHeight persistence removed
   // Persist zoom setting
-  useEffect(() => { storage.set('pobZoom', String(zoom)); }, [zoom]);
+  useEffect(() => {
+    localStorage.setItem('pobZoom', String(zoom));
+  }, [zoom]);
   // Auto-hide companies with no numbers in the next 28 days
   // Auto-hide logic removed; hiddenRows is now only controlled manually.
   const { theme } = useTheme ? useTheme() : { theme: { primary: '#388e3c', text: '#fff' } };
@@ -62,17 +61,10 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   // State hooks for undo/redo, highlights, autosave, modal, etc.
   const [undoStack, setUndoStack] = useState([]); // For undo history
   const [redoStack, setRedoStack] = useState([]); // For redo history
-  const [manualHighlights, setManualHighlights] = useState(() => storage.getJSON('pobManualHighlights', {})); // For cell highlights
-  useEffect(() => { storage.setJSON('pobManualHighlights', manualHighlights); }, [manualHighlights]);
+  const [manualHighlights, setManualHighlights] = useState({}); // For cell highlights
   const [saveMsg, setSaveMsg] = useState(''); // For save status message
   const [localComments, setLocalComments] = useState(comments); // For comments row
-  // Keep localComments in sync if parent prop changes externally
-  useEffect(() => { setLocalComments(comments); }, [comments]);
   const [autosave, setAutosave] = useState(true); // Autosave toggle
-  // Track unsaved changes (compares to lastSavedData/Comments)
-  const [unsaved, setUnsaved] = useState(false);
-  const { addToast } = useToast();
-  const lastAutoToastRef = useRef(0);
   // Ensure each company row has a stable id
   const generateId = () => 'cmp_' + Math.random().toString(36).slice(2, 10);
   useEffect(() => {
@@ -81,28 +73,26 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const [editCompanies, setEditCompanies] = useState([]); // Array of {id, company}
   const [pinnedCompanies, setPinnedCompanies] = useState([]); // Array of pinned IDs
   const [hiddenRows, setHiddenRows] = useState([]); // Array of hidden IDs
-  const [configOpen, setConfigOpen] = useState(false);
-  const [includeHiddenInTotals, setIncludeHiddenInTotals] = useState(() => storage.getBool('pobIncludeHiddenInTotals', false));
-  useEffect(()=>{ storage.setBool('pobIncludeHiddenInTotals', includeHiddenInTotals); }, [includeHiddenInTotals]);
-  // Toggle for number input arrows (spinners); default off
-  const [showArrows, setShowArrows] = useState(() => storage.getBool('pobShowNumberArrows', false));
-  useEffect(()=>{ storage.setBool('pobShowNumberArrows', showArrows); }, [showArrows]);
 
   // auto-fit logic removed
 
   // After ids exist, load persisted pinned/hidden (filter to existing ids)
   useEffect(() => {
     if (!rowData.every(r => r.id)) return; // wait until all have ids
-  const storedPinned = storage.getJSON('pobPinnedIds', []);
-  const storedHidden = storage.getJSON('pobHiddenIds', []);
+    const storedPinned = JSON.parse(localStorage.getItem('pobPinnedIds') || '[]');
+    const storedHidden = JSON.parse(localStorage.getItem('pobHiddenIds') || '[]');
     const ids = new Set(rowData.map(r => r.id));
     setPinnedCompanies(storedPinned.filter(id => ids.has(id)));
     setHiddenRows(storedHidden.filter(id => ids.has(id)));
   }, [rowData]);
 
   // Persist pinned & hidden changes
-  useEffect(() => { storage.setJSON('pobPinnedIds', pinnedCompanies); }, [pinnedCompanies]);
-  useEffect(() => { storage.setJSON('pobHiddenIds', hiddenRows); }, [hiddenRows]);
+  useEffect(() => {
+    localStorage.setItem('pobPinnedIds', JSON.stringify(pinnedCompanies));
+  }, [pinnedCompanies]);
+  useEffect(() => {
+    localStorage.setItem('pobHiddenIds', JSON.stringify(hiddenRows));
+  }, [hiddenRows]);
 
   // Prune pinned/hidden if rows removed
   useEffect(() => {
@@ -122,9 +112,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
   const inputRefs = useRef([]); // Refs for table cell inputs
   const unifiedScrollRef = useRef(null); // Horizontal scroll container
   const tbodyRef = useRef(null);
-  // Hover/active cell tracking for row/column highlights
-  const [hoverCell, setHoverCell] = useState({ r: null, c: null });
-  const [activeCell, setActiveCell] = useState({ r: null, c: null });
 
   // Apply auto-hide logic: if autoHide is selected, hide companies with no numbers in the dates shown; if not, show all companies
   const datesToShow = effectiveDates;
@@ -161,7 +148,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Visible rows exclude manually hidden rows
   const visibleRows = useMemo(() => sortedRows.filter(r => !hiddenRows.includes(r.id)), [sortedRows, hiddenRows]);
-  const rowsForTotals = includeHiddenInTotals ? sortedRows : visibleRows;
 
   // toggleAutoFit removed
   // (Removed separate horizontal sync; unified scroll container will handle alignment)
@@ -191,30 +177,15 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
     // Comments row is for user input only
   }, [rowData, dates]);
 
-  // Effect: autosave table and comments to local storage (via adapter)
+  // Effect: autosave table and comments to localStorage
   useEffect(() => {
     if (autosave) {
-      storage.setJSON('pobPlannerData', rowData);
-      storage.setJSON('pobPlannerComments', localComments);
+      localStorage.setItem('pobPlannerData', JSON.stringify(rowData));
+      localStorage.setItem('pobPlannerComments', JSON.stringify(localComments));
       setLastSavedData(rowData);
       setLastSavedComments(localComments);
-      setUnsaved(false);
-      // Throttled autosave toast (no spam)
-      const now = Date.now();
-      if (now - (lastAutoToastRef.current || 0) > 15000) {
-        lastAutoToastRef.current = now;
-        try { addToast({ type:'info', title:'Saved', message:'Autosaved changes', timeout:2000, dedupeKey: undefined }); } catch {/* ignore */}
-      }
     }
   }, [rowData, localComments, autosave]);
-
-  // Effect: recompute unsaved when data or lastSaved snapshots change
-  useEffect(() => {
-    // Simple shallow compare by JSON stringify for this dataset size
-    const dataChanged = JSON.stringify(rowData) !== JSON.stringify(lastSavedData);
-    const commentsChanged = JSON.stringify(localComments) !== JSON.stringify(lastSavedComments);
-    setUnsaved(dataChanged || commentsChanged);
-  }, [rowData, localComments, lastSavedData, lastSavedComments]);
 
   // Helper: push current state to undo stack
   const pushUndo = () => {
@@ -276,28 +247,13 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
 
   // Manual save button
   const handleSave = () => {
-  storage.setJSON('pobPlannerData', rowData);
-  storage.setJSON('pobPlannerComments', localComments);
+    localStorage.setItem('pobPlannerData', JSON.stringify(rowData));
+    localStorage.setItem('pobPlannerComments', JSON.stringify(localComments));
     setLastSavedData(rowData);
     setLastSavedComments(localComments);
     setSaveMsg('Saved!');
     setTimeout(() => setSaveMsg(''), 2000);
-    setUnsaved(false);
-  try { addToast({ type:'info', title:'Saved', message:'Your changes have been saved', timeout:2000 }); } catch {/* ignore */}
   };
-
-  // Keyboard shortcut: Ctrl/Cmd+S to save when autosave is off
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      const isSave = (e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey);
-      if (isSave) {
-        e.preventDefault();
-        if (!autosave) handleSave();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [autosave, handleSave, rowData, localComments]);
 
   // Scroll table horizontally by px (used for scroll buttons)
   const scrollTable = (action) => {
@@ -408,7 +364,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         setAutoHide={setAutoHide}
         handleSave={handleSave}
         saveMsg={saveMsg}
-  unsaved={unsaved}
         undoStack={undoStack}
         redoStack={redoStack}
         pushUndo={pushUndo}
@@ -421,10 +376,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         scrollTable={scrollTable}
         onBulkImport={onBulkImport}
       />
-      {/* Config button */}
-      <div style={{ margin:'0 0 8px' }}>
-        <button onClick={()=> setConfigOpen(true)} style={{ padding:'4px 10px', background: appliedTheme.primary, color: appliedTheme.text, border:'1px solid #000', borderRadius:6, fontSize:12, fontWeight:700 }}>Table Config</button>
-      </div>
       {saveMsg && <span style={{ color: '#388e3c', fontWeight: 'bold' }}>{saveMsg}</span>}
 
       {/* Unified scrollable table with sticky header & first column */}
@@ -444,37 +395,14 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
               margin: 0
             }}
           >
-            {/* Hide number input spinners when showArrows is false (default) */}
-            {!showArrows && (
-              <style>{`
-                /* Chrome, Safari, Edge, Opera */
-                input[type=number]::-webkit-outer-spin-button,
-                input[type=number]::-webkit-inner-spin-button {
-                  -webkit-appearance: none;
-                  margin: 0;
-                }
-                /* Firefox */
-                input[type=number] { -moz-appearance: textfield; }
-              `}</style>
-            )}
             <colgroup>
               <col style={{ width: 160 }} />
               {effectiveDates.map(d => (
                 <col key={d.date} style={{ width: 80 }} />
               ))}
             </colgroup>
-            <CompanyTableHeader
-              dates={effectiveDates}
-              todayKey={todayKey}
-              todayColumnRef={todayColumnRef}
-              hoverCell={hoverCell}
-              activeCell={activeCell}
-              setHoverCell={setHoverCell}
-            />
-            <tbody
-              ref={tbodyRef}
-              onMouseLeave={() => setHoverCell({ r: null, c: null })}
-            >
+            <CompanyTableHeader dates={effectiveDates} todayKey={todayKey} todayColumnRef={todayColumnRef} />
+            <tbody ref={tbodyRef}>
               {sortedRows.map((row, idx) => (
                 <CompanyRow
                   key={row.id}
@@ -489,21 +417,17 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
                   pushUndo={pushUndo}
                   setRowData={setRowData}
                   focusCell={focusCell}
-                  hoverCell={hoverCell}
-                  activeCell={activeCell}
-                  setHoverCell={setHoverCell}
-                  setActiveCell={setActiveCell}
                 />
               ))}
-              <TotalsRow rowData={rowsForTotals} dates={effectiveDates} hiddenRows={hiddenRows} />
+              <TotalsRow rowData={visibleRows} dates={effectiveDates} />
               <FlightsRow type="Flights Out" dates={effectiveDates} flights={flightsOut} />
               <FlightsRow type="Flights In" dates={effectiveDates} flights={flightsIn} />
               <CommentsRow
                 dates={effectiveDates}
-                comments={localComments}
+                comments={comments}
                 lastSavedComments={lastSavedComments}
                 manualHighlights={manualHighlights}
-                setComments={setLocalComments}
+                setComments={setComments}
                 pushUndo={pushUndo}
               />
               {/* Spacer row so user can scroll until totals line reaches sticky header */}
@@ -527,14 +451,6 @@ export default function CompanyTable({ rowData, setRowData, dates, comments, set
         removeCompany={removeCompany}
         saveCompanies={saveCompanies}
         setEditing={setEditing}
-      />
-      <TableConfigModal
-        open={configOpen}
-        onClose={()=> setConfigOpen(false)}
-        includeHiddenInTotals={includeHiddenInTotals}
-        setIncludeHiddenInTotals={setIncludeHiddenInTotals}
-        showArrows={showArrows}
-        setShowArrows={setShowArrows}
       />
     </div>
   );

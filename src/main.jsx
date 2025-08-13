@@ -11,17 +11,9 @@ import FlightsPage from './pages/Flights.jsx';
 import FlightManifestView from './pages/FlightManifestView.jsx';
 import FlightManifestTemplate from './pages/FlightManifestTemplate.jsx';
 import { ThemeProvider, useTheme } from './ThemeContext.jsx';
-import GlobalStyle from './GlobalStyle.jsx';
 import { initPassiveAI, registerContextProvider, setPassiveAIEnabled, setPassiveDebug, setPassiveInterval, triggerPassiveNow, setPassiveSystemPrompt, setPassiveRedaction } from './ai/passiveAI.js';
 import { emitDomain } from './ai/eventBus.js';
-import { isOpenAI } from './ai/client.js';
-import { ToastProvider, useToast } from './alerts/ToastProvider.jsx';
-import { storage } from './utils/storageAdapter';
-// Auth and Router (bridge): enable router hooks for TSX login while keeping hash routing
-import { HashRouter } from 'react-router-dom';
-import { AuthProvider, useAuth } from './auth/AuthContext';
-import LoginPage from './pages/LoginPage.tsx';
-import AccessDeniedPage from './pages/AccessDeniedPage.tsx';
+import { ToastProvider } from './alerts/ToastProvider.jsx';
 
 function RootRouter() {
 	const [hash, setHash] = useState(window.location.hash.replace('#','') || 'dashboard');
@@ -30,39 +22,6 @@ function RootRouter() {
 		window.addEventListener('hashchange', onHash);
 		return () => window.removeEventListener('hashchange', onHash);
 	}, []);
-	const { state, logout } = useAuth();
-	const path = (hash.startsWith('/') ? hash : ('/'+hash)).replace(/^\/+/, '');
-	// Handle auth-specific routes first
-	if (path.startsWith('logout')) {
-		try { logout?.(); } catch {}
-		window.location.hash = '#/login';
-		return null;
-	}
-	if (path.startsWith('login')) {
-		return (
-			<ThemeProvider>
-				<GlobalStyle />
-				<ToastProvider>
-					<LoginPage />
-				</ToastProvider>
-			</ThemeProvider>
-		);
-	}
-	if (path.startsWith('access-denied')) {
-		return (
-			<ThemeProvider>
-				<GlobalStyle />
-				<ToastProvider>
-					<AccessDeniedPage />
-				</ToastProvider>
-			</ThemeProvider>
-		);
-	}
-	// If not authenticated, send to login (except when already there handled above)
-	if (!state?.isAuthenticated) {
-		window.location.hash = '#/login';
-		return null;
-	}
 	let content = null;
 	if (hash.startsWith('logistics/manifest-view/')) {
 		content = <FlightManifestView />;
@@ -88,7 +47,6 @@ function RootRouter() {
 	else content = <Dashboard />;
 	return (
 		<ThemeProvider>
-			<GlobalStyle />
 			<ToastProvider>
 				<NavShell page={hash.split('/')[0]} content={content} />
 			</ToastProvider>
@@ -97,34 +55,36 @@ function RootRouter() {
 }
 
 function NavShell({ page, content }) {
-	const { theme, team, changeTheme, density, changeDensity, readOnly, changeReadOnly } = useTheme();
-	const { addToast } = useToast();
-	const { state: authState } = useAuth();
+	const { theme, team, changeTheme } = useTheme();
 	const [open, setOpen] = useState(false);
-	const [localEnabled, setLocalEnabled] = useState(() => storage.isLocalEnabled());
-	const [localInfoOpen, setLocalInfoOpen] = useState(false);
 	// Global AI sidebar state & suggestion
 	const [aiSidebarOpen, setAISidebarOpen] = useState(false);
 	const [aiSuggestion, setAISuggestion] = useState('');
 	const [adminEnabled, setAdminEnabled] = useState(checkAdmin());
-	const [passiveAI, setPassiveAI] = useState(()=> storage.get('buckPassiveAI') !== 'false');
-	const [passiveDebug, setPassiveDebug] = useState(()=> storage.getBool('buckPassiveDebug', false));
-	const [passiveInterval, setPassiveIntervalState] = useState(()=> { const v = parseInt(storage.get('buckPassiveInterval'),10); return Number.isFinite(v) ? v : 60000; });
-	const [systemPrompt, setSystemPrompt] = useState(()=> storage.get('buckPassiveSystemPrompt') || '');
-	const [redaction, setRedaction] = useState(()=> storage.getBool('buckPassiveRedaction', false));
+	const [passiveAI, setPassiveAI] = useState(()=> { try { return localStorage.getItem('buckPassiveAI') !== 'false'; } catch { return true; } });
+	const [passiveDebug, setPassiveDebug] = useState(()=> { try { return localStorage.getItem('buckPassiveDebug') === 'true'; } catch { return false; } });
+	const [passiveInterval, setPassiveIntervalState] = useState(()=> { try { return parseInt(localStorage.getItem('buckPassiveInterval'),10)||60000; } catch { return 60000; } });
+	const [systemPrompt, setSystemPrompt] = useState(()=> { try { return localStorage.getItem('buckPassiveSystemPrompt')||''; } catch { return ''; } });
+	const [redaction, setRedaction] = useState(()=> { try { return localStorage.getItem('buckPassiveRedaction')==='true'; } catch { return false; } });
 	const TOAST_PREF_KEY = 'pobToastDisabled';
-	const [toastDisabled, setToastDisabled] = useState(() => storage.getBool(TOAST_PREF_KEY, false));
+	const [toastDisabled, setToastDisabled] = useState(() => { try { return localStorage.getItem(TOAST_PREF_KEY)==='true'; } catch { return false; } });
 	const toggleToastPref = () => {
 		setToastDisabled(prev => {
-			const next = !prev; storage.setBool(TOAST_PREF_KEY, next);
+			const next = !prev; try { localStorage.setItem(TOAST_PREF_KEY, next? 'true':'false'); } catch {}
 			return next;
 		});
 	};
 	// Planner page location selection state
-	const [plannerLocation, setPlannerLocation] = useState(() => storage.get('pobPlannerLocation') || '');
-	const [plannerLocationOptions, setPlannerLocationOptions] = useState(() => storage.getJSON('flightManifestLocations', []));
+	const [plannerLocation, setPlannerLocation] = useState(() => {
+		try { return localStorage.getItem('pobPlannerLocation') || ''; } catch { return ''; }
+	});
+	const [plannerLocationOptions, setPlannerLocationOptions] = useState(() => {
+		try { return JSON.parse(localStorage.getItem('flightManifestLocations')) || []; } catch { return []; }
+	});
 	// Persist planner location selection
-	useEffect(() => { storage.set('pobPlannerLocation', plannerLocation); }, [plannerLocation]);
+	useEffect(() => {
+		try { localStorage.setItem('pobPlannerLocation', plannerLocation); } catch {/* ignore */}
+	}, [plannerLocation]);
 	// Listen for external updates to locations list (Admin page changes)
 	useEffect(() => {
 		const handler = (e) => {
@@ -137,31 +97,12 @@ function NavShell({ page, content }) {
 	}, []);
 	const ref = useRef(null);
 	const gearRef = useRef(null);
-	// Catalog of local data sections and keys (used by info modal and copy actions)
-	const localDataSections = [
-		{ title:'Appearance & Preferences', keys:['pobTheme','pobDensity','pobDateFormat','pobReadOnly','pobToastDisabled'] },
-		{ title:'Planner', keys:['pobPlannerData','pobPlannerComments','pobPlannerLocation'] },
-		{ title:'Dashboard', keys:['dashboardWidgetLayoutV1','dashboardWidgetVisibilityV1','dashboardWidgetColorsV1','pobUserLocation'] },
-		{ title:'Flights & Manifests', keys:['flightManifestTemplateV1','flightManifestCatalogV1','flightManifestVisibleFields','flightManifestLocations','flightManifestAircraftTypes','manifestViewShowWeights','manifestSelectedPersonnel','manifestGenerateDates'] },
-		{ title:'Personnel', keys:['personnelRecords','personnelContactOnlyRecords','personnelCrewOptions','personnelLocationOptions','personnelRotationOptions','personnelLocationFilter','personnelContactViewMode'] },
-		{ title:'POB & Bunks', keys:['pobBunkConfig','pobBunkAssignments'] },
-		{ title:'AI Settings', keys:['buckPassiveAI','buckPassiveDebug','buckPassiveInterval','buckPassiveSystemPrompt','buckPassiveRedaction'] },
-		{ title:'Admin & Limits', keys:['pobIsAdmin','pob_admin','pobLocationCaps'] }
-	];
 	useEffect(()=>{
 		if(!open) return; const handler = (e)=>{ const m=ref.current; const g=gearRef.current; if(m && (m.contains(e.target)||g?.contains(e.target))) return; setOpen(false); }; const key=(e)=>{ if(e.key==='Escape') setOpen(false);};
 		window.addEventListener('mousedown',handler); window.addEventListener('touchstart',handler); window.addEventListener('keydown',key);
 		return ()=>{ window.removeEventListener('mousedown',handler); window.removeEventListener('touchstart',handler); window.removeEventListener('keydown',key); };
 	},[open]);
 	// Passive AI init (once)
-	useEffect(()=>{
-		// Friendly admin guard: if user navigates to #admin without access, notify and redirect
-		if (page === 'admin' && !adminEnabled) {
-			try { addToast({ type:'warn', title:'Admin area', message:'Admin-only. Contact your lead to enable Admin Mode on this device.', timeout: 4000, dedupeKey: 'guard:admin' }); } catch {}
-			window.location.hash = '#dashboard';
-		}
-	}, [page, adminEnabled]);
-
 	useEffect(()=>{
 		initPassiveAI();
 		registerContextProvider('page', ()=> ({ page, hash: window.location.hash }));
@@ -193,14 +134,13 @@ function NavShell({ page, content }) {
 		return ()=> { window.removeEventListener('resize', onResize); window.removeEventListener('click', clickHandler, true); };
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	},[]);
-		useEffect(()=>{ storage.setBool('buckPassiveAI', !!passiveAI); setPassiveAIEnabled(passiveAI); }, [passiveAI]);
-		useEffect(()=>{ storage.setBool('buckPassiveDebug', !!passiveDebug); setPassiveDebug(passiveDebug); }, [passiveDebug]);
-		useEffect(()=>{ storage.set('buckPassiveInterval', String(passiveInterval)); setPassiveInterval(passiveInterval); }, [passiveInterval]);
-		useEffect(()=>{ if(systemPrompt.trim()){ storage.set('buckPassiveSystemPrompt', systemPrompt); setPassiveSystemPrompt(systemPrompt); } }, [systemPrompt]);
-		useEffect(()=>{ storage.setBool('buckPassiveRedaction', !!redaction); setPassiveRedaction(redaction); }, [redaction]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveAI', passiveAI? 'true':'false'); } catch {} setPassiveAIEnabled(passiveAI); }, [passiveAI]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveDebug', passiveDebug? 'true':'false'); } catch {} setPassiveDebug(passiveDebug); }, [passiveDebug]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveInterval', String(passiveInterval)); } catch {} setPassiveInterval(passiveInterval); }, [passiveInterval]);
+	useEffect(()=>{ if(systemPrompt.trim()){ try { localStorage.setItem('buckPassiveSystemPrompt', systemPrompt); } catch {} setPassiveSystemPrompt(systemPrompt); } }, [systemPrompt]);
+	useEffect(()=>{ try { localStorage.setItem('buckPassiveRedaction', redaction? 'true':'false'); } catch {} setPassiveRedaction(redaction); }, [redaction]);
 	// Listen for global AI events
 	useEffect(()=>{
-		if (!isOpenAI) return; // AI disabled: do not wire events
 		const openEvt = () => setAISidebarOpen(true);
 		const setSuggestionEvt = (e) => { if (typeof e.detail === 'string') setAISuggestion(e.detail); };
 		window.addEventListener('openAISidebar', openEvt);
@@ -214,19 +154,6 @@ function NavShell({ page, content }) {
 		style.textContent = `@keyframes buckEarFlick{0%{transform:rotate(0deg);}20%{transform:rotate(-18deg);}40%{transform:rotate(12deg);}60%{transform:rotate(-8deg);}80%{transform:rotate(4deg);}100%{transform:rotate(0deg);} }\n.buck-ear-flick{animation:buckEarFlick .65s ease-out; transform-origin:50% 90%;}`;
 		document.head.appendChild(style);
 		window.__buckEarCSSInjected = true;
-	},[]);
-	// Inject global accessibility styles (focus rings, keyboard outlines)
-	useEffect(()=>{
-		if (window.__buckA11yCSSInjected) return;
-		const style = document.createElement('style');
-		style.textContent = `
-		  :root{ --focus-ring:#2d6cdf; --focus-ring-dark:#9ec1ff; }
-		  *:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
-		  @media (prefers-color-scheme: dark){ *:focus-visible { outline-color: var(--focus-ring-dark); } }
-		  [role="button"], [tabindex]:not([tabindex="-1"]) { outline-offset: 2px; }
-		`;
-		document.head.appendChild(style);
-		window.__buckA11yCSSInjected = true;
 	},[]);
 	// Context provider for AI: if on dashboard and dashboard has registered builder
 	const getAIContext = () => {
@@ -259,19 +186,6 @@ function NavShell({ page, content }) {
 				})}
 				</div>
 				<div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10, position:'relative' }}>
-					{authState?.isAuthenticated && (
-						<>
-							<span title="Signed in user" style={{ color:'#fff', background:'#1f2937', border:'1px solid #0b1220', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>User: {authState.username}</span>
-							<a href="#/logout" style={{ textDecoration:'none', color:'#fff', background:'#7c2d12', border:'1px solid #4a1d0f', padding:'4px 10px', borderRadius:6, fontSize:12, fontWeight:800 }}>Logout</a>
-						</>
-					)}
-					{!localEnabled && (
-						<span title="Local storage disabled for this session" style={{ color:'#fff', background:'#92400e', border:'1px solid #111', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>LOCAL OFF</span>
-					)}
-					{readOnly && (
-						<span title="Read-only mode" style={{ color:'#fff', background:'#6b7280', border:'1px solid #111', padding:'4px 8px', borderRadius:6, fontSize:12, fontWeight:700, letterSpacing:.4 }}>READ-ONLY</span>
-					)}
-					{isOpenAI && (
 					<button
 						onClick={()=>{ window.dispatchEvent(new CustomEvent('openAISidebar')); }}
 						title="Ask Buck (AI Assistant)"
@@ -339,39 +253,23 @@ function NavShell({ page, content }) {
 						<span style={{ position:'relative', zIndex:2 }}>Ask Buck</span>
 						<span style={{ position:'absolute', inset:0, pointerEvents:'none', background:'radial-gradient(circle at 20% 15%, rgba(255,255,255,0.25), transparent 60%)', mixBlendMode:'overlay', opacity:.5 }} />
 					</button>
-					)}
-					{/* Global AI Sidebar mounted only if AI is enabled */}
-					{isOpenAI && (
-						<AISidebar
-							open={aiSidebarOpen}
-							setOpen={setAISidebarOpen}
-							suggestion={aiSuggestion}
-							getContext={getAIContext}
-							onAsk={(q)=>{ /* handled internally by AISidebar stream */ return q; }}
-						/>
-					)}
+					{/* Global AI Sidebar mounted here */}
+					<AISidebar
+						open={aiSidebarOpen}
+						setOpen={setAISidebarOpen}
+						suggestion={aiSuggestion}
+						getContext={getAIContext}
+						onAsk={(q)=>{ /* handled internally by AISidebar stream */ return q; }}
+					/>
 					<button ref={gearRef} onClick={()=>setOpen(o=>!o)} title="Theme Settings" style={{ background:'transparent', border:'none', cursor:'pointer', fontSize:24, lineHeight:1, color:'#fff', padding:'0 4px' }}>⚙️</button>
 					{open && (
 						<div ref={ref} style={{ position:'absolute', top:40, right:0, background: theme.surface, color: theme.text, border:'1px solid '+(theme.primary||'#444'), borderRadius:10, padding:'12px 14px 14px', boxShadow:'0 4px 14px rgba(0,0,0,0.4)', minWidth:220, zIndex:200 }}>
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:13 }}>Settings</div>
-							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 10px' }}>
-								<input id="toggle-local" type="checkbox" checked={!!localEnabled} onChange={e=>{ const val = !!e.target.checked; setLocalEnabled(val); storage.setLocalEnabled(val); }} />
-								<label htmlFor="toggle-local" style={{ fontSize:11 }}>Enable Local Storage (saves data on this device)</label>
-							</div>
 							<label style={{ fontSize:11, opacity:.7 }}>Theme:</label>
 							<select value={team} onChange={e=>{ changeTheme(e.target.value); setOpen(false); }} style={{ width:'100%', marginBottom:10 }}>
 								<option value='light'>Light</option>
 								<option value='dark'>Dark</option>
 							</select>
-							<label style={{ fontSize:11, opacity:.7 }}>Density:</label>
-							<select value={density} onChange={e=>{ changeDensity(e.target.value); setOpen(false); }} style={{ width:'100%', marginBottom:10 }}>
-								<option value='comfort'>Comfort</option>
-								<option value='compact'>Compact</option>
-							</select>
-							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 10px' }}>
-								<input id="toggle-readonly" type="checkbox" checked={!!readOnly} onChange={e=> changeReadOnly(e.target.checked)} />
-								<label htmlFor="toggle-readonly" style={{ fontSize:11 }}>Enable Read-only Mode</label>
-							</div>
 							{page==='planner' && (
 								<div style={{ marginBottom:10 }}>
 									<label style={{ fontSize:11, opacity:.7 }}>Planner Location:</label>
@@ -393,9 +291,6 @@ function NavShell({ page, content }) {
 							</div>
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>AI Settings</div>
-							<div style={{ fontSize:10, color:'#f3d9a4', background:'#3a2e14', border:'1px solid #6b4e16', padding:'6px 8px', borderRadius:6, margin:'0 0 8px' }}>
-								Privacy: This app stores planner, manifest, and personnel data locally when Local Storage is enabled. Nothing is sent to external services in this build. <button onClick={(e)=>{ e.stopPropagation(); setLocalInfoOpen(true); }} style={{ marginLeft:6, background:'transparent', color:'#f3d9a4', border:'1px solid #6b4e16', padding:'2px 6px', borderRadius:6, fontSize:10, cursor:'pointer' }}>What’s saved?</button>
-							</div>
 							<div style={{ display:'flex', alignItems:'center', gap:6, margin:'2px 0 6px' }}>
 								<input id="toggle-passive-ai" type="checkbox" checked={passiveAI} onChange={e=> setPassiveAI(e.target.checked)} />
 								<label htmlFor="toggle-passive-ai" style={{ fontSize:11 }}>Passive Suggestions</label>
@@ -419,12 +314,13 @@ function NavShell({ page, content }) {
 							<button onClick={()=> { triggerPassiveNow(); setOpen(false); }} style={{ display:'block', width:'100%', textAlign:'center', background:'#375a9e', color:'#fff', border:'1px solid #1e3a8a', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, margin:'2px 0 8px' }}>Refresh Suggestions Now</button>
 							<div style={{ borderTop:'1px solid '+(theme.primary||'#444'), margin:'6px 0 8px' }} />
 							<div style={{ fontWeight:'bold', marginBottom:6, fontSize:12 }}>Admin</div>
-							{!adminEnabled ? (
-								<button onClick={()=>{ try { storage.set('pobIsAdmin','true'); } catch{}; setAdminEnabled(true); setOpen(false); window.location.hash='#admin'; }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Enable Admin Mode</button>
-							) : (
+							{!adminEnabled && (
+								<button onClick={()=>{ try { localStorage.setItem('pobIsAdmin','true'); } catch{}; setAdminEnabled(true); setOpen(false); window.location.hash='#admin'; }} style={{ display:'block', width:'100%', textAlign:'left', background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Enable Admin Mode</button>
+							)}
+							{adminEnabled && (
 								<div style={{ display:'flex', flexDirection:'column', gap:6 }}>
 									<a href="#admin" onClick={()=>setOpen(false)} style={{ textDecoration:'none', background: theme.primary, color: theme.text, padding:'6px 8px', borderRadius:6, fontSize:12, fontWeight:600, border:'1px solid '+(theme.secondary||'#222'), textAlign:'center' }}>Admin Panel</a>
-									<button onClick={()=>{ if(window.confirm('Disable admin mode?')) { try { storage.remove('pobIsAdmin'); } catch{}; setAdminEnabled(false); if(window.location.hash==='#admin') window.location.hash='#dashboard'; setOpen(false);} }} style={{ background:'#922', color:'#fff', border:'1px solid #b55', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Disable Admin</button>
+									<button onClick={()=>{ if(window.confirm('Disable admin mode?')) { try { localStorage.removeItem('pobIsAdmin'); } catch{}; setAdminEnabled(false); if(window.location.hash==='#admin') window.location.hash='#dashboard'; setOpen(false);} }} style={{ background:'#922', color:'#fff', border:'1px solid #b55', padding:'6px 8px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600 }}>Disable Admin</button>
 								</div>
 							)}
 						</div>
@@ -432,62 +328,9 @@ function NavShell({ page, content }) {
 				</div>
 			</nav>
 			{content}
-			{localInfoOpen && (
-				<div role="dialog" aria-modal="true" aria-label="Saved Local Data" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px 20px' }} onClick={e=>{ if(e.target===e.currentTarget) setLocalInfoOpen(false); }}>
-					<div style={{ background: theme.surface, color: theme.text, width:'min(760px,100%)', maxHeight:'85vh', overflowY:'auto', border:'1px solid '+(theme.name==='Dark'? '#555':'#444'), borderRadius:12, padding:'16px 18px 18px', boxShadow:'0 8px 24px rgba(0,0,0,0.45)' }}>
-						<div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-							<h3 style={{ margin:0, fontSize:16 }}>What’s saved locally?</h3>
-							<div style={{ display:'flex', gap:6, alignItems:'center' }}>
-								<button onClick={async ()=>{
-									try{
-										const keys = localDataSections.flatMap(s=> s.keys);
-										await navigator.clipboard.writeText(keys.join('\n'));
-										alert('Keys copied to clipboard');
-									}catch{ alert('Copy failed'); }
-								}} style={{ background: theme.name==='Dark'? '#2d3237':'#e6ebef', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#aaa'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Copy keys</button>
-								<button onClick={async ()=>{
-									try{
-										const keys = localDataSections.flatMap(s=> s.keys);
-										const out = {};
-										keys.forEach(k=>{
-											try {
-												// Prefer JSON if parseable, else raw string
-												const val = storage.getJSON(k, undefined);
-												if (val !== undefined) out[k] = val; else out[k] = storage.get(k) ?? null;
-											} catch { out[k] = storage.get(k) ?? null; }
-										});
-										await navigator.clipboard.writeText(JSON.stringify(out,null,2));
-										alert('JSON copied to clipboard');
-									}catch{ alert('Copy failed'); }
-								}} style={{ background: theme.name==='Dark'? '#2d3237':'#e6ebef', color: theme.text, border:'1px solid '+(theme.name==='Dark'? '#555':'#aaa'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Copy JSON</button>
-								<button onClick={()=> setLocalInfoOpen(false)} style={{ background: theme.primary, color: theme.text, border:'1px solid '+(theme.secondary||'#222'), borderRadius:8, padding:'4px 8px', cursor:'pointer', fontSize:11, fontWeight:700 }}>Close</button>
-							</div>
-						</div>
-						<p style={{ fontSize:12, opacity:.85, marginTop:0 }}>This app stores your data in your browser so it’s available offline and on refresh. Clearing site data will remove the items below. To export a backup, use Admin ▶ Export Config/Data.</p>
-						<div style={{ display:'grid', gap:10 }}>
-							{localDataSections.map((section,i)=> (
-								<div key={i} style={{ border:'1px solid '+(theme.name==='Dark'? '#555':'#bbb'), borderRadius:10, padding:'10px 12px', background: theme.name==='Dark'? '#2a3035':'#f4f7fa' }}>
-									<div style={{ fontSize:12, fontWeight:800, marginBottom:6 }}>{section.title}</div>
-									<div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-										{section.keys.map(k=> (
-											<span key={k} style={{ fontSize:11, padding:'3px 6px', borderRadius:14, background: theme.name==='Dark'? '#3a4046':'#e8edf2', border:'1px solid '+(theme.name==='Dark'? '#555':'#b8c2cc') }}>{k}</span>
-										))}
-									</div>
-								</div>
-								))}
-						</div>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-	<HashRouter>
-		<AuthProvider>
-			<RootRouter />
-		</AuthProvider>
-	</HashRouter>
-);
+root.render(<RootRouter />);
